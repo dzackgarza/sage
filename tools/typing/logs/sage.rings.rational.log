@@ -1,0 +1,81 @@
+Command stdout:
+
+Command stderr:
+2026-02-13 13:47:50,249 - INFO - stubgen-pyx v0.2.2
+2026-02-13 13:47:50,250 - INFO - Found 1 file(s) to convert
+Traceback (most recent call last):
+  File "/home/jules/.pyenv/versions/3.12.12/bin/stubgen-pyx", line 7, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/stubgen_pyx/cli.py", line 178, in main
+    results = stubgen.convert_glob(pyx_file_pattern, output_dir=output_dir)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/stubgen_pyx/stubgen.py", line 152, in convert_glob
+    result = self._convert_single_file(pyx_path, pyi_path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/stubgen_pyx/stubgen.py", line 199, in _convert_single_file
+    pyi_content = self.convert_str(
+                  ^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/stubgen_pyx/stubgen.py", line 88, in convert_str
+    pxd_parse_result = parse_pyx(
+                       ^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/stubgen_pyx/parsing/parser.py", line 60, in parse_pyx
+    return _parse_str(source, module_name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/stubgen_pyx/parsing/parser.py", line 69, in _parse_str
+    ast = parse_from_strings(module_name, source, context=context)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jules/.pyenv/versions/3.12.12/lib/python3.12/site-packages/Cython/Compiler/TreeFragment.py", line 83, in parse_from_strings
+    tree = Parsing.p_module(scanner, 0, module_name, ctx=ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "Cython/Compiler/Parsing.py", line 4181, in Cython.Compiler.Parsing.p_module
+  File "Cython/Compiler/Parsing.py", line 4193, in Cython.Compiler.Parsing.p_module
+  File "Cython/Compiler/Parsing.py", line 2644, in Cython.Compiler.Parsing.p_statement_list
+  File "Cython/Compiler/Parsing.py", line 2569, in Cython.Compiler.Parsing.p_statement
+  File "Cython/Compiler/Parsing.py", line 3491, in Cython.Compiler.Parsing.p_cdef_statement
+  File "Cython/Compiler/Parsing.py", line 3735, in Cython.Compiler.Parsing.p_c_func_or_var_declaration
+  File "Cython/Compiler/Parsing.py", line 3086, in Cython.Compiler.Parsing.p_c_declarator
+  File "Cython/Compiler/Parsing.py", line 3119, in Cython.Compiler.Parsing.p_c_declarator
+  File "Cython/Compiler/Parsing.py", line 3139, in Cython.Compiler.Parsing.p_c_func_declarator
+  File "Cython/Compiler/Parsing.py", line 3346, in Cython.Compiler.Parsing.p_c_arg_list
+  File "Cython/Compiler/Parsing.py", line 3356, in Cython.Compiler.Parsing.p_c_arg_list
+  File "Cython/Compiler/Parsing.py", line 3419, in Cython.Compiler.Parsing.p_c_arg_decl
+  File "Cython/Compiler/Parsing.py", line 146, in Cython.Compiler.Parsing.p_test
+  File "Cython/Compiler/Parsing.py", line 157, in Cython.Compiler.Parsing.p_test_allow_walrus_after
+  File "Cython/Compiler/Parsing.py", line 194, in Cython.Compiler.Parsing.p_or_test
+  File "Cython/Compiler/Parsing.py", line 199, in Cython.Compiler.Parsing.p_rassoc_binop_expr
+  File "Cython/Compiler/Parsing.py", line 219, in Cython.Compiler.Parsing.p_and_test
+  File "Cython/Compiler/Parsing.py", line 199, in Cython.Compiler.Parsing.p_rassoc_binop_expr
+  File "Cython/Compiler/Parsing.py", line 231, in Cython.Compiler.Parsing.p_not_test
+  File "Cython/Compiler/Parsing.py", line 239, in Cython.Compiler.Parsing.p_comparison
+  File "Cython/Compiler/Parsing.py", line 275, in Cython.Compiler.Parsing.p_starred_expr
+  File "Cython/Compiler/Parsing.py", line 324, in Cython.Compiler.Parsing.p_bit_expr
+  File "Cython/Compiler/Parsing.py", line 102, in Cython.Compiler.Parsing.p_binop_expr
+  File "Cython/Compiler/Parsing.py", line 331, in Cython.Compiler.Parsing.p_xor_expr
+  File "Cython/Compiler/Parsing.py", line 102, in Cython.Compiler.Parsing.p_binop_expr
+  File "Cython/Compiler/Parsing.py", line 338, in Cython.Compiler.Parsing.p_and_expr
+  File "Cython/Compiler/Parsing.py", line 102, in Cython.Compiler.Parsing.p_binop_expr
+  File "Cython/Compiler/Parsing.py", line 345, in Cython.Compiler.Parsing.p_shift_expr
+  File "Cython/Compiler/Parsing.py", line 102, in Cython.Compiler.Parsing.p_binop_expr
+  File "Cython/Compiler/Parsing.py", line 352, in Cython.Compiler.Parsing.p_arith_expr
+  File "Cython/Compiler/Parsing.py", line 102, in Cython.Compiler.Parsing.p_binop_expr
+  File "Cython/Compiler/Parsing.py", line 359, in Cython.Compiler.Parsing.p_term
+  File "Cython/Compiler/Parsing.py", line 102, in Cython.Compiler.Parsing.p_binop_expr
+  File "Cython/Compiler/Parsing.py", line 367, in Cython.Compiler.Parsing.p_factor
+  File "Cython/Compiler/Parsing.py", line 388, in Cython.Compiler.Parsing._p_factor
+  File "Cython/Compiler/Parsing.py", line 505, in Cython.Compiler.Parsing.p_power
+  File "Cython/Compiler/Parsing.py", line 804, in Cython.Compiler.Parsing.p_atom
+  File "Cython/Compiler/Scanning.py", line 579, in Cython.Compiler.Scanning.PyrexScanner.error
+Cython.Compiler.Errors.CompileError:
+Error compiling Cython file:
+------------------------------------------------------------
+...
+from sage.libs.gmp.types cimport mpq_t
+
+cimport sage.structure.element
+cimport sage.rings.integer as integer
+
+cpdef rational_power_parts(a, Rational b, factor_limit=?)
+                                                       ^
+------------------------------------------------------------
+src.sage.rings.rational:6:55: Expected an identifier or literal

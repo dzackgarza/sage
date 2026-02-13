@@ -1,0 +1,192 @@
+# Checklist for sage.rings.integer
+
+## A. Skeleton Provenance
+- [x] Generator: stubgen-pyx
+- [x] Log path: `tools/typing/logs/sage.rings.integer.log`
+- [x] Parsing status: Success
+
+## B. Export Surface
+- [x] Method:
+    - [x] `__all__` (not present)
+    - [x] `__init__` imports
+    - [x] source reading
+- [x] Exports verified:
+    - Integer
+    - IntegerWrapper
+    - is_Integer
+    - GCD_list
+    - make_integer
+    - int_to_Z
+
+## C. Symbol-by-Symbol Completion
+- [x] Integer:
+    - [x] __init__
+    - [x] __reduce__
+    - [x] __index__
+    - [x] _im_gens_
+    - [x] __xor__
+    - [x] __richcmp__
+    - [x] _richcmp_
+    - [x] __copy__
+    - [x] __deepcopy__
+    - [x] list
+    - [x] __repr__
+    - [x] _latex_
+    - [x] _symbolic_
+    - [x] _sympy_
+    - [x] _mathml_
+    - [x] __mpz__
+    - [x] _regina_
+    - [x] str
+    - [x] __format__
+    - [x] ordinal_str
+    - [x] hex
+    - [x] oct
+    - [x] binary
+    - [x] bits
+    - [x] bit_length
+    - [x] nbits
+    - [x] trailing_zero_bits
+    - [x] digits
+    - [x] balanced_digits
+    - [x] ndigits
+    - [x] __add__
+    - [x] _add_
+    - [x] _add_long
+    - [x] __sub__
+    - [x] _sub_
+    - [x] __neg__
+    - [x] _neg_
+    - [x] _act_on_
+    - [x] _mul_long
+    - [x] __mul__
+    - [x] _mul_
+    - [x] __truediv__
+    - [x] _div_
+    - [x] _floordiv_
+    - [x] __pow__
+    - [x] _pow_
+    - [x] _pow_int
+    - [x] nth_root
+    - [x] exact_log
+    - [x] log
+    - [x] exp
+    - [x] prime_to_m_part
+    - [x] prime_divisors
+    - [x] prime_factors
+    - [x] divisors
+    - [x] __pos__
+    - [x] __abs__
+    - [x] euclidean_degree
+    - [x] sign
+    - [x] __mod__
+    - [x] quo_rem
+    - [x] powermod
+    - [x] rational_reconstruction
+    - [x] __int__
+    - [x] __float__
+    - [x] _rpy_
+    - [x] __hash__
+    - [x] trial_division
+    - [x] factor
+    - [x] support
+    - [x] coprime_integers
+    - [x] divides
+    - [x] valuation
+    - [x] ord
+    - [x] p_primary_part
+    - [x] val_unit
+    - [x] odd_part
+    - [x] divide_knowing_divisible_by
+    - [x] _lcm
+    - [x] _gcd
+    - [x] denominator
+    - [x] numerator
+    - [x] as_integer_ratio
+    - [x] factorial
+    - [x] multifactorial
+    - [x] gamma
+    - [x] floor
+    - [x] ceil
+    - [x] trunc
+    - [x] round
+    - [x] real
+    - [x] imag
+    - [x] is_one
+    - [x] __bool__
+    - [x] is_integral
+    - [x] is_rational
+    - [x] is_integer
+    - [x] is_unit
+    - [x] is_square
+    - [x] perfect_power
+    - [x] global_height
+    - [x] is_power_of
+    - [x] is_prime_power
+    - [x] is_prime
+    - [x] is_irreducible
+    - [x] is_pseudoprime
+    - [x] is_pseudoprime_power
+    - [x] is_perfect_power
+    - [x] is_norm
+    - [x] _bnfisnorm
+    - [x] jacobi
+    - [x] kronecker
+    - [x] class_number
+    - [x] squarefree_part
+    - [x] next_probable_prime
+    - [x] next_prime
+    - [x] previous_prime
+    - [x] next_prime_power
+    - [x] previous_prime_power
+    - [x] additive_order
+    - [x] multiplicative_order
+    - [x] is_squarefree
+    - [x] is_discriminant
+    - [x] is_fundamental_discriminant
+    - [x] __pari__
+    - [x] _interface_init_
+    - [x] __array_interface__
+    - [x] _magma_init_
+    - [x] _sage_input_
+    - [x] sqrtrem
+    - [x] isqrt
+    - [x] sqrt
+    - [x] xgcd
+    - [x] _xgcd
+    - [x] _shift_helper
+    - [x] __lshift__
+    - [x] __rshift__
+    - [x] __and__
+    - [x] __or__
+    - [x] __invert__
+    - [x] inverse_of_unit
+    - [x] inverse_mod
+    - [x] crt
+    - [x] test_bit
+    - [x] popcount
+    - [x] conjugate
+    - [x] binomial
+    - [x] to_bytes
+    - [x] canonical_associate
+- [x] IntegerWrapper
+    - [x] __init__
+- [x] is_Integer
+- [x] GCD_list
+- [x] make_integer
+- [x] int_to_Z
+    - [x] __init__
+    - [x] _call_
+    - [x] _repr_type
+
+## D. Dynamic/Conditional Behavior
+- [x] Checked for runtime attributes
+- [x] Checked for conditional imports
+
+## E. Internal Consistency
+- [x] `python -m py_compile typings/sage/rings/integer.pyi` passed
+- [x] Imports are valid or guarded
+
+## F. Review Gate
+- [x] Reviewer: Jules
+- [x] Date: 2024-05-22

@@ -1,0 +1,23 @@
+Command stdout:
+
+Command stderr:
+2026-02-13 13:47:48,412 - INFO - stubgen-pyx v0.2.2
+2026-02-13 13:47:48,413 - INFO - Found 1 file(s) to convert
+<unknown>:2: SyntaxWarning: invalid escape sequence '\Z'
+<unknown>:1090: SyntaxWarning: invalid escape sequence '\Z'
+<unknown>:1589: SyntaxWarning: invalid escape sequence '\g'
+<unknown>:1682: SyntaxWarning: invalid escape sequence '\l'
+<unknown>:1818: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:2229: SyntaxWarning: invalid escape sequence '\s'
+<unknown>:2707: SyntaxWarning: invalid escape sequence '\m'
+<unknown>:2727: SyntaxWarning: invalid escape sequence '\m'
+<unknown>:2821: SyntaxWarning: invalid escape sequence '\c'
+<unknown>:2900: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:3132: SyntaxWarning: invalid escape sequence '\l'
+<unknown>:3148: SyntaxWarning: invalid escape sequence '\m'
+<unknown>:3562: SyntaxWarning: invalid escape sequence '\l'
+<unknown>:3588: SyntaxWarning: invalid escape sequence '\l'
+<unknown>:3621: SyntaxWarning: invalid escape sequence '\l'
+<unknown>:4247: SyntaxWarning: invalid escape sequence '\c'
+<unknown>:4427: SyntaxWarning: invalid escape sequence '\l'
+2026-02-13 13:47:49,462 - INFO - Successfully converted 1 file(s)

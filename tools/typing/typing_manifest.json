@@ -864,7 +864,7 @@
     "module": "sage.all",
     "source_path": "src/sage/all.py",
     "stub_path": "typings/sage/all.pyi",
-    "status": "pending",
+    "status": "skeleton_generated",
     "type": "python"
   },
   {
@@ -1214,8 +1214,9 @@
     "module": "sage.categories.category",
     "source_path": "src/sage/categories/category.py",
     "stub_path": "typings/sage/categories/category.pyi",
-    "status": "pending",
-    "type": "python"
+    "status": "completed",
+    "type": "python",
+    "notes": "tools/typing/checklists/sage.categories.category.md"
   },
   {
     "module": "sage.categories.category_cy_helper",
@@ -12009,7 +12010,7 @@
     "module": "sage.misc.all",
     "source_path": "src/sage/misc/all.py",
     "stub_path": "typings/sage/misc/all.pyi",
-    "status": "pending",
+    "status": "skeleton_generated",
     "type": "python"
   },
   {
@@ -12065,7 +12066,7 @@
     "module": "sage.misc.cachefunc",
     "source_path": "src/sage/misc/cachefunc.pyx",
     "stub_path": "typings/sage/misc/cachefunc.pyi",
-    "status": "pending",
+    "status": "skeleton_generated",
     "type": "cython"
   },
   {
@@ -12303,7 +12304,7 @@
     "module": "sage.misc.lazy_import",
     "source_path": "src/sage/misc/lazy_import.pyx",
     "stub_path": "typings/sage/misc/lazy_import.pyi",
-    "status": "pending",
+    "status": "skeleton_generated",
     "type": "cython"
   },
   {
@@ -15601,7 +15602,7 @@
     "module": "sage.rings.all",
     "source_path": "src/sage/rings/all.py",
     "stub_path": "typings/sage/rings/all.pyi",
-    "status": "pending",
+    "status": "skeleton_generated",
     "type": "python"
   },
   {
@@ -16343,8 +16344,9 @@
     "module": "sage.rings.integer",
     "source_path": "src/sage/rings/integer.pyx",
     "stub_path": "typings/sage/rings/integer.pyi",
-    "status": "pending",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.rings.integer.md"
   },
   {
     "module": "sage.rings.integer_ring",
@@ -17757,7 +17759,7 @@
     "module": "sage.rings.rational",
     "source_path": "src/sage/rings/rational.pyx",
     "stub_path": "typings/sage/rings/rational.pyi",
-    "status": "pending",
+    "status": "skeleton_generated",
     "type": "cython"
   },
   {
@@ -17820,7 +17822,7 @@
     "module": "sage.rings.real_mpfr",
     "source_path": "src/sage/rings/real_mpfr.pyx",
     "stub_path": "typings/sage/rings/real_mpfr.pyi",
-    "status": "pending",
+    "status": "skeleton_generated",
     "type": "cython"
   },
   {
@@ -19570,8 +19572,9 @@
     "module": "sage.structure.element",
     "source_path": "src/sage/structure/element.pyx",
     "stub_path": "typings/sage/structure/element.pyi",
-    "status": "pending",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.structure.element.md"
   },
   {
     "module": "sage.structure.element_wrapper",
@@ -19675,8 +19678,9 @@
     "module": "sage.structure.parent",
     "source_path": "src/sage/structure/parent.pyx",
     "stub_path": "typings/sage/structure/parent.pyi",
-    "status": "pending",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.structure.parent.md"
   },
   {
     "module": "sage.structure.parent_base",

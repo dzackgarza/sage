@@ -1,0 +1,21 @@
+Command stdout:
+
+Command stderr:
+2026-02-13 13:48:08,536 - INFO - stubgen-pyx v0.2.2
+2026-02-13 13:48:08,537 - INFO - Found 1 file(s) to convert
+<unknown>:48: SyntaxWarning: invalid escape sequence '\i'
+<unknown>:323: SyntaxWarning: invalid escape sequence '\B'
+<unknown>:429: SyntaxWarning: invalid escape sequence '\i'
+<unknown>:616: SyntaxWarning: invalid escape sequence '\p'
+<unknown>:652: SyntaxWarning: invalid escape sequence '\l'
+<unknown>:2324: SyntaxWarning: invalid escape sequence '\i'
+<unknown>:2678: SyntaxWarning: invalid escape sequence '\i'
+<unknown>:2696: SyntaxWarning: invalid escape sequence '\i'
+<unknown>:2714: SyntaxWarning: invalid escape sequence '\i'
+<unknown>:3065: SyntaxWarning: invalid escape sequence '\m'
+<unknown>:3090: SyntaxWarning: invalid escape sequence '\m'
+<unknown>:3113: SyntaxWarning: invalid escape sequence '\m'
+<unknown>:3136: SyntaxWarning: invalid escape sequence '\m'
+<unknown>:3473: SyntaxWarning: invalid escape sequence '\i'
+<unknown>:3504: SyntaxWarning: invalid escape sequence '\m'
+2026-02-13 13:48:10,354 - INFO - Successfully converted 1 file(s)

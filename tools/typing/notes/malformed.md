@@ -1,0 +1,1 @@
+stubgen-pyx failed for sage.rings.rational due to syntax error in Cython source (line 6, 'cpdef rational_power_parts(a, Rational b, factor_limit=?)'). This requires investigation into stubgen-pyx parser limitations or source code workarounds.
