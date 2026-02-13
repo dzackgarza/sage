@@ -1,0 +1,7 @@
+Command stdout:
+
+Command stderr:
+2026-02-13 15:26:56,625 - INFO - stubgen-pyx v0.2.2
+2026-02-13 15:26:56,627 - INFO - Found 1 file(s) to convert
+<unknown>:126: SyntaxWarning: invalid escape sequence '\Q'
+2026-02-13 15:26:58,299 - INFO - Successfully converted 1 file(s)

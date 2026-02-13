@@ -1,0 +1,151 @@
+# Checklist for sage.rings.rational
+
+## A. Skeleton Provenance
+- [x] Generator: stubgen-pyx (workaround)
+- [x] Log path: `tools/typing/logs/sage.rings.rational.log` (failed initially), manually generated.
+- [x] Parsing status: Success (after fix)
+
+## B. Export Surface
+- [x] Method:
+    - [x] `__all__` (not present)
+    - [x] `__init__` imports
+    - [x] source reading
+- [x] Exports verified:
+    - Rational
+    - Z_to_Q
+    - Q_to_Z
+    - int_to_Q
+    - integer_rational_power
+    - rational_power_parts
+    - is_Rational
+    - make_rational
+
+## C. Symbol-by-Symbol Completion
+- [x] Rational:
+    - [x] __init__
+    - [x] _richcmp_
+    - [x] _add_
+    - [x] _sub_
+    - [x] _neg_
+    - [x] _mul_
+    - [x] _div_
+    - [x] _pow_
+    - [x] __reduce__
+    - [x] __index__
+    - [x] list
+    - [x] continued_fraction_list
+    - [x] continued_fraction
+    - [x] __copy__
+    - [x] __deepcopy__
+    - [x] __dealloc__
+    - [x] __repr__
+    - [x] _latex_
+    - [x] _symbolic_
+    - [x] _sympy_
+    - [x] __mpz__
+    - [x] __mpq__
+    - [x] _magma_init_
+    - [x] _regina_
+    - [x] __array_interface__
+    - [x] _mathml_
+    - [x] _im_gens_
+    - [x] content
+    - [x] valuation
+    - [x] ord
+    - [x] local_height
+    - [x] local_height_arch
+    - [x] global_height_non_arch
+    - [x] global_height_arch
+    - [x] global_height
+    - [x] is_square
+    - [x] is_norm
+    - [x] is_perfect_power
+    - [x] squarefree_part
+    - [x] is_padic_square
+    - [x] val_unit
+    - [x] prime_to_S_part
+    - [x] sqrt
+    - [x] period
+    - [x] nth_root
+    - [x] is_nth_power
+    - [x] str
+    - [x] __float__
+    - [x] __hash__
+    - [x] __getitem__
+    - [x] __add__
+    - [x] __sub__
+    - [x] __mul__
+    - [x] __truediv__
+    - [x] __invert__
+    - [x] __pos__
+    - [x] __neg__
+    - [x] __bool__
+    - [x] __abs__
+    - [x] sign
+    - [x] mod_ui
+    - [x] __mod__
+    - [x] norm
+    - [x] relative_norm
+    - [x] absolute_norm
+    - [x] trace
+    - [x] charpoly
+    - [x] minpoly
+    - [x] _integer_
+    - [x] numerator
+    - [x] numer
+    - [x] __int__
+    - [x] denominator
+    - [x] denom
+    - [x] as_integer_ratio
+    - [x] factor
+    - [x] support
+    - [x] log
+    - [x] gamma
+    - [x] floor
+    - [x] ceil
+    - [x] trunc
+    - [x] round
+    - [x] real
+    - [x] imag
+    - [x] height
+    - [x] additive_order
+    - [x] multiplicative_order
+    - [x] is_one
+    - [x] is_integral
+    - [x] is_rational
+    - [x] is_integer
+    - [x] is_S_integral
+    - [x] is_S_unit
+    - [x] __lshift__
+    - [x] __rshift__
+    - [x] conjugate
+    - [x] __pari__
+    - [x] _interface_init_
+    - [x] _sage_input_
+- [x] Z_to_Q
+    - [x] __init__
+    - [x] _call_
+    - [x] section
+    - [x] is_surjective
+- [x] Q_to_Z
+    - [x] _call_
+    - [x] section
+- [x] int_to_Q
+    - [x] __init__
+    - [x] _call_
+- [x] integer_rational_power
+- [x] rational_power_parts
+- [x] is_Rational
+- [x] make_rational
+
+## D. Dynamic/Conditional Behavior
+- [x] Checked for runtime attributes
+- [x] Checked for conditional imports
+
+## E. Internal Consistency
+- [x] `python -m py_compile typings/sage/rings/rational.pyi` passed
+- [x] Imports are valid or guarded
+
+## F. Review Gate
+- [x] Reviewer: Jules
+- [x] Date: 2024-05-22

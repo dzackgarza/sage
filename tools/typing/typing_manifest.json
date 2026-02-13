@@ -885,22 +885,25 @@
     "module": "sage.arith.all",
     "source_path": "src/sage/arith/all.py",
     "stub_path": "typings/sage/arith/all.pyi",
-    "status": "pending",
-    "type": "python"
+    "status": "completed",
+    "type": "python",
+    "notes": "tools/typing/checklists/sage.arith.all.md"
   },
   {
     "module": "sage.arith.functions",
     "source_path": "src/sage/arith/functions.pyx",
     "stub_path": "typings/sage/arith/functions.pyi",
-    "status": "pending",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.arith.functions.md"
   },
   {
     "module": "sage.arith.misc",
     "source_path": "src/sage/arith/misc.py",
     "stub_path": "typings/sage/arith/misc.pyi",
-    "status": "pending",
-    "type": "python"
+    "status": "completed",
+    "type": "python",
+    "notes": "tools/typing/checklists/sage.arith.misc.md"
   },
   {
     "module": "sage.arith.multi_modular",
@@ -934,8 +937,9 @@
     "module": "sage.arith.srange",
     "source_path": "src/sage/arith/srange.pyx",
     "stub_path": "typings/sage/arith/srange.pyi",
-    "status": "pending",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.arith.srange.md"
   },
   {
     "module": "sage.calculus.all",
@@ -12241,8 +12245,9 @@
     "module": "sage.misc.html",
     "source_path": "src/sage/misc/html.py",
     "stub_path": "typings/sage/misc/html.pyi",
-    "status": "pending",
-    "type": "python"
+    "status": "completed",
+    "type": "python",
+    "notes": "tools/typing/checklists/sage.misc.html.md"
   },
   {
     "module": "sage.misc.inherit_comparison",
@@ -17759,8 +17764,9 @@
     "module": "sage.rings.rational",
     "source_path": "src/sage/rings/rational.pyx",
     "stub_path": "typings/sage/rings/rational.pyi",
-    "status": "skeleton_generated",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.rings.rational.md"
   },
   {
     "module": "sage.rings.rational_field",

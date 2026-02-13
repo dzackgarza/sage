@@ -1,0 +1,6 @@
+Command stdout:
+
+Command stderr:
+2026-02-13 15:34:39,228 - INFO - stubgen-pyx v0.2.2
+2026-02-13 15:34:39,229 - INFO - Found 1 file(s) to convert
+2026-02-13 15:34:40,715 - INFO - Successfully converted 1 file(s)
