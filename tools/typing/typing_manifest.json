@@ -15733,8 +15733,9 @@
     "module": "sage.rings.complex_double",
     "source_path": "src/sage/rings/complex_double.pyx",
     "stub_path": "typings/sage/rings/complex_double.pyi",
-    "status": "pending",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.rings.complex_double.md"
   },
   {
     "module": "sage.rings.complex_interval",
@@ -16357,8 +16358,9 @@
     "module": "sage.rings.integer_ring",
     "source_path": "src/sage/rings/integer_ring.pyx",
     "stub_path": "typings/sage/rings/integer_ring.pyi",
-    "status": "pending",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.rings.integer_ring.md"
   },
   {
     "module": "sage.rings.invariants.all",
@@ -17772,7 +17774,7 @@
     "module": "sage.rings.rational_field",
     "source_path": "src/sage/rings/rational_field.py",
     "stub_path": "typings/sage/rings/rational_field.pyi",
-    "status": "pending",
+    "status": "skeleton_generated",
     "type": "python"
   },
   {
@@ -17786,8 +17788,9 @@
     "module": "sage.rings.real_double",
     "source_path": "src/sage/rings/real_double.pyx",
     "stub_path": "typings/sage/rings/real_double.pyi",
-    "status": "pending",
-    "type": "cython"
+    "status": "completed",
+    "type": "cython",
+    "notes": "tools/typing/checklists/sage.rings.real_double.md"
   },
   {
     "module": "sage.rings.real_double_element_gsl",
