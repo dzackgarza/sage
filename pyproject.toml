@@ -220,7 +220,10 @@ extra = [
 research-environment = [
   "dzack-research",
   "jupyter-mcp-server",
+  "mypy",
+  "sage-stubs",
   "tree-sitter-sage",
+  "vinal",
 ]
 dev = [
   "cibuildwheel",
@@ -259,7 +262,9 @@ test = ["coverage", "pytest"]
 [tool.uv.sources]
 dzack-research = { path = "../../research", editable = true }
 jupyter-mcp-server = { path = "../jupyter-assistant-api", editable = true }
+sage-stubs = { git = "https://github.com/dzackgarza/sage-stubs.git" }
 tree-sitter-sage = { path = "../tree-sitter-sage", editable = true }
+vinal = { git = "https://github.com/dzackgarza/vinal.git" }
 
 [tool.ty]
 [tool.ty.rules]
@@ -735,5 +740,7 @@ ignore = ["E501", "E741"]
 [tool.uv]
 # Don't use build isolation for sage (it's incompatible with meson-python's editable install)
 no-build-isolation-package = ["sagemath"]
+# Strict editable installs expose a static source tree to Python and type checkers.
+config-settings-package = { tree-sitter-sage = { editable_mode = "strict" } }
 # Build these packages from source instead of installing pre-built wheels.
 no-binary-package = ["cypari2", "pplpy", "primecountpy"]
