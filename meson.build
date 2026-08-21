@@ -219,6 +219,26 @@ root_build = meson.current_build_dir()
 
 subdir('src')
 
+sage_cli_configuration = configuration_data()
+sage_cli_configuration.set('PYTHON', py.full_path())
+sage_cli = configure_file(
+  input: 'src/bin/sage-cli.in',
+  output: 'sage',
+  configuration: sage_cli_configuration,
+)
+install_data(
+  sage_cli,
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x',
+)
+
+# Install the ``sage-preparse`` command with Sage.
+install_data(
+  'src/bin/sage-preparse',
+  install_dir: get_option('bindir'),
+  install_mode: 'rwxr-xr-x',
+)
+
 py.install_sources(
   'conftest.py',
   subdir: 'sage',
