@@ -991,7 +991,7 @@ wheels = [
 [[package]]
 name = "dzack-research"
 version = "0.1.1"
-source = { git = "https://github.com/dzackgarza/research#b05085692d25ff8f1c6b83b0d8c66ed284d4221f" }
+source = { git = "https://github.com/dzackgarza/research#220ce9addf9f0daf8f8d4f74756b41425d00b74d" }
 dependencies = [
     { name = "haystack-ai" },
     { name = "pandoc-config" },
