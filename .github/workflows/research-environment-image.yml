@@ -1,0 +1,62 @@
+# Publish the research Sage environment so every repository that writes Sage
+# against this fork pulls one build instead of repeating it.
+#
+# Consumers provision by copying the tree out of the image:
+#
+#     docker create --name sage-env ghcr.io/dzackgarza/sage:develop
+#     docker cp sage-env:/sage /sage
+#     echo "SAGE_BIN=/sage/.venv/bin/sage" >> "$GITHUB_ENV"
+#
+# SAGE_ROOT is baked in at configure time, so /sage is the path in the image
+# and the path consumers restore it to.
+
+name: Research environment image
+
+on:
+  push:
+    branches: [develop]
+    # The image is the build; changing anything that feeds it republishes.
+    paths:
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'justfile'
+      - 'meson.build'
+      - 'src/**'
+      - 'build/pkgs/**'
+      - 'docker/research-environment.Dockerfile'
+      - '.github/workflows/research-environment-image.yml'
+  workflow_dispatch: {}
+
+concurrency:
+  group: research-environment-image
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    # A cold Sage build runs into the hours; the default 360 is the ceiling.
+    timeout-minutes: 360
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/research-environment.Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/sage:develop
+          # Layer cache keeps an unchanged dependency set from rebuilding Sage
+          # when only the composed research projects moved.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
