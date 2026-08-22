@@ -265,9 +265,8 @@ test = ["coverage", "pytest"]
 # into uv.lock as `editable = "../../research"`, which no other checkout can
 # resolve; that is what stopped the environment from ever being published.
 #
-# For live editing, install the checkout over the resolved environment after a
-# sync: `uv pip install --python .venv/bin/python -e ~/research`. `uv sync
-# --inexact` leaves it in place.
+# research-environment-sync reinstalls any of these it finds checked out
+# locally, so editing them stays live without a path here.
 [tool.uv.sources]
 dzack-research = { git = "https://github.com/dzackgarza/research" }
 jupyter-mcp-server = { git = "https://github.com/dzackgarza/jupyter-mcp-server" }
@@ -750,6 +749,12 @@ ignore = ["E501", "E741"]
 # Don't use build isolation for sage (it's incompatible with meson-python's editable install)
 no-build-isolation-package = ["sagemath"]
 # Strict editable installs expose a static source tree to Python and type checkers.
-config-settings-package = { tree-sitter-sage = { editable_mode = "strict" } }
+# sagemath gets a persistent build directory: a meson project has no static
+# metadata, so every `uv lock` or `uv sync` that reads this project's metadata
+# builds it, and meson-python's default throwaway directory makes that a cold
+# Sage compile each time. It is deliberately not `builddir` --
+# research-environment-sync owns that one with its own prefix and install-env,
+# and two configurations sharing a directory reconfigure it against each other.
+config-settings-package = { tree-sitter-sage = { editable_mode = "strict" }, sagemath = { build-dir = "build/meson-python" } }
 # Build these packages from source instead of installing pre-built wheels.
 no-binary-package = ["cypari2", "pplpy", "primecountpy"]
