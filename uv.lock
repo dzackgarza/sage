@@ -991,7 +991,7 @@ wheels = [
 [[package]]
 name = "dzack-research"
 version = "0.1.1"
-source = { editable = "../../research" }
+source = { git = "https://github.com/dzackgarza/research#b05085692d25ff8f1c6b83b0d8c66ed284d4221f" }
 dependencies = [
     { name = "haystack-ai" },
     { name = "pandoc-config" },
@@ -999,24 +999,8 @@ dependencies = [
     { name = "sage-julia-bridge" },
     { name = "streamlit" },
     { name = "tree-sitter-sage" },
+    { name = "vinal" },
     { name = "z3-solver" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "haystack-ai", specifier = ">=2.31.0" },
-    { name = "pandoc-config", url = "https://github.com/dzackgarza/pandoc-config/archive/b567314b56b11326fdba05041afdccd11adee5b3.tar.gz" },
-    { name = "python-dotenv", specifier = ">=1.2.2" },
-    { name = "sage-julia-bridge", git = "https://github.com/dzackgarza/sage-julia-bridge" },
-    { name = "streamlit", specifier = ">=1.59.2" },
-    { name = "tree-sitter-sage", editable = "../tree-sitter-sage" },
-    { name = "z3-solver", specifier = ">=4.16.0.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "ipython", specifier = ">=9.16.1" },
-    { name = "sage-stubs", git = "https://github.com/dzackgarza/sage-stubs.git" },
 ]
 
 [[package]]
@@ -1848,7 +1832,8 @@ wheels = [
 
 [[package]]
 name = "jupyter-mcp-server"
-source = { editable = "../jupyter-assistant-api" }
+version = "1.1.0"
+source = { git = "https://github.com/dzackgarza/jupyter-mcp-server#420ed82089bf9197ada9c4fea4f6d1cfde767514" }
 dependencies = [
     { name = "code-sandboxes" },
     { name = "datalayer-reactor" },
@@ -1868,64 +1853,6 @@ dependencies = [
     { name = "traitlets" },
     { name = "typer" },
     { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "code-sandboxes", specifier = "<0.16" },
-    { name = "code-sandboxes", extras = ["all"], marker = "extra == 'all-sandboxes'" },
-    { name = "code-sandboxes", extras = ["colab"], marker = "extra == 'colab'" },
-    { name = "code-sandboxes", extras = ["datalayer"], marker = "extra == 'datalayer'" },
-    { name = "code-sandboxes", extras = ["kaggle"], marker = "extra == 'kaggle'" },
-    { name = "code-sandboxes", extras = ["modal"], marker = "extra == 'modal'" },
-    { name = "code-sandboxes", extras = ["monty"], marker = "extra == 'monty'" },
-    { name = "datalayer-reactor" },
-    { name = "fastapi" },
-    { name = "ipykernel", marker = "extra == 'test'" },
-    { name = "jupyter-collaboration" },
-    { name = "jupyter-kernel-client", specifier = "==0.15.0" },
-    { name = "jupyter-mcp-tools" },
-    { name = "jupyter-nbmodel-client" },
-    { name = "jupyter-server", specifier = ">=1.6,<3" },
-    { name = "jupyter-server", marker = "extra == 'test'", specifier = ">=1.6,<3" },
-    { name = "jupyter-server-client" },
-    { name = "jupyter-server-nbmodel" },
-    { name = "jupyterlab", marker = "extra == 'test'" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.10.1,<2" },
-    { name = "mdformat", marker = "extra == 'lint'", specifier = ">0.7" },
-    { name = "mdformat-gfm", marker = "extra == 'lint'", specifier = ">=0.3.5" },
-    { name = "mypy", marker = "extra == 'typing'", specifier = ">=0.990" },
-    { name = "openapi-spec-validator", marker = "extra == 'test'" },
-    { name = "opentelemetry-api", specifier = ">=1.24.0" },
-    { name = "opentelemetry-sdk", specifier = ">=1.24.0" },
-    { name = "pillow", marker = "extra == 'test'", specifier = ">=10.0.0" },
-    { name = "pydantic" },
-    { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0" },
-    { name = "pytest-asyncio", marker = "extra == 'test'" },
-    { name = "pytest-timeout", marker = "extra == 'test'", specifier = ">=2.1.0" },
-    { name = "ruff", marker = "extra == 'lint'" },
-    { name = "tornado", specifier = ">=6.1" },
-    { name = "traitlets", specifier = ">=5.0" },
-    { name = "typer" },
-    { name = "uvicorn" },
-]
-provides-extras = ["all-sandboxes", "colab", "datalayer", "kaggle", "lint", "modal", "monty", "test", "typing"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "ipykernel" },
-    { name = "jupyter-mcp-sandboxes", editable = "../jupyter-assistant-api/ext/sandboxes" },
-    { name = "jupyter-server", specifier = ">=1.6,<3" },
-    { name = "jupyterlab" },
-    { name = "mdformat", specifier = ">0.7" },
-    { name = "mdformat-gfm", specifier = ">=0.3.5" },
-    { name = "mypy", specifier = ">=0.990" },
-    { name = "openapi-spec-validator" },
-    { name = "pillow", specifier = ">=10.0.0" },
-    { name = "pytest", specifier = ">=7.0" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-timeout", specifier = ">=2.1.0" },
-    { name = "ruff" },
 ]
 
 [[package]]
@@ -4157,11 +4084,11 @@ lint = [
     { name = "ruff" },
 ]
 research-environment = [
-    { name = "dzack-research", editable = "../../research" },
-    { name = "jupyter-mcp-server", editable = "../jupyter-assistant-api" },
+    { name = "dzack-research", git = "https://github.com/dzackgarza/research" },
+    { name = "jupyter-mcp-server", git = "https://github.com/dzackgarza/jupyter-mcp-server" },
     { name = "mypy" },
     { name = "sage-stubs", git = "https://github.com/dzackgarza/sage-stubs.git" },
-    { name = "tree-sitter-sage", editable = "../tree-sitter-sage" },
+    { name = "tree-sitter-sage", git = "https://github.com/dzackgarza/tree-sitter-sage" },
     { name = "vinal", git = "https://github.com/dzackgarza/vinal.git" },
 ]
 test = [
@@ -4647,17 +4574,10 @@ wheels = [
 [[package]]
 name = "tree-sitter-sage"
 version = "0.5.1"
-source = { editable = "../tree-sitter-sage" }
+source = { git = "https://github.com/dzackgarza/tree-sitter-sage#9d7901bbdb5983fa6f47c88c275904c7d6012b4a" }
 dependencies = [
     { name = "tree-sitter" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "tree-sitter" },
-    { name = "tree-sitter", marker = "extra == 'core'", specifier = "~=0.24" },
-]
-provides-extras = ["core"]
 
 [[package]]
 name = "trove-classifiers"
@@ -4810,7 +4730,7 @@ wheels = [
 [[package]]
 name = "vinal"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/vinal.git#7b4d0836d550dcdb2613708febfa18255e0f71d5" }
+source = { git = "https://github.com/dzackgarza/vinal#7b4d0836d550dcdb2613708febfa18255e0f71d5" }
 dependencies = [
     { name = "numpy" },
     { name = "scipy" },

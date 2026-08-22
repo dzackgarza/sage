@@ -23,4 +23,17 @@ research-environment-sync:
     fi
     "${meson_command}" compile -C "${sage_build_path}"
     "${meson_command}" install -C "${sage_build_path}"
+
+    # The lock resolves every research project from its repository, so the
+    # environment is constructible anywhere. A desk additionally has these
+    # checked out, and wants edits live rather than a fetched snapshot: each
+    # one present is reinstalled over the resolved copy. A machine without a
+    # checkout -- a container, a CI runner -- simply has none of them and gets
+    # the locked versions, which is the same environment.
+    for research_checkout in "${HOME}/research" "${HOME}/gitclones/tree-sitter-sage" "${HOME}/gitclones/jupyter-assistant-api"; do
+        if [ -d "${research_checkout}" ]; then
+            uv pip install --python "${sage_environment}/bin/python" --no-deps -e "${research_checkout}"
+        fi
+    done
+
     uv pip check --python "${sage_environment}/bin/python"

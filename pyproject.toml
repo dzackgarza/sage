@@ -259,11 +259,20 @@ docs = [
 lint = ["flake8-rst-docstrings", "pycodestyle", "relint", "ruff"]
 test = ["coverage", "pytest"]
 
+# Every research project is fetched from its repository, so this environment is
+# constructible anywhere -- a container, a CI runner, a second machine -- and
+# not only in one directory layout on one desk. A sibling path here is baked
+# into uv.lock as `editable = "../../research"`, which no other checkout can
+# resolve; that is what stopped the environment from ever being published.
+#
+# For live editing, install the checkout over the resolved environment after a
+# sync: `uv pip install --python .venv/bin/python -e ~/research`. `uv sync
+# --inexact` leaves it in place.
 [tool.uv.sources]
-dzack-research = { path = "../../research", editable = true }
-jupyter-mcp-server = { path = "../jupyter-assistant-api", editable = true }
+dzack-research = { git = "https://github.com/dzackgarza/research" }
+jupyter-mcp-server = { git = "https://github.com/dzackgarza/jupyter-mcp-server" }
 sage-stubs = { git = "https://github.com/dzackgarza/sage-stubs.git" }
-tree-sitter-sage = { path = "../tree-sitter-sage", editable = true }
+tree-sitter-sage = { git = "https://github.com/dzackgarza/tree-sitter-sage" }
 vinal = { git = "https://github.com/dzackgarza/vinal.git" }
 
 [tool.ty]
