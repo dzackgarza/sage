@@ -6,8 +6,10 @@
 # interpreter and the same composed environment. Building it per repository, or
 # per CI run, is the same work repeated; this image is that work done once.
 #
-# SAGE_ROOT is baked in at configure time, so the tree lives at /sage here and
-# consumers restore it to /sage rather than relocating it.
+# SAGE_ROOT is baked in at configure time, so the tree lives at /sage and is
+# not relocatable. Neither is it separable: sagelib's extension modules link
+# against the system libraries installed below, so a consumer runs inside this
+# image rather than copying /sage out of it.
 
 # Debian, because Sage's system-package metadata is Debian's: every
 # build/pkgs/*/distros/debian.txt names a package Debian ships. Ubuntu 24.04

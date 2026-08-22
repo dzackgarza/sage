@@ -1,14 +1,23 @@
 # Publish the research Sage environment so every repository that writes Sage
 # against this fork pulls one build instead of repeating it.
 #
-# Consumers provision by copying the tree out of the image:
+# Consumers run their job inside the image:
 #
-#     docker create --name sage-env ghcr.io/dzackgarza/sage:develop
-#     docker cp sage-env:/sage /sage
-#     echo "SAGE_BIN=/sage/.venv/bin/sage" >> "$GITHUB_ENV"
+#     jobs:
+#       qc:
+#         runs-on: ubuntu-latest
+#         container: ghcr.io/dzackgarza/sage:develop
+#         env:
+#           SAGE_BIN: /sage/.venv/bin/sage
 #
-# SAGE_ROOT is baked in at configure time, so /sage is the path in the image
-# and the path consumers restore it to.
+# Copying the tree out of the image instead does not work, and quietly: Sage's
+# extension modules link against the system libraries this image installs, so
+# sage/rings/integer resolves libgmp.so.10 to /lib/x86_64-linux-gnu, outside
+# the copied /sage. A `docker cp sage-env:/sage /sage` onto a bare runner
+# produces a tree that cannot import sage.all.
+#
+# SAGE_ROOT is baked in at configure time, which is why the tree stays at
+# /sage rather than being relocated.
 
 name: Research environment image
 
