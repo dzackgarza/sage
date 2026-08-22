@@ -9,7 +9,11 @@
 # SAGE_ROOT is baked in at configure time, so the tree lives at /sage here and
 # consumers restore it to /sage rather than relocating it.
 
-FROM ubuntu:24.04
+# Debian, because Sage's system-package metadata is Debian's: every
+# build/pkgs/*/distros/debian.txt names a package Debian ships. Ubuntu 24.04
+# is missing five of them -- maxima-sage and HiGHS among them -- so the same
+# metadata that resolves completely here resolves partially there.
+FROM debian:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -31,8 +35,15 @@ WORKDIR /sage
 # the build then runs on for ten minutes before failing somewhere unrelated
 # for want of a compiler. Both checks turn that into an immediate, named
 # failure.
+#
+# BRiAl is the one name Sage lists that Debian no longer ships; it is excluded
+# by name so that any *other* name failing to resolve still fails the build.
+# Its meson feature is `auto`, so sage.rings.polynomial.pbori -- Boolean
+# polynomial rings -- is absent from this image and present on a desk whose
+# distribution still packages BRiAl.
 RUN set -eu; \
-    packages="$(build/bin/sage-get-system-packages debian $(build/bin/sage-package list :standard:))"; \
+    packages="$(build/bin/sage-get-system-packages debian $(build/bin/sage-package list :standard:) \
+        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev' | tr '\n' ' ')"; \
     if [ -z "$packages" ]; then \
         echo "FATAL: Sage's package metadata produced no Debian packages" >&2; exit 1; \
     fi; \
