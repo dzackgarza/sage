@@ -36,4 +36,13 @@ research-environment-sync:
         fi
     done
 
+    # sage-categories imports its native workspace member sage-categories-homotopy
+    # but declares it only in its `platform` dependency group, which a --no-deps
+    # install never reads. Its checkout is installed the way its own CI installs
+    # it: the project together with that group.
+    sage_categories_checkout="${HOME}/gitclones/sage-categories"
+    if [ -d "${sage_categories_checkout}" ]; then
+        uv pip install --python "${sage_environment}/bin/python" --project "${sage_categories_checkout}" --group platform --editable "${sage_categories_checkout}"
+    fi
+
     uv pip check --python "${sage_environment}/bin/python"
