@@ -2648,8 +2648,8 @@ class GenusSymbol_global_ring:
             sage: Q.order() == 4 and all(g.order() in (1, 2) for g in Q.gens())
             True
             sage: primes = G.spinor_generators(False)
-            sage: Q.subgroup([Q(A.delta(p)) for p in primes]).order()
-            ....: == Q.order()
+            sage: (Q.subgroup([Q(A.delta(p)) for p in primes]).order()
+            ....:  == Q.order())
             True
 
         The same four-way partition holds for the proper spinor quotient::
