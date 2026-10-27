@@ -1,0 +1,147 @@
+name: Research issue 564 pinned Sage image and consumer acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      sage_source_sha:
+        description: Exact maintained Sage PR commit containing the spinor-generator correction
+        required: true
+        type: string
+        default: be7579575935bc25bcebb595a5a3889ad4673420
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: research-564-pinned-image-${{ inputs.sage_source_sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    outputs:
+      image_tag: ${{ steps.image-tag.outputs.tag }}
+      source_sha: ${{ inputs.sage_source_sha }}
+    steps:
+      - name: Check out current Sage develop as the complete build context
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          path: sage-source
+          fetch-depth: 1
+
+      - name: Check out the exact maintained Sage PR revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sage_source_sha }}
+          path: .spinor-patch
+          fetch-depth: 0
+
+      - name: Apply only the maintained spinor-generator source change
+        env:
+          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha }}
+        run: |
+          case "$SAGE_SOURCE_SHA" in
+            *[!0-9a-fA-F]*|'') echo "sage_source_sha must be a full commit SHA" >&2; exit 1 ;;
+          esac
+          test "${#SAGE_SOURCE_SHA}" -eq 40
+          test "$(git -C .spinor-patch rev-parse HEAD)" = "$SAGE_SOURCE_SHA"
+          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SAGE_SOURCE_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
+          test -s .spinor.patch
+          git -C sage-source apply --check ../.spinor.patch
+          git -C sage-source apply ../.spinor.patch
+          printf '%s\n' "$SAGE_SOURCE_SHA" > sage-source/.spinor-source-revision
+          git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
+          git -C sage-source diff --check
+          git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Select the immutable revision tag
+        id: image-tag
+        env:
+          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha }}
+        run: |
+          tag="spinor-$SAGE_SOURCE_SHA"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:$tag"
+          set +e
+          output="$(docker manifest inspect "$image" 2>&1)"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif grep -qiE 'manifest unknown|no such manifest|not found|404' <<<"$output"; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            printf '%s\n' "$output" >&2
+            echo "Registry lookup failed; refusing to publish without proving the tag absent" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish the pinned Sage image
+        if: steps.image-tag.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: sage-source
+          file: sage-source/docker/research-environment.Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/sage:${{ steps.image-tag.outputs.tag }}
+          labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  consumer-acceptance:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/sage:${{ needs.publish.outputs.image_tag }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Verify the image embeds the requested patch and base revisions
+        env:
+          SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+        run: |
+          test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
+          printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
+          printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
+          "$SAGE_BIN" --version
+
+      - name: Check out public consumer assertions
+        uses: actions/checkout@v4
+        with:
+          repository: dzackgarza/sage-extensions
+          ref: main
+
+      - name: Install the checked-out sage-extensions source
+        run: "$SAGE_BIN" -pip install --no-deps -e .
+
+      - name: Install the Sage pytest collector plugin
+        uses: actions/checkout@v4
+        with:
+          repository: dzackgarza/ai-review-ci
+          ref: main
+          path: .qc-infra
+
+      - name: Run the unchanged published four-spinor-genus assertion
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
+        run: >-
+          "$SAGE_BIN" -python -m pytest
+          -p qc_sage_session
+          tests/lattices/test_genus.sage
+          -k test_published_four_spinor_genus_is_counted_from_all_generators
