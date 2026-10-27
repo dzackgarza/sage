@@ -2639,8 +2639,8 @@ class GenusSymbol_global_ring:
             [5]
 
         Check that independent spinor classes generate the whole quotient, and
-        that the definite genus enumeration recovers the published twelve classes
-        for the lattice $B^1$ of Benham--Hsia, §2.3::
+        that the definite genus enumeration recovers the twelve classes reported
+        for the lattice $B^1$ by Benham--Hsia, §2.3::
 
             sage: G = Genus(matrix.diagonal(ZZ, [1, 20, 400]))
             sage: A, K = G._improper_spinor_kernel()
@@ -2648,14 +2648,16 @@ class GenusSymbol_global_ring:
             sage: Q.order() == 4 and all(g.order() in (1, 2) for g in Q.gens())
             True
             sage: primes = G.spinor_generators(False)
-            sage: Q.subgroup([Q(A.delta(p)) for p in primes]).order() == Q.order()
+            sage: Q.subgroup([Q(A.delta(p)) for p in primes]).order()
+            ....: == Q.order()
             True
 
         The same four-way partition holds for the proper spinor quotient::
 
             sage: A_proper, K_proper = G._proper_spinor_kernel()
             sage: Q_proper = A_proper.quotient(K_proper)
-            sage: Q_proper.order() == 4 and all(g.order() in (1, 2) for g in Q_proper.gens())
+            sage: Q_proper.order() == 4 and all(
+            ....:     g.order() in (1, 2) for g in Q_proper.gens())
             True
             sage: proper_primes = G.spinor_generators(True)
             sage: Q_proper.subgroup(
@@ -2667,7 +2669,8 @@ class GenusSymbol_global_ring:
             12
 
         The twelve classes satisfy the definite mass formula, independently
-        weighting each class by the reciprocal of its automorphism-group order::
+        weighting each class by the reciprocal of its automorphism-group
+        order::
 
             sage: from sage.quadratic_forms.quadratic_form import QuadraticForm
             sage: sum(1 / QuadraticForm(ZZ, 2*R).automorphism_group().order()
