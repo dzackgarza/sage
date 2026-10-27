@@ -109,6 +109,29 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Refuse to overwrite an existing revision tag
+        env:
+          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha || github.sha }}
+          IS_DEVELOP_PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' && !inputs.sage_source_sha }}
+        run: |
+          if [ "$IS_DEVELOP_PUSH" = "true" ]; then
+            exit 0
+          fi
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:spinor-$SAGE_SOURCE_SHA"
+          set +e
+          output="$(docker manifest inspect "$image" 2>&1)"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Refusing to overwrite immutable revision image $image" >&2
+            exit 1
+          fi
+          if ! grep -qiE 'manifest unknown|no such manifest|not found|404' <<<"$output"; then
+            printf '%s\\n' "$output" >&2
+            echo "Registry lookup failed; refusing to publish without proving the tag absent" >&2
+            exit 1
+          fi
+
       - uses: docker/build-push-action@v6
         with:
           context: sage-source
