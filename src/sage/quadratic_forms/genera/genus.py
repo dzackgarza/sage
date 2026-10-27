@@ -2654,7 +2654,9 @@ class GenusSymbol_global_ring:
             sage: A_proper, K_proper = G._proper_spinor_kernel()
             sage: Q_proper = A_proper.quotient(K_proper)
             sage: proper_primes = G.spinor_generators(True)
-            sage: Q_proper.subgroup([Q_proper(A_proper.delta(p)) for p in proper_primes]).order() == Q_proper.order() == 4
+            sage: Q_proper.subgroup(
+            ....:     [Q_proper(A_proper.delta(p)) for p in proper_primes]
+            ....: ).order() == Q_proper.order() == 4
             True
             sage: len(G.representatives())
             12
