@@ -2676,6 +2676,21 @@ class GenusSymbol_global_ring:
             sage: sum(1 / QuadraticForm(ZZ, 2*R).automorphism_group().order()
             ....:     for R in reps) == G.mass() == QQ(3)/2
             True
+
+        The same generator-coverage invariant holds for an indefinite genus.
+        For $\operatorname{diag}(1,20,-400)$, the improper quotient has order
+        two and the genus has two classes::
+
+            sage: H = Genus(matrix.diagonal(ZZ, [1, 20, -400]))
+            sage: A_indef, K_indef = H._improper_spinor_kernel()
+            sage: Q_indef = A_indef.quotient(K_indef)
+            sage: p_indef = H.spinor_generators(False)
+            sage: Q_indef.subgroup(
+            ....:     [Q_indef(A_indef.delta(p)) for p in p_indef]
+            ....: ).order() == Q_indef.order() == 2
+            True
+            sage: len(H.representatives())
+            2
         """
         from sage.sets.primes import Primes
         if proper:
