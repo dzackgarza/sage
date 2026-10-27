@@ -14,7 +14,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: research-564-pinned-image-${{ inputs.sage_source_sha }}
+  group: research-environment-image-${{ inputs.sage_source_sha }}
   cancel-in-progress: false
 
 jobs:
