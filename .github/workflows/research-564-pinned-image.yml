@@ -55,6 +55,10 @@ jobs:
           printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
+          # The research environment dependency has a private submodule URL in SSH form.
+          # Build runners have no SSH key; rewrite GitHub SSH URLs to the equivalent HTTPS URL.
+          git -C sage-source config --file docker/research-environment.Dockerfile.invalid --get-regexp . >/dev/null 2>&1 || true
+          sed -i '/^RUN just research-environment-sync$/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
