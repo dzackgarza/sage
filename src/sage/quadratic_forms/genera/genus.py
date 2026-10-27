@@ -2662,8 +2662,17 @@ class GenusSymbol_global_ring:
             ....:     [Q_proper(A_proper.delta(p)) for p in proper_primes]
             ....: ).order() == Q_proper.order()
             True
-            sage: len(G.representatives())
+            sage: reps = G.representatives()
+            sage: len(reps)
             12
+
+        The twelve classes satisfy the definite mass formula, independently
+        weighting each class by the reciprocal of its automorphism-group order::
+
+            sage: from sage.quadratic_forms.quadratic_form import QuadraticForm
+            sage: sum(1 / QuadraticForm(ZZ, 2*R).automorphism_group().order()
+            ....:     for R in reps) == G.mass() == QQ(3)/2
+            True
         """
         from sage.sets.primes import Primes
         if proper:
