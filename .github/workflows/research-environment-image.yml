@@ -36,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       sage_source_sha:
-        description: Exact 40-character Sage source commit to build into an isolated image; omit only for ordinary develop publication
+        description: Exact 40-character Sage PR commit whose genus.py change is applied to current develop for an isolated image
         required: false
         type: string
 
@@ -54,30 +54,52 @@ jobs:
       contents: read
       packages: write
     steps:
-      - name: Check out the Docker build recipe
+      - name: Check out the maintained Docker build recipe
         uses: actions/checkout@v4
         with:
           ref: develop
           path: .image-tools
           sparse-checkout: docker/research-environment.Dockerfile
 
-      - name: Check out the exact Sage source revision
+      - name: Check out current Sage develop as the complete build context
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.sage_source_sha || github.sha }}
+          ref: develop
           path: sage-source
           fetch-depth: 1
 
-      - name: Validate the source revision
+      - name: Check out the exact maintained PR revision
+        if: inputs.sage_source_sha != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sage_source_sha }}
+          path: .spinor-patch
+          fetch-depth: 0
+
+      - name: Apply only the maintained spinor-generator source change
+        if: inputs.sage_source_sha != ''
         env:
-          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha || github.sha }}
+          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha }}
         run: |
           case "$SAGE_SOURCE_SHA" in
             *[!0-9a-fA-F]*|'') echo "sage_source_sha must be a full commit SHA" >&2; exit 1 ;;
           esac
           test "${#SAGE_SOURCE_SHA}" -eq 40
-          test "$(git -C sage-source rev-parse HEAD)" = "$SAGE_SOURCE_SHA"
-          echo "Building exact Sage source $SAGE_SOURCE_SHA"
+          test "$(git -C .spinor-patch rev-parse HEAD)" = "$SAGE_SOURCE_SHA"
+          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SAGE_SOURCE_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
+          test -s .spinor.patch
+          git -C sage-source apply --check ../.spinor.patch
+          git -C sage-source apply ../.spinor.patch
+          printf '%s\n' "$SAGE_SOURCE_SHA" > sage-source/.spinor-source-revision
+          git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
+          git -C sage-source diff --check
+          git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
+
+      - name: Record ordinary develop revision
+        if: inputs.sage_source_sha == ''
+        run: |
+          git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
+          git -C sage-source rev-parse HEAD > sage-source/.spinor-source-revision
 
       - uses: docker/setup-buildx-action@v3
 
@@ -93,7 +115,7 @@ jobs:
           file: .image-tools/docker/research-environment.Dockerfile
           push: true
           # Only ordinary develop pushes update the shared tag. A pinned
-          # dispatch publishes a tag derived from the exact source commit.
+          # dispatch publishes a tag derived from the maintained PR commit.
           tags: ghcr.io/${{ github.repository_owner }}/sage:${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' && !inputs.sage_source_sha && 'develop' || format('spinor-{0}', inputs.sage_source_sha || github.sha) }}
           labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
           cache-from: type=gha
