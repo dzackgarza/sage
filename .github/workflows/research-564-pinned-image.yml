@@ -24,7 +24,7 @@ jobs:
       packages: write
     outputs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
-      source_sha: ${{ github.sha }}
+      source_sha: ${{ steps.patch-revision.outputs.source_sha }}
     steps:
       - name: Check out current Sage develop as the complete build context
         uses: actions/checkout@v4
@@ -41,19 +41,22 @@ jobs:
           fetch-depth: 0
 
       - name: Apply only the maintained spinor-generator source change
+        id: patch-revision
         env:
-          SAGE_SOURCE_SHA: ${{ github.sha }}
+          BUILD_TRIGGER_SHA: ${{ github.sha }}
+          SPINOR_PATCH_SHA: be7579575935bc25bcebb595a5a3889ad4673420
         run: |
-          test "$(git -C .spinor-patch rev-parse HEAD)" = "$SAGE_SOURCE_SHA"
-          test "$(git -C .spinor-patch merge-base "$SAGE_SOURCE_SHA" 601df58edafe95f68597b9dec61e0a75adca8983)" = "601df58edafe95f68597b9dec61e0a75adca8983"
-          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SAGE_SOURCE_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
+          test "$(git -C .spinor-patch rev-parse HEAD)" = "$BUILD_TRIGGER_SHA"
+          test "$(git -C .spinor-patch merge-base "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA")" = "$SPINOR_PATCH_SHA"
+          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SPINOR_PATCH_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
           test -s .spinor.patch
           git -C sage-source apply --check ../.spinor.patch
           git -C sage-source apply ../.spinor.patch
-          printf '%s\n' "$SAGE_SOURCE_SHA" > sage-source/.spinor-source-revision
+          printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
-          echo "Applied source revision: $SAGE_SOURCE_SHA"
+          echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
+          printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
 
       - uses: docker/setup-buildx-action@v3
@@ -95,7 +98,7 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/sage:${{ steps.image-tag.outputs.tag }}
           labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ steps.patch-revision.outputs.source_sha }}
             org.opencontainers.image.source=https://github.com/dzackgarza/sage
             org.opencontainers.image.title=Research Sage image with spinor generator correction
           cache-from: type=gha
