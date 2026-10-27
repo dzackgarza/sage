@@ -1,49 +1,18 @@
-# Publish the research Sage environment so every repository that writes Sage
-# against this fork pulls one build instead of repeating it.
-#
-# Consumers run their job inside the image:
-#
-#     jobs:
-#       qc:
-#         runs-on: ubuntu-latest
-#         container: ghcr.io/dzackgarza/sage:develop
-#         env:
-#           SAGE_BIN: /sage/.venv/bin/sage
-#
-# Copying the tree out of the image instead does not work, and quietly: Sage's
-# extension modules link against the system libraries this image installs, so
-# sage/rings/integer resolves libgmp.so.10 to /lib/x86_64-linux-gnu, outside
-# the copied /sage. A `docker cp sage-env:/sage /sage` onto a bare runner
-# produces a tree that cannot import sage.all.
-#
-# SAGE_ROOT is baked in at configure time, which is why the tree stays at
-# /sage rather than being relocated.
+# Publish the research Sage environment. The spinor regression path builds
+# from the complete current Sage develop tree, applying only the maintained
+# genus.py patch from this branch. It never writes the shared :develop tag.
 
 name: Research environment image
 
 on:
   push:
-    branches: [develop]
+    branches: [fix-spinor-generator-accumulation-clean]
     paths:
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'justfile'
-      - 'meson.build'
-      - 'src/**'
-      - 'build/pkgs/**'
-      - 'docker/research-environment.Dockerfile'
       - '.github/workflows/research-environment-image.yml'
-  workflow_dispatch:
-    inputs:
-      sage_source_sha:
-        description: Exact 40-character Sage PR commit whose genus.py change is applied to current develop for an isolated image
-        required: false
-        type: string
+      - 'src/sage/quadratic_forms/genera/genus.py'
 
-# Runs for one source revision serialize rather than cancelling a build that
-# another queued run will consume. Distinct refs remain isolated.
 concurrency:
-  group: research-environment-image-${{ inputs.sage_source_sha || github.ref }}
+  group: research-spinor-image-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
@@ -55,15 +24,9 @@ jobs:
       packages: write
     outputs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
-      source_sha: ${{ inputs.sage_source_sha || github.sha }}
+      source_sha: ${{ steps.patch-revision.outputs.source_sha }}
+      image_exists: ${{ steps.image-tag.outputs.exists }}
     steps:
-      - name: Check out the maintained Docker build recipe
-        uses: actions/checkout@v4
-        with:
-          ref: develop
-          path: .image-tools
-          sparse-checkout: docker/research-environment.Dockerfile
-
       - name: Check out current Sage develop as the complete build context
         uses: actions/checkout@v4
         with:
@@ -71,38 +34,31 @@ jobs:
           path: sage-source
           fetch-depth: 1
 
-      - name: Check out the exact maintained PR revision
-        if: inputs.sage_source_sha != ''
+      - name: Check out the triggering Sage fix revision
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.sage_source_sha }}
+          ref: ${{ github.sha }}
           path: .spinor-patch
           fetch-depth: 0
 
       - name: Apply only the maintained spinor-generator source change
-        if: inputs.sage_source_sha != ''
+        id: patch-revision
         env:
-          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha }}
+          BUILD_TRIGGER_SHA: ${{ github.sha }}
+          SPINOR_PATCH_SHA: be7579575935bc25bcebb595a5a3889ad4673420
         run: |
-          case "$SAGE_SOURCE_SHA" in
-            *[!0-9a-fA-F]*|'') echo "sage_source_sha must be a full commit SHA" >&2; exit 1 ;;
-          esac
-          test "${#SAGE_SOURCE_SHA}" -eq 40
-          test "$(git -C .spinor-patch rev-parse HEAD)" = "$SAGE_SOURCE_SHA"
-          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SAGE_SOURCE_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
+          test "$(git -C .spinor-patch rev-parse HEAD)" = "$BUILD_TRIGGER_SHA"
+          test "$(git -C .spinor-patch merge-base "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA")" = "$SPINOR_PATCH_SHA"
+          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SPINOR_PATCH_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
           test -s .spinor.patch
           git -C sage-source apply --check ../.spinor.patch
           git -C sage-source apply ../.spinor.patch
-          printf '%s\n' "$SAGE_SOURCE_SHA" > sage-source/.spinor-source-revision
+          printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
+          echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
+          printf 'Build trigger SHA: %s\nApplied Sage fix SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
-
-      - name: Record ordinary develop revision
-        if: inputs.sage_source_sha == ''
-        run: |
-          git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
-          git -C sage-source rev-parse HEAD > sage-source/.spinor-source-revision
 
       - uses: docker/setup-buildx-action@v3
 
@@ -112,18 +68,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Select a unique image tag and reject overwrites
+      - name: Select the trigger-addressed image tag and reject overwrites
         id: image-tag
         env:
-          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha || github.sha }}
-          IS_DEVELOP_PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' && !inputs.sage_source_sha }}
+          BUILD_TRIGGER_SHA: ${{ github.sha }}
         run: |
-          if [ "$IS_DEVELOP_PUSH" = "true" ]; then
-            echo "tag=develop" >> "$GITHUB_OUTPUT"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          tag="spinor-$SAGE_SOURCE_SHA"
+          tag="spinor-$BUILD_TRIGGER_SHA"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:$tag"
           set +e
           output="$(docker manifest inspect "$image" 2>&1)"
@@ -140,20 +90,22 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Build and publish the exact revision image
+      - name: Build and publish the isolated Sage image
         if: steps.image-tag.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: sage-source
-          file: .image-tools/docker/research-environment.Dockerfile
+          file: sage-source/docker/research-environment.Dockerfile
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/sage:${{ steps.image-tag.outputs.tag }}
-          labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.patch-revision.outputs.source_sha }}
+            org.opencontainers.image.source=https://github.com/dzackgarza/sage
+            org.opencontainers.image.title=Research Sage image with spinor generator correction
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   consumer-acceptance:
-    if: needs.publish.outputs.image_tag != 'develop'
     needs: publish
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -166,13 +118,13 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Verify the image embeds the requested patch and base revisions
+      - name: Verify exact image provenance and Sage build base
         env:
           SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
         run: |
           test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
-          printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
-          printf 'Sage base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
+          printf 'Applied Sage fix SHA: %s\n' "$(cat /sage/.spinor-source-revision)"
+          printf 'Sage build base SHA: %s\n' "$(cat /sage/.spinor-base-revision)"
           "$SAGE_BIN" --version
 
       - name: Check out public consumer assertions
