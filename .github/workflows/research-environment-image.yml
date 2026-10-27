@@ -24,7 +24,6 @@ name: Research environment image
 on:
   push:
     branches: [develop]
-    # The image is the build; changing anything that feeds it republishes.
     paths:
       - 'pyproject.toml'
       - 'uv.lock'
@@ -34,24 +33,51 @@ on:
       - 'build/pkgs/**'
       - 'docker/research-environment.Dockerfile'
       - '.github/workflows/research-environment-image.yml'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      sage_source_sha:
+        description: Exact 40-character Sage source commit to build into an isolated image; omit only for ordinary develop publication
+        required: false
+        type: string
 
-# Isolate builds by ref. A test image build must not cancel or overwrite the
-# maintained develop image.
+# A pinned-source build is isolated from develop publication and from other
+# pinned builds. It cannot cancel a develop image build or overwrite its tag.
 concurrency:
-  group: research-environment-image-${{ github.ref }}
+  group: research-environment-image-${{ inputs.sage_source_sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # A cold Sage build runs into the hours; the default 360 is the ceiling.
     timeout-minutes: 360
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the Docker build recipe
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          path: .image-tools
+          sparse-checkout: docker/research-environment.Dockerfile
+
+      - name: Check out the exact Sage source revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sage_source_sha || github.sha }}
+          path: sage-source
+          fetch-depth: 1
+
+      - name: Validate the source revision
+        env:
+          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha || github.sha }}
+        run: |
+          case "$SAGE_SOURCE_SHA" in
+            *[!0-9a-fA-F]*|'') echo "sage_source_sha must be a full commit SHA" >&2; exit 1 ;;
+          esac
+          test "${#SAGE_SOURCE_SHA}" -eq 40
+          test "$(git -C sage-source rev-parse HEAD)" = "$SAGE_SOURCE_SHA"
+          echo "Building exact Sage source $SAGE_SOURCE_SHA"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -63,11 +89,12 @@ jobs:
 
       - uses: docker/build-push-action@v6
         with:
-          context: .
-          file: docker/research-environment.Dockerfile
+          context: sage-source
+          file: .image-tools/docker/research-environment.Dockerfile
           push: true
-          # The shared develop tag is emitted only by develop pushes. Every
-          # other ref gets a commit-addressed tag for exact-source validation.
-          tags: ghcr.io/${{ github.repository_owner }}/sage:${{ github.ref == 'refs/heads/develop' && 'develop' || format('spinor-{0}', github.sha) }}
+          # Only ordinary develop pushes update the shared tag. A pinned
+          # dispatch publishes a tag derived from the exact source commit.
+          tags: ghcr.io/${{ github.repository_owner }}/sage:${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' && !inputs.sage_source_sha && 'develop' || format('spinor-{0}', inputs.sage_source_sha || github.sha) }}
+          labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
