@@ -2639,8 +2639,8 @@ class GenusSymbol_global_ring:
             [5]
 
         Check that independent spinor classes generate the whole quotient, and
-        that the definite genus enumeration recovers the twelve classes reported
-        for the lattice $B^1$ by Benham--Hsia, §2.3::
+        that the definite enumeration recovers the twelve classes reported for
+        the lattice $B^1$ by Benham--Hsia, §2.3::
 
             sage: G = Genus(matrix.diagonal(ZZ, [1, 20, 400]))
             sage: A, K = G._improper_spinor_kernel()
