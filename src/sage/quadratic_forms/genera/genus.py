@@ -2679,7 +2679,10 @@ class GenusSymbol_global_ring:
 
         The same generator-coverage invariant holds for an indefinite genus.
         For $\operatorname{diag}(1,20,-400)$, the improper quotient has order
-        two and the genus has two classes::
+        two and the genus has two classes. This agrees with the theorem that an
+        indefinite spinor genus of rank at least three consists of one class
+        (Conway--Sloane, *Sphere Packings, Lattices and Groups*, 3rd ed.,
+        Ch. 15, §9.1, Thm. 14)::
 
             sage: H = Genus(matrix.diagonal(ZZ, [1, 20, -400]))
             sage: A_indef, K_indef = H._improper_spinor_kernel()
