@@ -2645,18 +2645,22 @@ class GenusSymbol_global_ring:
             sage: G = Genus(matrix.diagonal(ZZ, [1, 20, 400]))
             sage: A, K = G._improper_spinor_kernel()
             sage: Q = A.quotient(K)
+            sage: Q.order() == 4 and all(g.order() in (1, 2) for g in Q.gens())
+            True
             sage: primes = G.spinor_generators(False)
-            sage: Q.subgroup([Q(A.delta(p)) for p in primes]).order() == Q.order() == 4
+            sage: Q.subgroup([Q(A.delta(p)) for p in primes]).order() == Q.order()
             True
 
         The same four-way partition holds for the proper spinor quotient::
 
             sage: A_proper, K_proper = G._proper_spinor_kernel()
             sage: Q_proper = A_proper.quotient(K_proper)
+            sage: Q_proper.order() == 4 and all(g.order() in (1, 2) for g in Q_proper.gens())
+            True
             sage: proper_primes = G.spinor_generators(True)
             sage: Q_proper.subgroup(
             ....:     [Q_proper(A_proper.delta(p)) for p in proper_primes]
-            ....: ).order() == Q_proper.order() == 4
+            ....: ).order() == Q_proper.order()
             True
             sage: len(G.representatives())
             12
