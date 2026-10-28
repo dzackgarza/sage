@@ -55,6 +55,13 @@ jobs:
           test -s .spinor.patch
           git -C sage-source apply --check ../.spinor.patch
           git -C sage-source apply ../.spinor.patch
+          # The build context is current develop, so explicitly apply the
+          # maintained Maxima runtime-index fix from the triggering owner branch.
+          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$BUILD_TRIGGER_SHA" -- build/pkgs/maxima/spkg-install.in > .maxima-runtime.patch
+          if [ -s .maxima-runtime.patch ]; then
+            git -C sage-source apply --check ../.maxima-runtime.patch
+            git -C sage-source apply ../.maxima-runtime.patch
+          fi
           printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
