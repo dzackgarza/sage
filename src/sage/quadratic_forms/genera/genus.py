@@ -2652,6 +2652,15 @@ class GenusSymbol_global_ring:
             ....:  == Q.order())
             True
 
+        For this published example the two independent improper classes are
+        represented by the primes 3 and 11, each of order two::
+
+            sage: c3, c11 = Q(A.delta(3)), Q(A.delta(11))
+            sage: c3.order() == c11.order() == 2
+            True
+            sage: Q.subgroup([c3, c11]).order() == Q.order() == 4
+            True
+
         The same four-way partition holds for the proper spinor quotient::
 
             sage: A_proper, K_proper = G._proper_spinor_kernel()
