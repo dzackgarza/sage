@@ -1,6 +1,6 @@
 --- a/docker/research-environment.Dockerfile
 +++ b/docker/research-environment.Dockerfile
-@@ -62,16 +62,18 @@
+@@ -62,16 +62,19 @@
 -RUN curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
 +RUN apt-get update && apt-get install -y --no-install-recommends just && rm -rf /var/lib/apt/lists/*
  ENV PATH="/root/.local/bin:${PATH}"
