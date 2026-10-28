@@ -64,12 +64,25 @@ jobs:
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
 
-      - name: Enable Maxima documentation during the Sage build
+      - name: Preserve Maxima help indexes in the out-of-tree build
         run: |
-          # The Maxima spkg's install step consults this variable while the
-          # external project is built. Appending ENV after the RUN command is
-          # too late and leaves the Maxima index files absent from the image.
-          sed -i '/^RUN just research-environment-sync$/i ENV SAGE_SPKG_INSTALL_DOCS=yes' sage-source/docker/research-environment.Dockerfile
+          # Maxima 5.47.0's release tarball contains these generated index
+          # files in doc/info, but the Sage Meson external-project build does
+          # not copy them into its separate build/doc/info directory. Without
+          # them ECL's CL-INFO initialization fails while Sage loads to_poly_solve.
+          cat >> sage-source/subprojects/packagefiles/maxima/build/doc/info/meson.build <<'EOF'
+
+          configure_file(
+              input: '../../../doc/info/maxima-index.lisp',
+              output: 'maxima-index.lisp',
+              copy: true,
+          )
+          configure_file(
+              input: '../../../doc/info/maxima-index-html.lisp',
+              output: 'maxima-index-html.lisp',
+              copy: true,
+          )
+          EOF
 
       - uses: docker/setup-buildx-action@v3
 
