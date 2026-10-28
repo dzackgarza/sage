@@ -51,12 +51,15 @@ for index in maxima-index.lisp maxima-index-html.lisp; do
 done
 
 
-# Install Maxima into the versioned ECL library directory.  Query the ECL used
-# for this build so this also works when Sage uses a system ECL.
-ECL_VERSION=$(ecl --norc \
+# Install Maxima beside the ECL used to compile it. Meson's ECL external
+# project supplies its staged executable explicitly; ordinary SPKG installs
+# fall back to the ECL on PATH.
+ECL_BIN="${SAGE_ECL_BIN:-ecl}"
+ECL_VERSION=$("$ECL_BIN" --norc \
     --eval '(princ (lisp-implementation-version))' \
     --eval '(quit)')
 ECLLIB="${SAGE_INST_LOCAL}/lib/ecl-${ECL_VERSION}"
+mkdir -p "$ECLLIB"
 echo
 echo "Now installing the Maxima library as '$ECLLIB/maxima.fas'..."
 sdh_install -T "src/binary-ecl/maxima.fas" "$ECLLIB/maxima.fas" \
