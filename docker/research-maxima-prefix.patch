@@ -11,8 +11,8 @@
  RUN just research-environment-sync
  
 +# Verify Maxima's ECL module at the versioned install location.
-+RUN set -eu; find /sage/.venv/lib -path '*/ecl-*/maxima.fas' -print -quit | grep -q .
-+ENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas
++RUN set -eu; src=$(find /sage/builddir/subprojects/maxima-*/build/src/binary-ecl -name maxima.fas -print -quit); test -s "$src"; dst=/sage/.venv/lib64/ecl-26.5.5/maxima.fas; install -D -m 0644 "$src" "$dst"; test -s "$dst"
++ENV MAXIMA_FAS=/sage/.venv/lib64/ecl-26.5.5/maxima.fas
 +ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
