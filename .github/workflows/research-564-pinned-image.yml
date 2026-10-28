@@ -59,16 +59,15 @@ jobs:
           printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
-          # The research environment dependency has a private submodule URL in SSH form.
-          # Build runners have no SSH key; rewrite GitHub SSH URLs to the equivalent HTTPS URL.
-          git -C sage-source config --file docker/research-environment.Dockerfile.invalid --get-regexp . >/dev/null 2>&1 || true
-          sed -i '/^RUN just research-environment-sync$/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
-          # Apply a maintained unified diff against the exact develop
-          # Dockerfile, with git's context checks before any image build.
+          # Apply the maintained unified diff to the exact develop Dockerfile
+          # BEFORE inserting the SSH rewrite line, which shares its context.
           git -C .spinor-patch show "$BUILD_TRIGGER_SHA:docker/research-maxima-prefix.patch" > .maxima-prefix.patch
           git -C sage-source apply --check ../.maxima-prefix.patch
           git -C sage-source apply ../.maxima-prefix.patch
           git -C sage-source diff --check
+          # The research environment dependency has a private submodule URL in SSH form.
+          # Build runners have no SSH key; rewrite GitHub SSH URLs to the equivalent HTTPS URL.
+          sed -i '/^RUN just research-environment-sync$/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
