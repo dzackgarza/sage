@@ -46,7 +46,7 @@ jobs:
           path: .spinor-patch
           fetch-depth: 0
 
-      - name: Apply only the maintained spinor-generator source change
+      - name: Apply maintained Sage spinor and Maxima source changes
         id: patch-revision
         env:
           BUILD_TRIGGER_SHA: ${{ github.sha }}
@@ -102,7 +102,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Select trigger-addressed immutable image tag
+      - name: Select source-input-addressed immutable image tag
         id: image-tag
         env:
           SAGE_SOURCE_SHA: ${{ steps.patch-revision.outputs.source_sha }}
@@ -176,7 +176,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dzackgarza/sage-extensions
-          ref: c493cc469d2d1f17c148828223287a0833ef5fd8
+          ref: ac814b856b640e02b41d5de7f083ae9b6e354705
 
       - name: Install the checked-out sage-extensions source
         run: /root/.local/bin/uv pip install --python /sage/.venv/bin/python --no-deps -e .
