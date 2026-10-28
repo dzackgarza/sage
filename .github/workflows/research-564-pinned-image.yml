@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/research-564-pinned-image.yml'
       - 'docker/research-environment.Dockerfile'
+      - 'docker/research-maxima-prefix.patch'
       - 'build/pkgs/maxima/spkg-install.in'
       - 'subprojects/packagefiles/maxima/build/doc/info/meson.build'
       - 'src/sage/quadratic_forms/genera/genus.py'
@@ -62,19 +63,12 @@ jobs:
           # Build runners have no SSH key; rewrite GitHub SSH URLs to the equivalent HTTPS URL.
           git -C sage-source config --file docker/research-environment.Dockerfile.invalid --get-regexp . >/dev/null 2>&1 || true
           sed -i '/^RUN just research-environment-sync$/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
-          # Maxima is built as a Meson external project, so the legacy spkg
-          # install hook is not executed. Fix the runtime prefix and install
-          # its generated help indexes after the external-project build.
-          sed -i '/^ENV SAGE_BIN=/i RUN set -eu; \\
-              info_dir=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local/share/info; \\
-              mkdir -p "$info_dir"; \\
-              for name in maxima-index.lisp maxima-index-html.lisp; do \\
-                  index="$(find /sage/builddir/subprojects/maxima-5.47.0 -type f -name "$name" -print -quit)"; \\
-                  if [ -z "$index" ]; then echo "FATAL: Maxima generated index $name not found" >&2; exit 1; fi; \\
-                  cp "$index" "$info_dir/$name"; \\
-                  test -s "$info_dir/$name"; \\
-              done' sage-source/docker/research-environment.Dockerfile
-          sed -i 's|^ENV MAXIMA_PREFIX=.*|ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local|' sage-source/docker/research-environment.Dockerfile
+          # Apply a maintained unified diff against the exact develop
+          # Dockerfile, with git's context checks before any image build.
+          git -C .spinor-patch show "$BUILD_TRIGGER_SHA:docker/research-maxima-prefix.patch" > .maxima-prefix.patch
+          git -C sage-source apply --check ../.maxima-prefix.patch
+          git -C sage-source apply ../.maxima-prefix.patch
+          git -C sage-source diff --check
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
