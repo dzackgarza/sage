@@ -7,13 +7,12 @@
  
  RUN just research-environment-sync
  
-+# The Sage install phase already places Maxima's generated CL-INFO indexes
-+# in the runtime prefix; verify those installed files without copying build artifacts.
++# Verify installed runtime assets, then use the actual ECL library directory.
 +RUN set -eu; \
 +    for name in maxima-index.lisp maxima-index-html.lisp; do \
 +        test -s "/sage/.venv/share/info/$name"; \
 +    done
-+RUN set -eu; find /sage/.venv/lib -type f -name maxima.fas -print -quit | grep -q .
++RUN find /sage/.venv -type f -name maxima.fas -print -quit | grep -q .
 +ENV MAXIMA_PREFIX=/sage/.venv
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
