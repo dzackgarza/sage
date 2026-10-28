@@ -36,6 +36,7 @@ proj = mod.add_project('configure',
                       ],
   env : {
     'MAXIMA_FAS_DIR': ecl_side_modules_dir,
+    'SAGE_ECL_BIN': ecl,
   },
   depends: dependencies,
 )
