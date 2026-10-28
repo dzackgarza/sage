@@ -2648,6 +2648,8 @@ class GenusSymbol_global_ring:
             sage: Q.order() == 4 and all(g.order() in (1, 2) for g in Q.gens())
             True
             sage: primes = G.spinor_generators(False)
+            sage: primes[0] == 3
+            True
             sage: all(p % 2 == 1 for p in primes)
             True
             sage: (Q.subgroup([Q(A.delta(p)) for p in primes]).order()
