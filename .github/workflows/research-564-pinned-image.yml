@@ -64,9 +64,9 @@ jobs:
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
 
-      - name: Point Maxima at the installed versioned data directory
+      - name: Install Maxima's help indexes so ECL's Maxima initialization can load to_poly_solve
         run: |
-          printf '\n# Use installed Maxima data, not the ephemeral staged subproject tree.\nENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0\n' >> sage-source/docker/research-environment.Dockerfile
+          printf '\n# Maxima's help/index files are required by Sage symbolic computations.\nENV SAGE_SPKG_INSTALL_DOCS=yes\n' >> sage-source/docker/research-environment.Dockerfile
 
       - uses: docker/setup-buildx-action@v3
 
