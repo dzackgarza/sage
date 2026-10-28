@@ -19,8 +19,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     concurrency:
+      # New source-input revisions supersede older producers; the immutable
+      # image tag itself remains content-addressed and is never overwritten.
       group: research-spinor-image-${{ github.ref }}
-      cancel-in-progress: false
+      cancel-in-progress: true
     timeout-minutes: 360
     permissions:
       contents: read
