@@ -147,20 +147,23 @@ jobs:
           ref: main
 
       - name: Install the checked-out sage-extensions source
-        run: '"$SAGE_BIN" -pip install --no-deps -e .'
+        run: /root/.local/bin/uv pip install --python /sage/.venv/bin/python --no-deps -e .
 
-      - name: Install the Sage pytest collector plugin
+      - name: Install the pinned Sage pytest collector plugin
         uses: actions/checkout@v4
         with:
           repository: dzackgarza/ai-review-ci
-          ref: main
+          ref: adfd75d63bc2f931c3c472a68fa95a7e69aca6e7
           path: .qc-infra
 
-      - name: Run the unchanged published four-spinor-genus assertion
-        env:
-          PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
+      - name: Install required pytest plugins
         run: >-
-          "$SAGE_BIN" -python -m pytest
-          -p qc_sage_session
-          tests/lattices/test_genus.sage
-          -k test_published_four_spinor_genus_is_counted_from_all_generators
+          /root/.local/bin/uv pip install --python /sage/.venv/bin/python
+          pytest-timeout pytest-reportlog
+
+      - name: Run the complete public genus acceptance suite
+        env:
+          PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
+        run: >-
+          "$SAGE_BIN" -c
+          'import sys, pytest; sys.exit(pytest.main(["-p", "qc_sage_session", "tests/lattices/test_genus.sage"]))'
