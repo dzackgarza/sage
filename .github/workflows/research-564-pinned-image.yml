@@ -16,7 +16,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: research-spinor-image-${{ github.sha }}
+  group: research-spinor-image-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -29,6 +29,8 @@ jobs:
     outputs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
       source_sha: ${{ steps.patch-revision.outputs.source_sha }}
+      base_sha: ${{ steps.patch-revision.outputs.base_sha }}
+      dockerfile_sha: ${{ steps.patch-revision.outputs.dockerfile_sha }}
     steps:
       - name: Check out current Sage develop as the complete build context
         uses: actions/checkout@v4
@@ -65,7 +67,11 @@ jobs:
           git -C sage-source diff --check
           sed -i '/^RUN just research-environment-sync$/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
           git -C sage-source diff --check
+          BASE_SHA="$(cat sage-source/.spinor-base-revision)"
+          DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+          echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
 
@@ -80,9 +86,11 @@ jobs:
       - name: Select trigger-addressed immutable image tag
         id: image-tag
         env:
-          SAGE_SOURCE_SHA: ${{ github.sha }}
+          SAGE_SOURCE_SHA: ${{ steps.patch-revision.outputs.source_sha }}
+          SAGE_BASE_SHA: ${{ steps.patch-revision.outputs.base_sha }}
+          DOCKERFILE_SHA: ${{ steps.patch-revision.outputs.dockerfile_sha }}
         run: |
-          tag="spinor-$SAGE_SOURCE_SHA"
+          tag="spinor-$SAGE_SOURCE_SHA-$SAGE_BASE_SHA-$DOCKERFILE_SHA"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:$tag"
           set +e
           output="$(docker manifest inspect "$image" 2>&1)"
@@ -130,8 +138,10 @@ jobs:
       - name: Verify exact image provenance and Sage build base
         env:
           SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+          SAGE_BASE_SHA: ${{ needs.publish.outputs.base_sha }}
         run: |
           test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
+          test "$(cat /sage/.spinor-base-revision)" = "$SAGE_BASE_SHA"
           printf 'Applied Sage source SHA: %s\n' "$(cat /sage/.spinor-source-revision)"
           printf 'Sage develop base SHA: %s\n' "$(cat /sage/.spinor-base-revision)"
           "$SAGE_BIN" --version
