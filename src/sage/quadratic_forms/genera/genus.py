@@ -2733,6 +2733,9 @@ class GenusSymbol_global_ring:
             A, K = self._improper_spinor_kernel()
         Q = A.quotient(K)
         q = Q.order()
+        assert all(g.order() in (1, 2) for g in Q.gens()), (
+            "the spinor quotient must be elementary 2"
+        )
         U = Q.subgroup([])
 
         spinor_gens = []
