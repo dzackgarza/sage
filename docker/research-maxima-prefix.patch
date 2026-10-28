@@ -36,3 +36,6 @@
 -
 -# Maxima runtime files are installed below Sage's versioned share prefix.
 -ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0
+ 
+ # Julia and Oscar for sage-julia-bridge. Oscar and JSON go into the default
+ # environment of the read-only /opt/julia-depot, so no desk keeps its own copy
