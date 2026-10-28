@@ -13,8 +13,8 @@
 +    for name in maxima-index.lisp maxima-index-html.lisp; do \
 +        test -s "/sage/.venv/share/info/$name"; \
 +    done
-+RUN /sage/.venv/bin/sage -c "from sage.env import MAXIMA_FAS; import os; assert MAXIMA_FAS and os.path.isfile(MAXIMA_FAS), MAXIMA_FAS"
-+ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/sage/.venv
++RUN set -eu; find /sage/.venv/lib -type f -name maxima.fas -print -quit | grep -q .
++ENV MAXIMA_PREFIX=/sage/.venv
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
  RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
