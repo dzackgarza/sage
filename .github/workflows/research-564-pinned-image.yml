@@ -9,6 +9,8 @@ on:
       - 'docker/research-maxima-prefix.patch'
       - 'build/pkgs/maxima/spkg-install.in'
       - 'subprojects/packagefiles/maxima/build/doc/info/meson.build'
+      - 'subprojects/packagefiles/maxima/meson.build'
+      - 'src/sage/interfaces/maxima_lib.py'
       - 'src/sage/quadratic_forms/genera/genus.py'
 
 permissions:
