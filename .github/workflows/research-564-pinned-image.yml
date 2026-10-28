@@ -64,10 +64,13 @@ jobs:
           git -C .spinor-patch show "$BUILD_TRIGGER_SHA:docker/research-maxima-prefix.patch" > .maxima-prefix.patch
           git -C sage-source apply --check ../.maxima-prefix.patch
           git -C sage-source apply ../.maxima-prefix.patch
+          # The patch replaces obsolete trailing blank lines with the final
+          # runtime prefix; retain whitespace validation after the HTTPS rewrite.
           git -C sage-source diff --check
           # The research environment dependency has a private submodule URL in SSH form.
           # Build runners have no SSH key; rewrite GitHub SSH URLs to the equivalent HTTPS URL.
           sed -i '/^RUN just research-environment-sync$/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
+          git -C sage-source diff --check
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
@@ -143,9 +146,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dzackgarza/sage-extensions
-          # Bind acceptance to the verified consumer commit; never let main
-          # move between the image producer and the mathematical test run.
-          ref: fc4410e01d5ca07bfd4d85551ddd3ea7cf6f602d
+          # Full required definite and indefinite mathematical assertions.
+          ref: beb253dc88f8ab7f7bf209ed613b0afbde8237ad
 
       - name: Install the checked-out sage-extensions source
         run: /root/.local/bin/uv pip install --python /sage/.venv/bin/python --no-deps -e .
