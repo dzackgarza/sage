@@ -67,3 +67,6 @@ RUN just research-environment-sync
 ENV SAGE_BIN=/sage/.venv/bin/sage
 
 RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
+
+# Maxima is built in a staged subproject tree; runtime must use the installed Sage prefix.
+ENV MAXIMA_PREFIX=/sage/.venv
