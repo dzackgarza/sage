@@ -15,13 +15,12 @@ permissions:
   contents: read
   packages: write
 
-concurrency:
-  group: research-spinor-image-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: research-spinor-image-${{ github.ref }}
+      cancel-in-progress: false
     timeout-minutes: 360
     permissions:
       contents: read
