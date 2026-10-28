@@ -65,6 +65,14 @@ jobs:
             git -C sage-source apply --check ../.maxima-spkg.patch
             git -C sage-source apply ../.maxima-spkg.patch
           fi
+          # Carry the maintained Maxima Meson packaging change as well. It is
+          # currently identical to develop, so this patch is empty; retaining
+          # it in the pipeline prevents a future source change being ignored.
+          diff -u --label a/subprojects/packagefiles/maxima/build/doc/info/meson.build --label b/subprojects/packagefiles/maxima/build/doc/info/meson.build sage-source/subprojects/packagefiles/maxima/build/doc/info/meson.build .spinor-patch/subprojects/packagefiles/maxima/build/doc/info/meson.build > .maxima-meson.patch || test "$?" -eq 1
+          if [ -s .maxima-meson.patch ]; then
+            git -C sage-source apply --check ../.maxima-meson.patch
+            git -C sage-source apply ../.maxima-meson.patch
+          fi
           printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
@@ -76,7 +84,7 @@ jobs:
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
-          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
+          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .maxima-meson.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
