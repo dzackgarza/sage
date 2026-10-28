@@ -2749,8 +2749,10 @@ class GenusSymbol_global_ring:
             if p.divides(self.determinant()):
                 continue
             g = Q(A.delta(p))
-            # Membership testing in these quotient groups is unreliable;
-            # compare subgroup orders to test whether g enlarges U exactly.
+            # The spinor quotient is elementary 2, so each prime class has
+            # order one or two. Membership testing in these quotient groups is
+            # unreliable; compare subgroup orders to test whether g enlarges U.
+            assert g.order() in (1, 2)
             enlarged = Q.subgroup((g,) + U.gens())
             if enlarged.order() == U.order():
                 continue
