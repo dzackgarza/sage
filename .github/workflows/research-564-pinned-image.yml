@@ -139,11 +139,13 @@ jobs:
           printf 'Sage develop base SHA: %s\n' "$(cat /sage/.spinor-base-revision)"
           "$SAGE_BIN" --version
 
-      - name: Check out public consumer assertions
+      - name: Check out exact public consumer acceptance revision
         uses: actions/checkout@v4
         with:
           repository: dzackgarza/sage-extensions
-          ref: main
+          # Bind acceptance to the verified consumer commit; never let main
+          # move between the image producer and the mathematical test run.
+          ref: fc4410e01d5ca07bfd4d85551ddd3ea7cf6f602d
 
       - name: Install the checked-out sage-extensions source
         run: /root/.local/bin/uv pip install --python /sage/.venv/bin/python --no-deps -e .
