@@ -30,6 +30,8 @@ ecl_side_modules_dir = get_option('prefix') / ecl_side_modules_subdir
 # The external project's staged install is copied by Meson; the FAS
 # must be in that staged tree, not directly in the final prefix.
 staged_ecl_side_modules_dir = staged_prefix / ecl_side_modules_subdir
+# Configure receives the final prefix; DESTDIR performs the staging.
+# Supplying a staged absolute path here would stage it twice.
 
 proj = mod.add_project('configure',
   configure_options : [
@@ -40,7 +42,7 @@ proj = mod.add_project('configure',
                         'git_found=false',
                       ],
   env : {
-    'MAXIMA_FAS_DIR': staged_ecl_side_modules_dir,
+    'MAXIMA_FAS_DIR': ecl_side_modules_dir,
     'SAGE_ECL_BIN': ecl,
   },
   depends: dependencies,
