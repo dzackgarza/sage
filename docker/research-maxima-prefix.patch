@@ -1,6 +1,6 @@
 --- a/docker/research-environment.Dockerfile
 +++ b/docker/research-environment.Dockerfile
-@@ -64,11 +64,30 @@
+@@ -64,14 +64,33 @@
  
  RUN just research-environment-sync
  
