@@ -30,6 +30,7 @@ jobs:
       source_sha: ${{ steps.patch-revision.outputs.source_sha }}
       base_sha: ${{ steps.patch-revision.outputs.base_sha }}
       dockerfile_sha: ${{ steps.patch-revision.outputs.dockerfile_sha }}
+      patchset_sha: ${{ steps.patch-revision.outputs.patchset_sha }}
     steps:
       - name: Check out current Sage develop as the complete build context
         uses: actions/checkout@v4
@@ -57,6 +58,13 @@ jobs:
           test -s .spinor.patch
           git -C sage-source apply --check ../.spinor.patch
           git -C sage-source apply ../.spinor.patch
+          # The build base is develop, so explicitly carry the maintained
+          # Maxima package-install changes from the triggering source branch.
+          diff -u --label a/build/pkgs/maxima/spkg-install.in --label b/build/pkgs/maxima/spkg-install.in sage-source/build/pkgs/maxima/spkg-install.in .spinor-patch/build/pkgs/maxima/spkg-install.in > .maxima-spkg.patch || test "$?" -eq 1
+          if [ -s .maxima-spkg.patch ]; then
+            git -C sage-source apply --check ../.maxima-spkg.patch
+            git -C sage-source apply ../.maxima-spkg.patch
+          fi
           printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
@@ -68,12 +76,15 @@ jobs:
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
+          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
+          echo "patchset_sha=$PATCHSET_SHA" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$DOCKERFILE_SHA" > sage-source/.spinor-dockerfile-sha
-          printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
-          git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
+          printf '%s\n' "$PATCHSET_SHA" > sage-source/.spinor-patchset-sha
+          printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\nPatchset SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA" "$PATCHSET_SHA"
+          git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py build/pkgs/maxima/spkg-install.in
 
       - uses: docker/setup-buildx-action@v3
 
@@ -89,8 +100,9 @@ jobs:
           SAGE_SOURCE_SHA: ${{ steps.patch-revision.outputs.source_sha }}
           SAGE_BASE_SHA: ${{ steps.patch-revision.outputs.base_sha }}
           DOCKERFILE_SHA: ${{ steps.patch-revision.outputs.dockerfile_sha }}
+          PATCHSET_SHA: ${{ steps.patch-revision.outputs.patchset_sha }}
         run: |
-          image_key="$(printf '%s\n%s\n%s' "$SAGE_SOURCE_SHA" "$SAGE_BASE_SHA" "$DOCKERFILE_SHA" | sha256sum | cut -c 1-40)"
+          image_key="$(printf '%s\n%s\n%s\n%s' "$SAGE_SOURCE_SHA" "$SAGE_BASE_SHA" "$DOCKERFILE_SHA" "$PATCHSET_SHA" | sha256sum | cut -c 1-40)"
           tag="spinor-$image_key"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:$tag"
           set +e
@@ -118,6 +130,7 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/sage:${{ steps.image-tag.outputs.tag }}
           labels: |
             org.opencontainers.image.revision=${{ steps.patch-revision.outputs.source_sha }}
+            io.dzackgarza.sage.spinor-patchset=${{ steps.patch-revision.outputs.patchset_sha }}
             org.opencontainers.image.source=https://github.com/dzackgarza/sage
             org.opencontainers.image.title=Research Sage image with spinor generator correction
           cache-from: type=gha
@@ -141,10 +154,12 @@ jobs:
           SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
           SAGE_BASE_SHA: ${{ needs.publish.outputs.base_sha }}
           DOCKERFILE_SHA: ${{ needs.publish.outputs.dockerfile_sha }}
+          PATCHSET_SHA: ${{ needs.publish.outputs.patchset_sha }}
         run: |
           test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
           test "$(cat /sage/.spinor-base-revision)" = "$SAGE_BASE_SHA"
           test "$(cat /sage/.spinor-dockerfile-sha)" = "$DOCKERFILE_SHA"
+          test "$(cat /sage/.spinor-patchset-sha)" = "$PATCHSET_SHA"
           printf 'Applied Sage source SHA: %s\n' "$(cat /sage/.spinor-source-revision)"
           printf 'Sage develop base SHA: %s\n' "$(cat /sage/.spinor-base-revision)"
           "$SAGE_BIN" --version
