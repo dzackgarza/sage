@@ -179,7 +179,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: dzackgarza/sage-extensions
-          ref: 5ca5087f39e475c114c0fc9b181aabe60e5c0a5d
+          ref: 3857480a92f07aac6824451907c46e6bbc318573
 
       - name: Install the checked-out sage-extensions source
         run: /root/.local/bin/uv pip install --python /sage/.venv/bin/python --no-deps -e .
