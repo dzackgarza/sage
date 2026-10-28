@@ -62,7 +62,12 @@ jobs:
         run: |
           test "$(git -C .spinor-patch rev-parse HEAD)" = "$BUILD_TRIGGER_SHA"
           test "$(git -C .spinor-patch merge-base "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA")" = "$SPINOR_PATCH_SHA"
-          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SPINOR_PATCH_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
+          # Apply the full maintained genus.py delta from the build base to
+          # the triggering branch revision, including owner-level acceptance
+          # doctests added after the original implementation commit. The
+          # patch-set digest records that complete delta independently of the
+          # immutable owner-fix provenance SHA.
+          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$BUILD_TRIGGER_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
           test -s .spinor.patch
           git -C sage-source apply --check ../.spinor.patch
           git -C sage-source apply ../.spinor.patch
