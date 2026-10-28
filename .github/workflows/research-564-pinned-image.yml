@@ -5,6 +5,7 @@ on:
     branches: [fix-spinor-generator-accumulation-clean]
     paths:
       - '.github/workflows/research-564-pinned-image.yml'
+      - 'docker/research-environment.Dockerfile'
       - 'src/sage/quadratic_forms/genera/genus.py'
 
 permissions:
