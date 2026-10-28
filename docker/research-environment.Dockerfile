@@ -72,3 +72,30 @@ RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
 
 # Maxima runtime files are installed below Sage's versioned share prefix.
 ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0
+
+# Julia and Oscar for sage-julia-bridge, which dzack-research installs into
+# the environment above. The bridge runs `julia --project=<its julia_env>`;
+# that project is resolved and precompiled here into /opt/julia-depot, so no
+# desk keeps its own copy of the Oscar artifacts. At runtime a writable depot
+# is stacked in front of this read-only one; the trailing empty entry keeps
+# Julia's bundled stdlib depot on the path.
+RUN set -eu; \
+    curl -LsSf -o /tmp/julia.tar.gz https://julialang-s3.julialang.org/bin/linux/x64/1.12/julia-1.12.5-linux-x86_64.tar.gz; \
+    echo "41b84d727e4e96fbf3ed9e92fa195d773d247b9097f73fad688f8b699758bae7  /tmp/julia.tar.gz" | sha256sum -c -; \
+    mkdir /opt/julia; \
+    tar -xzf /tmp/julia.tar.gz -C /opt/julia --strip-components=1; \
+    rm /tmp/julia.tar.gz; \
+    ln -s /opt/julia/bin/julia /usr/local/bin/julia
+
+ENV JULIA_DEPOT_PATH=/opt/julia-depot:
+
+RUN set -eu; \
+    julia_env="$(/sage/.venv/bin/python -c 'import pathlib, sage_julia_bridge; print(pathlib.Path(sage_julia_bridge.__file__).with_name("julia_env"))')"; \
+    julia --project="$julia_env" --startup-file=no --color=no -e ' \
+        using Pkg; \
+        Pkg.instantiate(); \
+        Pkg.precompile(); \
+        import JSON; \
+        using Oscar; \
+        println("JSON ", pkgversion(JSON), ", Oscar ", Oscar.VERSION_NUMBER, " loaded")'; \
+    chmod -R a+rX /opt/julia-depot "$julia_env"
