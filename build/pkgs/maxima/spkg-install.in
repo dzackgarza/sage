@@ -41,7 +41,7 @@ sdh_make_install
 # required at runtime, but the upstream install target does not consistently
 # place them in the prefix used by Sage's out-of-tree Meson build.  Install
 # the generated files explicitly so CL-INFO can resolve its primary indexes.
-MAXIMA_INFO="$SAGE_LOCAL/share/info"
+MAXIMA_INFO="$SAGE_ROOT/builddir/subprojects/maxima-5.47.0/dist/usr/local/share/info"
 mkdir -p "$MAXIMA_INFO"
 for index in maxima-index.lisp maxima-index-html.lisp; do
     if [[ ! -f "doc/info/$index" ]]; then
