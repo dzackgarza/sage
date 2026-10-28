@@ -256,3 +256,7 @@ jobs:
         run: >-
           "$SAGE_BIN" -c
           'import sys, pytest; sys.exit(pytest.main(["-p", "qc_sage_session", "tests/lattices/test_genus.sage"]))'
+
+      - name: Verify native Sage spinor-generator quotient spanning
+        run: |
+          "$SAGE_BIN" -t /sage/src/sage/quadratic_forms/genera/genus.py
