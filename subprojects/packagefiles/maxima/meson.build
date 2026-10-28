@@ -11,7 +11,7 @@ mod = import('unstable-external_project')
 # relying on a system pkg-config entry.
 ecl_proj = subproject('ecl')
 ecl_dep = ecl_proj.get_variable('ecl_dep')
-ecl = ecl_dep.get_variable('ecl_bin')
+ecl = ecl_dep.get_variable(internal: 'ecl_bin')
 ecl_version = ecl_dep.version()
 # Carry the ECL build dependency into the external project.
 ecl_lib = library(
