@@ -55,14 +55,6 @@ jobs:
           test -s .spinor.patch
           git -C sage-source apply --check ../.spinor.patch
           git -C sage-source apply ../.spinor.patch
-          # The build context is current develop, so explicitly apply the
-          # maintained Maxima runtime-index fix from the triggering owner branch.
-          MAXIMA_FIX_COMMIT=$(git -C .spinor-patch log -1 -S 'generated files explicitly' --format=%H -- build/pkgs/maxima/spkg-install.in)
-          test -n "$MAXIMA_FIX_COMMIT"
-          git -C .spinor-patch diff "$MAXIMA_FIX_COMMIT^" "$BUILD_TRIGGER_SHA" -- build/pkgs/maxima/spkg-install.in > .maxima-runtime.patch
-          test -s .maxima-runtime.patch
-          git -C sage-source apply --check ../.maxima-runtime.patch
-          git -C sage-source apply ../.maxima-runtime.patch
           printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
@@ -70,6 +62,18 @@ jobs:
           # Build runners have no SSH key; rewrite GitHub SSH URLs to the equivalent HTTPS URL.
           git -C sage-source config --file docker/research-environment.Dockerfile.invalid --get-regexp . >/dev/null 2>&1 || true
           sed -i '/^RUN just research-environment-sync$/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
+          # Maxima is built as a Meson external project, so the legacy spkg
+          # install hook is not executed. Fix the runtime prefix and install
+          # its generated help indexes after the external-project build.
+          sed -i '/^ENV SAGE_BIN=/i RUN set -eu; \\
+              info_dir=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local/share/info; \\
+              mkdir -p "$info_dir"; \\
+              for name in maxima-index.lisp maxima-index-html.lisp; do \\
+                  index="$(find /sage/builddir/subprojects/maxima-5.47.0 -type f -name "$name" -print -quit)"; \\
+                  if [ -z "$index" ]; then echo "FATAL: Maxima generated index $name not found" >&2; exit 1; fi; \\
+                  cp "$index" "$info_dir/$name"; \\
+              done' sage-source/docker/research-environment.Dockerfile
+          sed -i 's|^ENV MAXIMA_PREFIX=.*|ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local|' sage-source/docker/research-environment.Dockerfile
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
