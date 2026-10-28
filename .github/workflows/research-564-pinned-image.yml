@@ -75,7 +75,12 @@ jobs:
           # Carry the focused build-tool upgrade from the maintained source
           # branch: frozen uv sync pins Meson 1.10.0, but Maxima 5.47.0 needs
           # >=1.11.2 before the Sage Meson project is configured.
-          diff -u --label a/justfile --label b/justfile sage-source/justfile .spinor-patch/justfile > .meson-toolchain.patch || test "$?" -eq 1
+          # develop has no justfile; generate a new-file patch in that case.
+          if [ -f sage-source/justfile ]; then
+            diff -u --label a/justfile --label b/justfile sage-source/justfile .spinor-patch/justfile > .meson-toolchain.patch || test "$?" -eq 1
+          else
+            diff -u --label /dev/null --label b/justfile /dev/null .spinor-patch/justfile > .meson-toolchain.patch || test "$?" -eq 1
+          fi
           if [ -s .meson-toolchain.patch ]; then
             git -C sage-source apply --check ../.meson-toolchain.patch
             git -C sage-source apply ../.meson-toolchain.patch
