@@ -2629,7 +2629,7 @@ class GenusSymbol_global_ring:
 
         - ``proper`` -- boolean
 
-        OUTPUT: list of primes not dividing the determinant
+        OUTPUT: list of odd primes not dividing ``2 * determinant``
 
         EXAMPLES::
 
