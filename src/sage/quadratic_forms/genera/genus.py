@@ -2648,6 +2648,8 @@ class GenusSymbol_global_ring:
             sage: Q.order() == 4 and all(g.order() in (1, 2) for g in Q.gens())
             True
             sage: primes = G.spinor_generators(False)
+            sage: all(p % 2 == 1 for p in primes)
+            True
             sage: (Q.subgroup([Q(A.delta(p)) for p in primes]).order()
             ....:  == Q.order())
             True
@@ -2716,7 +2718,12 @@ class GenusSymbol_global_ring:
 
         spinor_gens = []
         P = Primes()
-        p = ZZ(2)
+        # Every spinor class has infinitely many prime representatives by
+        # Chebotarev applied to the spinor class field. Start at 3 so the
+        # returned generators are all coprime to 2*det, as required by the
+        # p-neighbour spinor-action theorem; in particular, a class first
+        # encountered at p=2 will also be found at an odd prime.
+        p = ZZ(3)
         while not U.order() == q:
             p = P.next(p)
             if p.divides(self.determinant()):
