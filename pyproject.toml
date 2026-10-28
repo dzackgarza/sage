@@ -218,7 +218,6 @@ extra = [
 
 [dependency-groups]
 research-environment = [
-  "dzack-research",
   "jupyter-mcp-server",
   "mypy",
   "sage-stubs",
@@ -268,7 +267,6 @@ test = ["coverage", "pytest"]
 # research-environment-sync reinstalls any of these it finds checked out
 # locally, so editing them stays live without a path here.
 [tool.uv.sources]
-dzack-research = { git = "https://github.com/dzackgarza/research" }
 jupyter-mcp-server = { git = "https://github.com/dzackgarza/jupyter-mcp-server" }
 sage-stubs = { git = "https://github.com/dzackgarza/sage-stubs.git" }
 tree-sitter-sage = { git = "https://github.com/dzackgarza/tree-sitter-sage" }
