@@ -37,6 +37,19 @@ sdh_configure --enable-ecl git_found=false
 sdh_make
 sdh_make_install
 
+# Sage embeds Maxima through ECL.  Maxima's generated CL-INFO indexes are
+# required at runtime, but the upstream install target does not consistently
+# place them in the prefix used by Sage's out-of-tree Meson build.  Install
+# the generated files explicitly so CL-INFO can resolve its primary indexes.
+MAXIMA_INFO="$SAGE_LOCAL/share/info"
+mkdir -p "$MAXIMA_INFO"
+for index in maxima-index.lisp maxima-index-html.lisp; do
+    if [[ ! -f "doc/info/$index" ]]; then
+        sdh_die "Maxima generated help index 'doc/info/$index' is missing."
+    fi
+    cp -f "doc/info/$index" "$MAXIMA_INFO/$index"
+done
+
 
 # Install Maxima into the versioned ECL library directory.  Query the ECL used
 # for this build so this also works when Sage uses a system ECL.
