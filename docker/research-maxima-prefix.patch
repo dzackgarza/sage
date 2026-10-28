@@ -1,6 +1,6 @@
 --- a/docker/research-environment.Dockerfile
 +++ b/docker/research-environment.Dockerfile
-@@ -64,14 +64,33 @@
+@@ -64,14 +64,22 @@
  
  RUN just research-environment-sync
  
@@ -16,16 +16,6 @@
 +        cp "$index" "$info_dir/$name"; \
 +        test -s "$info_dir/$name"; \
 +    done
-+# Normalize the compiled library into the exact path Sage will require, and
-+# fail the image build if Maxima did not produce it.
-+RUN set -eu; \
-+    root=/sage/builddir/subprojects/maxima-5.47.0; \
-+    target="$root/dist/sage/.venv/lib/ecl-26.5.5/maxima.fas"; \
-+    source="$(find "$root" -type f -name maxima.fas -print -quit)"; \
-+    if [ -z "$source" ]; then echo "FATAL: compiled Maxima ECL library not found" >&2; exit 1; fi; \
-+    mkdir -p "$(dirname "$target")"; \
-+    if [ "$source" != "$target" ]; then cp "$source" "$target"; fi; \
-+    test -s "$target"
 +RUN /sage/.venv/bin/sage -c "from sage.env import MAXIMA_FAS; import os; assert MAXIMA_FAS and os.path.isfile(MAXIMA_FAS), MAXIMA_FAS"
 +ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/sage/.venv
  ENV SAGE_BIN=/sage/.venv/bin/sage
