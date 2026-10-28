@@ -71,6 +71,7 @@ jobs:
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$DOCKERFILE_SHA" > sage-source/.spinor-dockerfile-sha
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
 
@@ -139,9 +140,11 @@ jobs:
         env:
           SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
           SAGE_BASE_SHA: ${{ needs.publish.outputs.base_sha }}
+          DOCKERFILE_SHA: ${{ needs.publish.outputs.dockerfile_sha }}
         run: |
           test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
           test "$(cat /sage/.spinor-base-revision)" = "$SAGE_BASE_SHA"
+          test "$(cat /sage/.spinor-dockerfile-sha)" = "$DOCKERFILE_SHA"
           printf 'Applied Sage source SHA: %s\n' "$(cat /sage/.spinor-source-revision)"
           printf 'Sage develop base SHA: %s\n' "$(cat /sage/.spinor-base-revision)"
           "$SAGE_BIN" --version
