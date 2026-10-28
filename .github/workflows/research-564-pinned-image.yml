@@ -11,6 +11,7 @@ on:
       - 'subprojects/packagefiles/maxima/build/doc/info/meson.build'
       - 'subprojects/packagefiles/maxima/meson.build'
       - 'src/sage/interfaces/maxima_lib.py'
+      - 'justfile'
       - 'src/sage/quadratic_forms/genera/genus.py'
 
 permissions:
@@ -70,6 +71,14 @@ jobs:
             git -C sage-source apply --check ../.maxima-spkg.patch
             git -C sage-source apply ../.maxima-spkg.patch
           fi
+          # Carry the focused build-tool upgrade from the maintained source
+          # branch: frozen uv sync pins Meson 1.10.0, but Maxima 5.47.0 needs
+          # >=1.11.2 before the Sage Meson project is configured.
+          diff -u --label a/justfile --label b/justfile sage-source/justfile .spinor-patch/justfile > .meson-toolchain.patch || test "$?" -eq 1
+          if [ -s .meson-toolchain.patch ]; then
+            git -C sage-source apply --check ../.meson-toolchain.patch
+            git -C sage-source apply ../.meson-toolchain.patch
+          fi
           # Carry the maintained Maxima Meson packaging change as well. It is
           # currently identical to develop, so this patch is empty; retaining
           # it in the pipeline prevents a future source change being ignored.
@@ -105,7 +114,7 @@ jobs:
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
-          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .maxima-meson.patch .maxima-prefix-path.patch .maxima-loader-path.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
+          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .meson-toolchain.patch .maxima-meson.patch .maxima-prefix-path.patch .maxima-loader-path.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
