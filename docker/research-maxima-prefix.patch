@@ -12,7 +12,7 @@
 +    for name in maxima-index.lisp maxima-index-html.lisp; do \
 +        test -s "/sage/.venv/share/info/$name"; \
 +    done
-+RUN find /sage/.venv -type f -name maxima.fas -print -quit | grep -q .
++RUN test -s /sage/.venv/lib/ecl/maxima.fas
 +ENV MAXIMA_PREFIX=/sage/.venv
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
