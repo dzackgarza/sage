@@ -11,6 +11,7 @@ on:
       - 'subprojects/packagefiles/maxima/build/doc/info/meson.build'
       - 'subprojects/packagefiles/maxima/meson.build'
       - 'subprojects/packagefiles/ecl/src/meson.build'
+      - 'subprojects/packagefiles/ecl/src/sage-ecl-config.in'
       - 'subprojects/packagefiles/maxima/build_dependency.c'
       - 'src/sage/interfaces/maxima_lib.py'
       - 'justfile'
@@ -116,6 +117,17 @@ jobs:
             git -C sage-source apply --check ../.ecl-meson.patch
             git -C sage-source apply ../.ecl-meson.patch
           fi
+          # The maintained ECL Meson file consumes this sibling template,
+          # which does not exist in develop; add it as a real new-file patch.
+          if [ -f sage-source/subprojects/packagefiles/ecl/src/sage-ecl-config.in ]; then
+            diff -u --label a/subprojects/packagefiles/ecl/src/sage-ecl-config.in --label b/subprojects/packagefiles/ecl/src/sage-ecl-config.in sage-source/subprojects/packagefiles/ecl/src/sage-ecl-config.in .spinor-patch/subprojects/packagefiles/ecl/src/sage-ecl-config.in > .ecl-config-template.patch || test "$?" -eq 1
+          else
+            diff -u --label /dev/null --label b/subprojects/packagefiles/ecl/src/sage-ecl-config.in /dev/null .spinor-patch/subprojects/packagefiles/ecl/src/sage-ecl-config.in > .ecl-config-template.patch || test "$?" -eq 1
+          fi
+          if [ -s .ecl-config-template.patch ]; then
+            git -C sage-source apply --check ../.ecl-config-template.patch
+            git -C sage-source apply ../.ecl-config-template.patch
+          fi
           # The maintained Maxima ECL fallback adds a build-order anchor that
           # is absent from develop. Generate a proper new-file patch when needed.
           if [ -f sage-source/subprojects/packagefiles/maxima/build_dependency.c ]; then
@@ -146,7 +158,7 @@ jobs:
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
-          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .meson-toolchain.patch .maxima-meson.patch .maxima-prefix-path.patch .ecl-meson.patch .maxima-ecl-anchor.patch .maxima-loader-path.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
+          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .meson-toolchain.patch .maxima-meson.patch .maxima-prefix-path.patch .ecl-meson.patch .ecl-config-template.patch .maxima-ecl-anchor.patch .maxima-loader-path.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
