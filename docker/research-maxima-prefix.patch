@@ -16,7 +16,7 @@
 +        cp "$index" "$info_dir/$name"; \
 +        test -s "$info_dir/$name"; \
 +    done
-+ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local
++ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local/share/maxima/5.47.0/share
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
  RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
