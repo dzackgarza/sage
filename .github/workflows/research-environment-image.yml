@@ -166,7 +166,8 @@ jobs:
           ref: main
 
       - name: Install the checked-out sage-extensions source
-        run: "$SAGE_BIN" -pip install --no-deps -e .
+        run: >-
+          "$SAGE_BIN" -pip install --no-deps -e .
 
       - name: Install the Sage pytest collector plugin
         uses: actions/checkout@v4
