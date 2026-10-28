@@ -336,8 +336,15 @@ ecl_eval("(setf *standard-output* *dev-null*)")
 # Add search paths
 if MAXIMA_PREFIX:
     import_packages = "{" + ",".join(_maxima_share_packages) + "}"
-    ecl_eval(f'#$file_search_maxima: append(file_search_maxima, ["{MAXIMA_PREFIX}/###.{{mac,mc,wxm}}", "{MAXIMA_PREFIX}/{import_packages}/###.{{mac,mc,wxm}}"])$')
-    ecl_eval(f'#$file_search_lisp: append(file_search_lisp, ["{MAXIMA_PREFIX}/###.{{fas,lisp,lsp}}", "{MAXIMA_PREFIX}/../src/###.{{fas,lisp,lsp}}", "{MAXIMA_PREFIX}/{import_packages}/###.{{fas,lisp,lsp}}"])$')
+    # MAXIMA_PREFIX is the staging prefix used by Maxima's own pathname
+    # setup and CL-INFO. Package files are installed in the versioned share
+    # tree below it; searching only at the prefix root makes load(to_poly_solve)
+    # fail when Sage embeds Maxima through ECL.
+    maxima_share = os.path.join(
+        MAXIMA_PREFIX, "share", "maxima", "5.47.0", "share"
+    )
+    ecl_eval(f'#$file_search_maxima: append(file_search_maxima, ["{maxima_share}/###.{{mac,mc,wxm}}", "{maxima_share}/{import_packages}/###.{{mac,mc,wxm}}"] )$')
+    ecl_eval(f'#$file_search_lisp: append(file_search_lisp, ["{maxima_share}/###.{{fas,lisp,lsp}}", "{maxima_share}/../src/###.{{fas,lisp,lsp}}", "{maxima_share}/{import_packages}/###.{{fas,lisp,lsp}}"] )$')
 
 # Default options set in Maxima
 # display2d -- no ascii art output
