@@ -12,8 +12,9 @@
 +    for name in maxima-index.lisp maxima-index-html.lisp; do \
 +        test -s "/sage/.venv/share/info/$name"; \
 +    done
-+RUN test -s /sage/.venv/lib/ecl/maxima.fas
-+ENV MAXIMA_PREFIX=/sage/.venv
++RUN set -eu; find /sage/.venv/lib -path '*/ecl-*/maxima.fas' -print -quit | grep -q .
++ENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas
++ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
  RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
