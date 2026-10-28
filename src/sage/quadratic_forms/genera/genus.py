@@ -2685,6 +2685,15 @@ class GenusSymbol_global_ring:
             ....:     [Q_proper(A_proper.delta(p)) for p in proper_primes]
             ....: ).order() == Q_proper.order()
             True
+            sage: U_proper = Q_proper.subgroup([])
+            sage: proper_orders = []
+            sage: for p in proper_primes:
+            ....:     U_new = Q_proper.subgroup(
+            ....:         (Q_proper(A_proper.delta(p)),) + U_proper.gens())
+            ....:     proper_orders.append(U_new.order())
+            ....:     U_proper = U_new
+            sage: proper_orders == [2, 4]
+            True
             sage: reps = G.representatives()
             sage: len(reps)
             12
