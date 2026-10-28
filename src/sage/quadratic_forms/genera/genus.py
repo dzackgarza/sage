@@ -2652,6 +2652,14 @@ class GenusSymbol_global_ring:
             True
             sage: all(p % 2 == 1 for p in primes)
             True
+            sage: U = Q.subgroup([])
+            sage: orders = []
+            sage: for p in primes:
+            ....:     Unew = Q.subgroup((Q(A.delta(p)),) + U.gens())
+            ....:     orders.append(Unew.order())
+            ....:     U = Unew
+            sage: orders == [2, 4]
+            True
             sage: (Q.subgroup([Q(A.delta(p)) for p in primes]).order()
             ....:  == Q.order())
             True
