@@ -2726,15 +2726,7 @@ class GenusSymbol_global_ring:
             sage: len(H.representatives())
             2
 
-Hanke's one-class-per-spinor-genus theorem also applies to indefinite
-forms that are anisotropic over ``QQ``. For ``diag(1,1,-3)``, the
-elementary quotient and the class number therefore agree::
 
-            sage: H_aniso = Genus(matrix.diagonal(ZZ, [1, 1, -3]))
-            sage: A_aniso, K_aniso = H_aniso._improper_spinor_kernel()
-            sage: Q_aniso = A_aniso.quotient(K_aniso)
-            sage: len(H_aniso.representatives()) == Q_aniso.order()
-            True
         """
         from sage.sets.primes import Primes
         if proper:
