@@ -19,10 +19,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     concurrency:
-      # New source-input revisions supersede older producers; the immutable
-      # image tag itself remains content-addressed and is never overwritten.
+      # Serialize producers without cancelling a long image build when only
+      # the consumer test revision or workflow metadata changes. Queued runs
+      # re-check the immutable image tag and reuse it after the first publish.
       group: research-spinor-image-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: false
     timeout-minutes: 360
     permissions:
       contents: read
