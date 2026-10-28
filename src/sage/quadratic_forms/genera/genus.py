@@ -2755,7 +2755,7 @@ class GenusSymbol_global_ring:
             if enlarged.order() == U.order():
                 continue
             assert enlarged.order() == 2 * U.order(), (
-                "an improper spinor generator must enlarge the elementary "
+                "a spinor generator must enlarge the elementary "
                 "2-quotient by index two"
             )
             spinor_gens.append(p)
