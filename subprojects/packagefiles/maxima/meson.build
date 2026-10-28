@@ -22,7 +22,7 @@ ecl_lib = library(
   dependencies : [ecl_dep.partial_dependency(sources : true)],
 )
 dependencies = [ecl_lib]
-staged_prefix = meson.current_build_dir() + '/dist' + get_option('prefix')
+staged_prefix = meson.current_build_dir() / 'dist' / get_option('prefix').strip('/')
 # Match the canonical SPKG/conda side-module location, not the platform libdir
 # used by Maxima's regular image tree.
 ecl_side_modules_subdir = 'lib' / ('ecl-' + ecl_version)
