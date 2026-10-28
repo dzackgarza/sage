@@ -1,0 +1,27 @@
+--- a/docker/research-environment.Dockerfile
++++ b/docker/research-environment.Dockerfile
+@@ -64,11 +64,20 @@
+ 
+ RUN just research-environment-sync
+ 
++# Maxima is built as a Meson external project; install the generated CL-INFO
++# indexes at its configured staged prefix before Sage imports symbolic code.
++RUN set -eu; \
++    prefix=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local; \
++    info_dir="$prefix/share/info"; \
++    mkdir -p "$info_dir"; \
++    for name in maxima-index.lisp maxima-index-html.lisp; do \
++        index="$(find /sage/builddir/subprojects/maxima-5.47.0 -type f -name "$name" -print -quit)"; \
++        if [ -z "$index" ]; then echo "FATAL: Maxima generated index $name not found" >&2; exit 1; fi; \
++        cp "$index" "$info_dir/$name"; \
++        test -s "$info_dir/$name"; \
++    done
++ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local
+ ENV SAGE_BIN=/sage/.venv/bin/sage
+ 
+ RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
+ 
+-# Maxima is built in a staged subproject tree; runtime must use the installed Sage prefix.
+-
+-# Maxima runtime files are installed below Sage's versioned share prefix.
+-ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0
