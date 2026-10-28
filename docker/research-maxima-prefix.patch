@@ -1,6 +1,6 @@
 --- a/docker/research-environment.Dockerfile
 +++ b/docker/research-environment.Dockerfile
-@@ -64,11 +64,29 @@
+@@ -64,11 +64,30 @@
  
  RUN just research-environment-sync
  
@@ -26,6 +26,7 @@
 +    mkdir -p "$(dirname "$target")"; \
 +    if [ "$source" != "$target" ]; then cp "$source" "$target"; fi; \
 +    test -s "$target"
++RUN /sage/.venv/bin/sage -c "from sage.env import MAXIMA_FAS; import os; assert MAXIMA_FAS and os.path.isfile(MAXIMA_FAS), MAXIMA_FAS"
 +ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/sage/.venv
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
