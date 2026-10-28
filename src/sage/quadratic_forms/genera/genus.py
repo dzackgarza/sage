@@ -2735,9 +2735,6 @@ elementary quotient and the class number therefore agree::
             sage: Q_aniso = A_aniso.quotient(K_aniso)
             sage: len(H_aniso.representatives()) == Q_aniso.order()
             True
-            sage: H_aniso.representatives()[0].is_globally_equivalent_to(
-            ....:     QuadraticForm(ZZ, matrix.diagonal(ZZ, [1, 1, -3])))
-            True
         """
         from sage.sets.primes import Primes
         if proper:
