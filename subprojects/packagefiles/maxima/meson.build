@@ -11,6 +11,10 @@ mod = import('unstable-external_project')
 # relying on a system pkg-config entry.
 ecl_proj = subproject('ecl')
 ecl_dep = ecl_proj.get_variable('ecl_dep')
+# Maxima 5.47.0's Meson entry point independently calls dependency('ecl').
+# Export the staged dependency into the parent/subproject lookup scope; passing
+# it only to the external-project wrapper does not satisfy that lookup.
+meson.override_dependency('ecl', ecl_dep)
 ecl = ecl_dep.get_variable(internal: 'ecl_bin')
 ecl_version = ecl_dep.version()
 # Carry the ECL build dependency into the external project.
