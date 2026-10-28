@@ -89,7 +89,7 @@ jobs:
           SAGE_BASE_SHA: ${{ steps.patch-revision.outputs.base_sha }}
           DOCKERFILE_SHA: ${{ steps.patch-revision.outputs.dockerfile_sha }}
         run: |
-          image_key="$(printf '%s\\n%s\\n%s' "$SAGE_SOURCE_SHA" "$SAGE_BASE_SHA" "$DOCKERFILE_SHA" | sha256sum | cut -c 1-40)"
+          image_key="$(printf '%s\n%s\n%s' "$SAGE_SOURCE_SHA" "$SAGE_BASE_SHA" "$DOCKERFILE_SHA" | sha256sum | cut -c 1-40)"
           tag="spinor-$image_key"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:$tag"
           set +e
