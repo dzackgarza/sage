@@ -1,6 +1,6 @@
 --- a/docker/research-environment.Dockerfile
 +++ b/docker/research-environment.Dockerfile
-@@ -64,11 +64,20 @@
+@@ -64,11 +64,19 @@
  
  RUN just research-environment-sync
  
@@ -20,7 +20,7 @@
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
  RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
- 
+-
 -# Maxima is built in a staged subproject tree; runtime must use the installed Sage prefix.
 -
 -# Maxima runtime files are installed below Sage's versioned share prefix.
