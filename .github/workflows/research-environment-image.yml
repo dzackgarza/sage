@@ -8,7 +8,6 @@ on:
   push:
     branches: [fix-spinor-generator-accumulation-clean]
     paths:
-      - '.github/workflows/research-environment-image.yml'
       - 'src/sage/quadratic_forms/genera/genus.py'
 
 concurrency:
