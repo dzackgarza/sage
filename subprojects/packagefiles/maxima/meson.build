@@ -27,6 +27,9 @@ staged_prefix = meson.current_build_dir() / 'dist' / get_option('prefix').strip(
 # used by Maxima's regular image tree.
 ecl_side_modules_subdir = 'lib' / ('ecl-' + ecl_version)
 ecl_side_modules_dir = get_option('prefix') / ecl_side_modules_subdir
+# The external project's staged install is copied by Meson; the FAS
+# must be in that staged tree, not directly in the final prefix.
+staged_ecl_side_modules_dir = staged_prefix / ecl_side_modules_subdir
 
 proj = mod.add_project('configure',
   configure_options : [
@@ -37,7 +40,7 @@ proj = mod.add_project('configure',
                         'git_found=false',
                       ],
   env : {
-    'MAXIMA_FAS_DIR': ecl_side_modules_dir,
+    'MAXIMA_FAS_DIR': staged_ecl_side_modules_dir,
     'SAGE_ECL_BIN': ecl,
   },
   depends: dependencies,
