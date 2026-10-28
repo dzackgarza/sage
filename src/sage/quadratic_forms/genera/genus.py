@@ -2719,7 +2719,8 @@ class GenusSymbol_global_ring:
         spinor_gens = []
         P = Primes()
         # Every spinor class has infinitely many prime representatives by
-        # Chebotarev applied to the spinor class field. Start at 3 so the
+        # the Chebotarev density theorem (Neukirch, *Algebraic Number Theory*,
+        # Chapter VII, §13) applied to the spinor class field. Start at 3 so the
         # returned generators are all coprime to 2*det, as required by the
         # p-neighbour spinor-action theorem; in particular, a class first
         # encountered at p=2 will also be found at an odd prime.
