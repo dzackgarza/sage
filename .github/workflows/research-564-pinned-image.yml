@@ -72,6 +72,7 @@ jobs:
                   index="$(find /sage/builddir/subprojects/maxima-5.47.0 -type f -name "$name" -print -quit)"; \\
                   if [ -z "$index" ]; then echo "FATAL: Maxima generated index $name not found" >&2; exit 1; fi; \\
                   cp "$index" "$info_dir/$name"; \\
+                  test -s "$info_dir/$name"; \\
               done' sage-source/docker/research-environment.Dockerfile
           sed -i 's|^ENV MAXIMA_PREFIX=.*|ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local|' sage-source/docker/research-environment.Dockerfile
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
