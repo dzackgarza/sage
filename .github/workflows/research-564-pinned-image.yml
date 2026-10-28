@@ -96,9 +96,13 @@ jobs:
             git -C sage-source apply --check ../.maxima-prefix-path.patch
             git -C sage-source apply ../.maxima-prefix-path.patch
           fi
-          # The maintained Maxima ECL fallback has a build-order anchor in
-          # this sibling source file; apply it with the Meson source that uses it.
-          diff -u --label a/subprojects/packagefiles/maxima/build_dependency.c --label b/subprojects/packagefiles/maxima/build_dependency.c sage-source/subprojects/packagefiles/maxima/build_dependency.c .spinor-patch/subprojects/packagefiles/maxima/build_dependency.c > .maxima-ecl-anchor.patch || test "$?" -eq 1
+          # The maintained Maxima ECL fallback adds a build-order anchor that
+          # is absent from develop. Generate a proper new-file patch when needed.
+          if [ -f sage-source/subprojects/packagefiles/maxima/build_dependency.c ]; then
+            diff -u --label a/subprojects/packagefiles/maxima/build_dependency.c --label b/subprojects/packagefiles/maxima/build_dependency.c sage-source/subprojects/packagefiles/maxima/build_dependency.c .spinor-patch/subprojects/packagefiles/maxima/build_dependency.c > .maxima-ecl-anchor.patch || test "$?" -eq 1
+          else
+            diff -u --label /dev/null --label b/subprojects/packagefiles/maxima/build_dependency.c /dev/null .spinor-patch/subprojects/packagefiles/maxima/build_dependency.c > .maxima-ecl-anchor.patch || test "$?" -eq 1
+          fi
           if [ -s .maxima-ecl-anchor.patch ]; then
             git -C sage-source apply --check ../.maxima-ecl-anchor.patch
             git -C sage-source apply ../.maxima-ecl-anchor.patch
