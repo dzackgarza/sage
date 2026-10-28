@@ -2648,7 +2648,7 @@ class GenusSymbol_global_ring:
             sage: Q.order() == 4 and all(g.order() in (1, 2) for g in Q.gens())
             True
             sage: primes = G.spinor_generators(False)
-            sage: primes[0] == 3
+            sage: primes == [3, 11]
             True
             sage: all(p % 2 == 1 for p in primes)
             True
