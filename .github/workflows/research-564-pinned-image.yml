@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/research-564-pinned-image.yml'
       - 'docker/research-environment.Dockerfile'
+      - 'subprojects/packagefiles/maxima/build/doc/info/meson.build'
       - 'src/sage/quadratic_forms/genera/genus.py'
 
 permissions:
@@ -63,26 +64,6 @@ jobs:
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
-
-      - name: Preserve Maxima help indexes in the out-of-tree build
-        run: |
-          # Maxima 5.47.0's release tarball contains these generated index
-          # files in doc/info, but the Sage Meson external-project build does
-          # not copy them into its separate build/doc/info directory. Without
-          # them ECL's CL-INFO initialization fails while Sage loads to_poly_solve.
-          cat >> sage-source/subprojects/packagefiles/maxima/build/doc/info/meson.build <<'EOF'
-
-          configure_file(
-              input: '../../../doc/info/maxima-index.lisp',
-              output: 'maxima-index.lisp',
-              copy: true,
-          )
-          configure_file(
-              input: '../../../doc/info/maxima-index-html.lisp',
-              output: 'maxima-index-html.lisp',
-              copy: true,
-          )
-          EOF
 
       - uses: docker/setup-buildx-action@v3
 
