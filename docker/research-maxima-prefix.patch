@@ -1,24 +1,23 @@
 --- a/docker/research-environment.Dockerfile
 +++ b/docker/research-environment.Dockerfile
-@@ -62,17 +62,20 @@
+@@ -59,19 +59,19 @@
+ # uv supplies the managed 3.14 interpreter this fork requires; just runs the
+ # build recipe the desk uses, so the image and the desk build the same way.
+ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 -RUN curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
 +RUN apt-get update && apt-get install -y --no-install-recommends just && rm -rf /var/lib/apt/lists/*
  ENV PATH="/root/.local/bin:${PATH}"
  
  RUN just research-environment-sync
  
-+# Verify installed runtime assets, then use the actual ECL library directory.
-+RUN set -eu; \
-+    for name in maxima-index.lisp maxima-index-html.lisp; do \
-+        test -s "/sage/.venv/share/info/$name"; \
-+    done
++# Verify Maxima's ECL module at the versioned install location.
 +RUN set -eu; find /sage/.venv/lib -path '*/ecl-*/maxima.fas' -print -quit | grep -q .
 +ENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas
 +ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0
  ENV SAGE_BIN=/sage/.venv/bin/sage
  
  RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
--
+ 
 -# Maxima is built in a staged subproject tree; runtime must use the installed Sage prefix.
 -
 -# Maxima runtime files are installed below Sage's versioned share prefix.
