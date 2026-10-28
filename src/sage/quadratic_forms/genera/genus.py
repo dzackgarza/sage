@@ -2732,11 +2732,13 @@ class GenusSymbol_global_ring:
             if p.divides(self.determinant()):
                 continue
             g = Q(A.delta(p))
-            if g.gap() in U.gap():  # containment in sage is broken
+            # Membership testing in these quotient groups is unreliable;
+            # compare subgroup orders to test whether g enlarges U exactly.
+            enlarged = Q.subgroup((g,) + U.gens())
+            if enlarged.order() == U.order():
                 continue
-            else:
-                spinor_gens.append(p)
-                U = Q.subgroup((g,) + U.gens())
+            spinor_gens.append(p)
+            U = enlarged
         return spinor_gens
 
     def _proper_is_improper(self):
