@@ -19,13 +19,29 @@ FROM debian:trixie
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# python3 is needed here, not later: build/bin/sage-package is a Python
-# script, and it is what reports which packages to install.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git python3 \
+ && apt-get install -y --no-install-recommends ca-certificates curl git \
  && rm -rf /var/lib/apt/lists/*
 
-COPY . /sage
+# uv supplies the managed 3.14 interpreter that Sage's venv is built on; it is
+# the Python everything in the image runs: --default installs it as python3,
+# ahead of any Debian python3 on PATH, so Sage's bootstrap shebangs resolve to it.
+# just runs the build recipe the desk uses, so the image and the desk build the
+# same way. Both live outside /root, which is mode 0700: the launcher runs Sage
+# as the desk's own uid, and the venv's interpreter must be readable by it.
+ENV UV_INSTALL_DIR=/usr/local/bin \
+    UV_PYTHON_INSTALL_DIR=/opt/uv-python \
+    UV_PYTHON_BIN_DIR=/usr/local/bin \
+    UV_NO_MODIFY_PATH=1
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+ && uv python install --default 3.14 \
+ && test "$(command -v python3)" = /usr/local/bin/python3 \
+ && curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
+# Everything up to the full source copy below depends only on Sage's package
+# metadata (build/ and pyproject.toml), so a source change reuses these layers.
+COPY build /sage/build
+COPY pyproject.toml /sage/pyproject.toml
 WORKDIR /sage
 
 # Sage's own package metadata names what the build links against: every
@@ -56,29 +72,43 @@ RUN set -eu; \
         echo "FATAL: no C compiler after installing Sage's prerequisites" >&2; exit 1; \
     fi
 
-# Bliss is optional in Sage's metadata, so the standard list above omits it,
-# but lattice and graph-isomorphism work in every research project needs it.
-# Meson's `bliss` feature is `auto`; the library present makes it build.
+# Sage's optional packages and the other systems research code calls. Sage's
+# metadata marks these optional, so the standard list above omits them; the
+# Debian names come from build/pkgs/*/distros/debian.txt where Sage records one.
+# Meson's optional features (bliss, libbraiding, libhomfly, rankwidth) are
+# `auto`, so their libraries being present is what builds them.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libbliss-dev \
+ && apt-get install -y --no-install-recommends \
+    libbliss-dev libbraiding-dev libhomfly-dev librw-dev \
+    macaulay2 \
+    4ti2 latte-int lrslib topcom msolve normaliz-bin libnormaliz-dev \
+    polymake libpolymake-dev libgiac-dev xcas fricas kissat cliquer \
+    gap-atlasrep gap-design gap-grape gap-guava gap-guava-bin gap-hap gap-polenta \
+    gap-polycyclic gap-alnuth gap-autpgrp gap-cryst gap-crystcat gap-io gap-nq \
+    gap-character-tables gap-table-of-marks gap-transgrp gap-primgrp gap-smallgrp-extra \
+    gap-utils gap-float gap-toric gap-laguna gap-sonata gap-factint gap-congruence \
+    sagemath-database-graphs sagemath-database-polytopes \
+    pari-galdata pari-elldata pari-seadata pari-galpol \
+    pandoc graphviz dvipng imagemagick texlive-latex-extra \
+    cmake libpcre2-dev cargo rustc ccache \
  && rm -rf /var/lib/apt/lists/*
 
-# uv supplies the managed 3.14 interpreter this fork requires; just runs the
-# build recipe the desk uses, so the image and the desk build the same way.
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-RUN curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
-ENV PATH="/root/.local/bin:${PATH}"
-
-RUN just research-environment-sync
-
-ENV SAGE_BIN=/sage/.venv/bin/sage
-
-RUN "$SAGE_BIN" -c "import sage.all; from sage.features.bliss import Bliss; Bliss().require(); print(sage.version.version)"
-
-# Maxima is built in a staged subproject tree; runtime must use the installed Sage prefix.
-
-# Maxima runtime files are installed below Sage's versioned share prefix.
-ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0
+# CoxIter (Guglielmetti) computes invariants of hyperbolic Coxeter groups.
+# It is not packaged anywhere and needs PCRE1, which Debian trixie no longer
+# ships, so PCRE 8.45 (the final PCRE1 release) is built into /opt/pcre for it.
+RUN set -eu; \
+    curl -fsSL -o /tmp/pcre.tar.bz2 https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.bz2/download; \
+    echo "4dae6fdcd2bb0bb6c37b5f97c33c2be954da743985369cddac3546e3218bffb8  /tmp/pcre.tar.bz2" | sha256sum -c -; \
+    mkdir /tmp/pcre; tar -xjf /tmp/pcre.tar.bz2 -C /tmp/pcre --strip-components=1; \
+    cd /tmp/pcre; ./configure --prefix=/opt/pcre --disable-shared --enable-utf --enable-unicode-properties; \
+    make -j"$(nproc)"; make install; \
+    git clone https://github.com/rgugliel/CoxIter /tmp/coxiter; \
+    git -C /tmp/coxiter -c advice.detachedHead=false checkout b800be48d8240fbabd2d1c9542e61054584ad7fe; \
+    cmake -S /tmp/coxiter -B /tmp/coxiter/build -DCMAKE_PREFIX_PATH=/opt/pcre -DCMAKE_INSTALL_PREFIX=/usr/local; \
+    cmake --build /tmp/coxiter/build -j"$(nproc)"; \
+    cmake --install /tmp/coxiter/build; \
+    rm -rf /tmp/pcre /tmp/pcre.tar.bz2 /tmp/coxiter; \
+    command -v coxiter
 
 # Julia and Oscar for sage-julia-bridge. Oscar and JSON go into the default
 # environment of the read-only /opt/julia-depot, so no desk keeps its own copy
@@ -104,3 +134,16 @@ RUN set -eu; \
         using Oscar; \
         println("JSON ", pkgversion(JSON), ", Oscar ", Oscar.VERSION_NUMBER, " loaded")'; \
     chmod -R a+rX /opt/julia-depot
+
+COPY . /sage
+
+# ccache keeps compiler output across image builds; Meson uses it whenever it
+# is on PATH. The cache mount is not part of the image, and CI carries it
+# between runs, so a source change recompiles only the modules it touches.
+ENV CCACHE_DIR=/ccache
+RUN --mount=type=cache,target=/ccache just research-environment-sync && ccache --show-stats
+
+ENV SAGE_BIN=/sage/.venv/bin/sage
+
+# Fail the build if any system the image exists to provide is absent.
+RUN "$SAGE_BIN" -c "from sage.features.all import all_features; required = {'bliss', 'macaulay2', '4ti2', 'latte_int', 'lrslib', 'topcom', 'msolve', 'pynormaliz', 'polymake', 'jupymake', 'giac', 'libbraiding', 'libhomfly', 'rankwidth', 'database_graphs', 'polytopes_db', 'gap_package_guava', 'gap_package_hap', 'gap_package_grape', 'gap_package_polycyclic', 'pycosat', 'python_igraph', 'lrcalc_python', 'sage.symbolic'}; features = {f.name: f for f in all_features()}; missing = sorted(n for n in required if not features[n].is_present()); assert not missing, missing; import sage_julia_bridge, sage_extensions, sage_categories, sage_categories_homotopy, sage_lsp, vinal, tree_sitter_sage; print(sage.version.version)"
