@@ -160,4 +160,4 @@ RUN --mount=type=cache,target=/ccache just research-environment-sync && ccache -
 ENV SAGE_BIN=/sage/.venv/bin/sage
 
 # Fail the build if any system the image exists to provide is absent.
-RUN "$SAGE_BIN" -c "from sage.features.all import all_features; required = {'bliss', 'macaulay2', '4ti2', 'latte_int', 'lrslib', 'topcom', 'msolve', 'pynormaliz', 'polymake', 'jupymake', 'giac', 'libbraiding', 'libhomfly', 'rankwidth', 'database_graphs', 'polytopes_db', 'gap_package_guava', 'gap_package_hap', 'gap_package_grape', 'gap_package_polycyclic', 'gap_package_polenta', 'pycosat', 'python_igraph', 'lrcalc_python', 'sage.symbolic'}; features = {f.name: f for f in all_features()}; missing = sorted(n for n in required if not features[n].is_present()); assert not missing, missing; import sage_julia_bridge, sage_extensions, sage_categories, sage_categories_homotopy, sage_lsp, vinal, tree_sitter_sage; print(sage.version.version)"
+RUN "$SAGE_BIN" docker/research-environment-check.py
