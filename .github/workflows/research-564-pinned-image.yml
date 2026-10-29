@@ -373,8 +373,12 @@ jobs:
         run: /root/.local/bin/uv pip install --python /sage/.venv/bin/python --no-deps -e .
 
       - name: Install the exact isometry engine bridge dependency
+        # The research lock and sage-extensions metadata point to this same
+        # Git repository at different revisions. The locked environment already
+        # supplies its dependencies, so replace only the package without asking
+        # uv to re-resolve the conflicting direct-URL metadata.
         run: >-
-          /root/.local/bin/uv pip install --python /sage/.venv/bin/python
+          /root/.local/bin/uv pip install --no-deps --python /sage/.venv/bin/python
           'sage-julia-bridge @ git+https://github.com/dzackgarza/sage-julia-bridge@f85758d06c54a61f74cba0a1b328fbb5a29fddff'
 
       - name: Instantiate the installed bridge Julia project
