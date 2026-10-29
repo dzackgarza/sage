@@ -76,8 +76,13 @@ ENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas
 # Meson installs the Python environment under .venv; Sage's command-line
 # launcher is the tracked executable at the source root, not a venv script.
 ENV SAGE_BIN=/sage/sage
+# The source-root launcher invokes sage-eval with /usr/bin/env python3.
+# Meson's active-venv install is importable only when that interpreter is the
+# same Python 3.14 environment into which Sage was installed.
+ENV PATH="/sage/.venv/bin:${PATH}"
 
-RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
+RUN /sage/.venv/bin/python -c "import sage.all; print(sage.version.version)" \
+ && "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
 
 # Julia and Oscar for sage-julia-bridge. Oscar and JSON go into the default
 # environment of the read-only /opt/julia-depot, so no desk keeps its own copy
