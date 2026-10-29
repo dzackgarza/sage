@@ -47,10 +47,10 @@ jobs:
       dockerfile_sha: ${{ steps.patch-revision.outputs.dockerfile_sha }}
       patchset_sha: ${{ steps.patch-revision.outputs.patchset_sha }}
     steps:
-      - name: Check out current Sage develop as the complete build context
+      - name: Check out the exact Sage develop base as the complete build context
         uses: actions/checkout@v4
         with:
-          ref: develop
+          ref: 36e49d91b0568f07ad4373362c15ce8970587e67
           path: sage-source
           fetch-depth: 1
 
