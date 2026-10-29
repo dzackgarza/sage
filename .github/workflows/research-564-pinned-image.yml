@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/research-564-pinned-image.yml'
       - 'docker/research-environment.Dockerfile'
+      - 'docker/research-environment.uv.lock'
       - 'docker/research-maxima-prefix.patch'
       - 'build/pkgs/maxima/spkg-install.in'
       - 'subprojects/packagefiles/maxima/build/doc/info/meson.build'
