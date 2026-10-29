@@ -38,14 +38,13 @@ WORKDIR /sage
 # for want of a compiler. Both checks turn that into an immediate, named
 # failure.
 #
-# BRiAl is the one name Sage lists that Debian no longer ships; it is excluded
-# by name so that any *other* name failing to resolve still fails the build.
-# Its meson feature is `auto`, so sage.rings.polynomial.pbori -- Boolean
-# polynomial rings -- is absent from this image and present on a desk whose
-# distribution still packages BRiAl.
+# BRiAl and GAP's Polenta package are the Sage metadata names Debian trixie
+# does not ship. BRiAl's Meson feature is `auto`, so sage.rings.polynomial.pbori
+# is absent here; Polenta is installed by Sage's own GAP spkg (`pkg/polenta`).
+# Exclude only these two known names so any other missing package still fails.
 RUN set -eu; \
     packages="$(build/bin/sage-get-system-packages debian $(build/bin/sage-package list :standard:) \
-        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev' | tr '\n' ' ')"; \
+        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev|gap-polenta' | tr '\n' ' ')"; \
     if [ -z "$packages" ]; then \
         echo "FATAL: Sage's package metadata produced no Debian packages" >&2; exit 1; \
     fi; \
