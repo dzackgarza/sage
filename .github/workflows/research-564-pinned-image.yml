@@ -100,7 +100,9 @@ jobs:
         run: |
           test "$(git -C .spinor-patch rev-parse HEAD)" = "$SPINOR_PATCH_SHA"
           RESEARCH_ENV_SHA="$(git -C .research-env rev-parse HEAD)"
+          test "$RESEARCH_ENV_SHA" = 217fbdbc789e7a4c75d70e53ebbf398df78990b8
           SAGE_CATEGORIES_SHA="$(git -C .sage-categories rev-parse HEAD)"
+          test "$SAGE_CATEGORIES_SHA" = 37ec1642fe19f24fb00f402fe45350341ebf6920
           mkdir -p sage-source/.research-env
           cp .research-env/pyproject.toml sage-source/.research-env/pyproject.toml
           cp .image-patches/docker/research-environment.uv.lock sage-source/.research-env/uv.lock
