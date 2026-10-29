@@ -63,10 +63,18 @@ jobs:
           path: .spinor-patch
           fetch-depth: 0
 
+      - name: Check out the image environment patch revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .image-patches
+          fetch-depth: 0
+
       - name: Apply maintained Sage spinor and Maxima source changes
         id: patch-revision
         env:
           SPINOR_PATCH_SHA: b963c7c613217d25cc93c3beed5893bc560ce1c0
+          BUILD_TRIGGER_SHA: ${{ github.sha }}
         run: |
           test "$(git -C .spinor-patch rev-parse HEAD)" = "$SPINOR_PATCH_SHA"
           # Apply the full maintained genus.py delta from the build base to
@@ -80,7 +88,7 @@ jobs:
           git -C sage-source apply ../.spinor.patch
           # The build base is develop, so explicitly carry the maintained
           # Maxima package-install changes from the triggering source branch.
-          diff -u --label a/build/pkgs/maxima/spkg-install.in --label b/build/pkgs/maxima/spkg-install.in sage-source/build/pkgs/maxima/spkg-install.in .spinor-patch/build/pkgs/maxima/spkg-install.in > .maxima-spkg.patch || test "$?" -eq 1
+          diff -u --label a/build/pkgs/maxima/spkg-install.in --label b/build/pkgs/maxima/spkg-install.in sage-source/build/pkgs/maxima/spkg-install.in .image-patches/build/pkgs/maxima/spkg-install.in > .maxima-spkg.patch || test "$?" -eq 1
           if [ -s .maxima-spkg.patch ]; then
             git -C sage-source apply --check ../.maxima-spkg.patch
             git -C sage-source apply ../.maxima-spkg.patch
@@ -90,9 +98,9 @@ jobs:
           # >=1.11.2 before the Sage Meson project is configured.
           # develop has no justfile; generate a new-file patch in that case.
           if [ -f sage-source/justfile ]; then
-            diff -u --label a/justfile --label b/justfile sage-source/justfile .spinor-patch/justfile > .meson-toolchain.patch || test "$?" -eq 1
+            diff -u --label a/justfile --label b/justfile sage-source/justfile .image-patches/justfile > .meson-toolchain.patch || test "$?" -eq 1
           else
-            diff -u --label /dev/null --label b/justfile /dev/null .spinor-patch/justfile > .meson-toolchain.patch || test "$?" -eq 1
+            diff -u --label /dev/null --label b/justfile /dev/null .image-patches/justfile > .meson-toolchain.patch || test "$?" -eq 1
           fi
           if [ -s .meson-toolchain.patch ]; then
             git -C sage-source apply --check ../.meson-toolchain.patch
@@ -101,16 +109,16 @@ jobs:
           # Carry the maintained Maxima Meson packaging change as well. It is
           # currently identical to develop, so this patch is empty; retaining
           # it in the pipeline prevents a future source change being ignored.
-          diff -u --label a/subprojects/packagefiles/maxima/build/doc/info/meson.build --label b/subprojects/packagefiles/maxima/build/doc/info/meson.build sage-source/subprojects/packagefiles/maxima/build/doc/info/meson.build .spinor-patch/subprojects/packagefiles/maxima/build/doc/info/meson.build > .maxima-meson.patch || test "$?" -eq 1
+          diff -u --label a/subprojects/packagefiles/maxima/build/doc/info/meson.build --label b/subprojects/packagefiles/maxima/build/doc/info/meson.build sage-source/subprojects/packagefiles/maxima/build/doc/info/meson.build .image-patches/subprojects/packagefiles/maxima/build/doc/info/meson.build > .maxima-meson.patch || test "$?" -eq 1
           if [ -s .maxima-meson.patch ]; then
             git -C sage-source apply --check ../.maxima-meson.patch
             git -C sage-source apply ../.maxima-meson.patch
           fi
           # Carry the Maxima ECL build-order correction into the exact source tree.
           if [ -f sage-source/subprojects/packagefiles/maxima/maxima_fas_install.patch ]; then
-            diff -u --label a/subprojects/packagefiles/maxima/maxima_fas_install.patch --label b/subprojects/packagefiles/maxima/maxima_fas_install.patch sage-source/subprojects/packagefiles/maxima/maxima_fas_install.patch .spinor-patch/subprojects/packagefiles/maxima/maxima_fas_install.patch > .maxima-fas-install.patch || test "$?" -eq 1
+            diff -u --label a/subprojects/packagefiles/maxima/maxima_fas_install.patch --label b/subprojects/packagefiles/maxima/maxima_fas_install.patch sage-source/subprojects/packagefiles/maxima/maxima_fas_install.patch .image-patches/subprojects/packagefiles/maxima/maxima_fas_install.patch > .maxima-fas-install.patch || test "$?" -eq 1
           else
-            diff -u --label /dev/null --label b/subprojects/packagefiles/maxima/maxima_fas_install.patch /dev/null .spinor-patch/subprojects/packagefiles/maxima/maxima_fas_install.patch > .maxima-fas-install.patch || test "$?" -eq 1
+            diff -u --label /dev/null --label b/subprojects/packagefiles/maxima/maxima_fas_install.patch /dev/null .image-patches/subprojects/packagefiles/maxima/maxima_fas_install.patch > .maxima-fas-install.patch || test "$?" -eq 1
           fi
           if [ -s .maxima-fas-install.patch ]; then
             git -C sage-source apply --check ../.maxima-fas-install.patch
@@ -120,7 +128,7 @@ jobs:
           # Without this, the image rebuilds sage.libs.ecl against the base
           # system ECL while Maxima's FAS is linked to the staged ECL 26.5.5;
           # loading both runtimes in one process segfaults during conway_mass.
-          diff -u --label a/src/sage/libs/meson.build --label b/src/sage/libs/meson.build sage-source/src/sage/libs/meson.build .spinor-patch/src/sage/libs/meson.build > .sage-ecl-provider.patch || test "$?" -eq 1
+          diff -u --label a/src/sage/libs/meson.build --label b/src/sage/libs/meson.build sage-source/src/sage/libs/meson.build .image-patches/src/sage/libs/meson.build > .sage-ecl-provider.patch || test "$?" -eq 1
           if [ -s .sage-ecl-provider.patch ]; then
             git -C sage-source apply --check ../.sage-ecl-provider.patch
             git -C sage-source apply ../.sage-ecl-provider.patch
@@ -136,7 +144,7 @@ jobs:
           # Maxima's Lisp loader expects MAXIMA_PREFIX to be the installed
           # share/maxima/<version>/share directory, not the staging prefix
           # root. Carry this path correction from the maintained source branch.
-          diff -u --label a/subprojects/packagefiles/maxima/meson.build --label b/subprojects/packagefiles/maxima/meson.build sage-source/subprojects/packagefiles/maxima/meson.build .spinor-patch/subprojects/packagefiles/maxima/meson.build > .maxima-prefix-path.patch || test "$?" -eq 1
+          diff -u --label a/subprojects/packagefiles/maxima/meson.build --label b/subprojects/packagefiles/maxima/meson.build sage-source/subprojects/packagefiles/maxima/meson.build .image-patches/subprojects/packagefiles/maxima/meson.build > .maxima-prefix-path.patch || test "$?" -eq 1
           if [ -s .maxima-prefix-path.patch ]; then
             git -C sage-source apply --check ../.maxima-prefix-path.patch
             git -C sage-source apply ../.maxima-prefix-path.patch
@@ -144,13 +152,13 @@ jobs:
           # Keep the ECL wrap and its packagefile patches in lockstep with the
           # maintained 26.5.5 source. Develop's wrap still fetches 26.3.27 and
           # lacks the two patch files consumed by the maintained wrap-file.
-          diff -u --label a/subprojects/ecl.wrap --label b/subprojects/ecl.wrap sage-source/subprojects/ecl.wrap .spinor-patch/subprojects/ecl.wrap > .ecl-wrap.patch || test "$?" -eq 1
+          diff -u --label a/subprojects/ecl.wrap --label b/subprojects/ecl.wrap sage-source/subprojects/ecl.wrap .image-patches/subprojects/ecl.wrap > .ecl-wrap.patch || test "$?" -eq 1
           if [ -s .ecl-wrap.patch ]; then
             git -C sage-source apply --check ../.ecl-wrap.patch
             git -C sage-source apply ../.ecl-wrap.patch
           fi
           for patch_file in 59de50b52380132d44bfa05f573544cba0a8c65f.patch ecl_side_modules_path.patch; do
-            diff -u --label /dev/null --label "b/subprojects/packagefiles/ecl/$patch_file" /dev/null ".spinor-patch/subprojects/packagefiles/ecl/$patch_file" > ".ecl-package-$patch_file.patch" || test "$?" -eq 1
+            diff -u --label /dev/null --label "b/subprojects/packagefiles/ecl/$patch_file" /dev/null ".image-patches/subprojects/packagefiles/ecl/$patch_file" > ".ecl-package-$patch_file.patch" || test "$?" -eq 1
             git -C sage-source apply --check "../.ecl-package-$patch_file.patch"
             git -C sage-source apply "../.ecl-package-$patch_file.patch"
           done
@@ -158,7 +166,7 @@ jobs:
           # project. Carry the parent packagefile too: develop's project has no
           # version, so project_version() otherwise returns "undefined" and
           # the child builds against an invalid staged ECL directory.
-          diff -u --label a/subprojects/packagefiles/ecl/meson.build --label b/subprojects/packagefiles/ecl/meson.build sage-source/subprojects/packagefiles/ecl/meson.build .spinor-patch/subprojects/packagefiles/ecl/meson.build > .ecl-project-meson.patch || test "$?" -eq 1
+          diff -u --label a/subprojects/packagefiles/ecl/meson.build --label b/subprojects/packagefiles/ecl/meson.build sage-source/subprojects/packagefiles/ecl/meson.build .image-patches/subprojects/packagefiles/ecl/meson.build > .ecl-project-meson.patch || test "$?" -eq 1
           if [ -s .ecl-project-meson.patch ]; then
             git -C sage-source apply --check ../.ecl-project-meson.patch
             git -C sage-source apply ../.ecl-project-meson.patch
@@ -167,7 +175,7 @@ jobs:
           # configuration helper, version, and side-module paths to Maxima.
           # Apply those changes too: the Maxima fallback consumes ecl_dep's
           # version() and get_variable('ecl_bin') contracts.
-          diff -u --label a/subprojects/packagefiles/ecl/src/meson.build --label b/subprojects/packagefiles/ecl/src/meson.build sage-source/subprojects/packagefiles/ecl/src/meson.build .spinor-patch/subprojects/packagefiles/ecl/src/meson.build > .ecl-meson.patch || test "$?" -eq 1
+          diff -u --label a/subprojects/packagefiles/ecl/src/meson.build --label b/subprojects/packagefiles/ecl/src/meson.build sage-source/subprojects/packagefiles/ecl/src/meson.build .image-patches/subprojects/packagefiles/ecl/src/meson.build > .ecl-meson.patch || test "$?" -eq 1
           if [ -s .ecl-meson.patch ]; then
             git -C sage-source apply --check ../.ecl-meson.patch
             git -C sage-source apply ../.ecl-meson.patch
@@ -175,9 +183,9 @@ jobs:
           # The maintained ECL Meson file consumes this sibling template,
           # which does not exist in develop; add it as a real new-file patch.
           if [ -f sage-source/subprojects/packagefiles/ecl/src/sage-ecl-config.in ]; then
-            diff -u --label a/subprojects/packagefiles/ecl/src/sage-ecl-config.in --label b/subprojects/packagefiles/ecl/src/sage-ecl-config.in sage-source/subprojects/packagefiles/ecl/src/sage-ecl-config.in .spinor-patch/subprojects/packagefiles/ecl/src/sage-ecl-config.in > .ecl-config-template.patch || test "$?" -eq 1
+            diff -u --label a/subprojects/packagefiles/ecl/src/sage-ecl-config.in --label b/subprojects/packagefiles/ecl/src/sage-ecl-config.in sage-source/subprojects/packagefiles/ecl/src/sage-ecl-config.in .image-patches/subprojects/packagefiles/ecl/src/sage-ecl-config.in > .ecl-config-template.patch || test "$?" -eq 1
           else
-            diff -u --label /dev/null --label b/subprojects/packagefiles/ecl/src/sage-ecl-config.in /dev/null .spinor-patch/subprojects/packagefiles/ecl/src/sage-ecl-config.in > .ecl-config-template.patch || test "$?" -eq 1
+            diff -u --label /dev/null --label b/subprojects/packagefiles/ecl/src/sage-ecl-config.in /dev/null .image-patches/subprojects/packagefiles/ecl/src/sage-ecl-config.in > .ecl-config-template.patch || test "$?" -eq 1
           fi
           if [ -s .ecl-config-template.patch ]; then
             git -C sage-source apply --check ../.ecl-config-template.patch
@@ -186,9 +194,9 @@ jobs:
           # The maintained Maxima ECL fallback adds a build-order anchor that
           # is absent from develop. Generate a proper new-file patch when needed.
           if [ -f sage-source/subprojects/packagefiles/maxima/build_dependency.c ]; then
-            diff -u --label a/subprojects/packagefiles/maxima/build_dependency.c --label b/subprojects/packagefiles/maxima/build_dependency.c sage-source/subprojects/packagefiles/maxima/build_dependency.c .spinor-patch/subprojects/packagefiles/maxima/build_dependency.c > .maxima-ecl-anchor.patch || test "$?" -eq 1
+            diff -u --label a/subprojects/packagefiles/maxima/build_dependency.c --label b/subprojects/packagefiles/maxima/build_dependency.c sage-source/subprojects/packagefiles/maxima/build_dependency.c .image-patches/subprojects/packagefiles/maxima/build_dependency.c > .maxima-ecl-anchor.patch || test "$?" -eq 1
           else
-            diff -u --label /dev/null --label b/subprojects/packagefiles/maxima/build_dependency.c /dev/null .spinor-patch/subprojects/packagefiles/maxima/build_dependency.c > .maxima-ecl-anchor.patch || test "$?" -eq 1
+            diff -u --label /dev/null --label b/subprojects/packagefiles/maxima/build_dependency.c /dev/null .image-patches/subprojects/packagefiles/maxima/build_dependency.c > .maxima-ecl-anchor.patch || test "$?" -eq 1
           fi
           if [ -s .maxima-ecl-anchor.patch ]; then
             git -C sage-source apply --check ../.maxima-ecl-anchor.patch
@@ -197,7 +205,7 @@ jobs:
           # Sage's MAXIMA_PREFIX remains the staging prefix for Maxima's
           # own pathname setup and CL-INFO. Its package loader must separately
           # search the installed versioned share tree below that prefix.
-          diff -u --label a/src/sage/interfaces/maxima_lib.py --label b/src/sage/interfaces/maxima_lib.py sage-source/src/sage/interfaces/maxima_lib.py .spinor-patch/src/sage/interfaces/maxima_lib.py > .maxima-loader-path.patch || test "$?" -eq 1
+          diff -u --label a/src/sage/interfaces/maxima_lib.py --label b/src/sage/interfaces/maxima_lib.py sage-source/src/sage/interfaces/maxima_lib.py .image-patches/src/sage/interfaces/maxima_lib.py > .maxima-loader-path.patch || test "$?" -eq 1
           if [ -s .maxima-loader-path.patch ]; then
             git -C sage-source apply --check ../.maxima-loader-path.patch
             git -C sage-source apply ../.maxima-loader-path.patch
