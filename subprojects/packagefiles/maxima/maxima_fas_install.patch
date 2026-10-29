@@ -21,6 +21,14 @@ diff --git a/configure b/configure
    EMACS       the Emacs editor command
    EMACSLOADPATH
                the Emacs library search path
+diff --git a/Makefile.in b/Makefile.in
+--- a/Makefile.in
++++ b/Makefile.in
+@@ -228,1 +228,4 @@ ECL_NAME = @ECL_NAME@
+ ECL_NAME = @ECL_NAME@
++MAXIMA_FAS_DIR = @MAXIMA_FAS_DIR@
++@ECL_TRUE@ECLDIR = $(abspath $(dir $(ECL_NAME))../lib/$(notdir $(MAXIMA_FAS_DIR)))/
++@ECL_TRUE@export ECLDIR
 diff --git a/src/Makefile.in b/src/Makefile.in
 --- a/src/Makefile.in
 +++ b/src/Makefile.in
