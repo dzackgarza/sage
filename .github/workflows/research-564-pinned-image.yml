@@ -158,9 +158,15 @@ jobs:
             git -C sage-source apply ../.ecl-wrap.patch
           fi
           for patch_file in 59de50b52380132d44bfa05f573544cba0a8c65f.patch ecl_side_modules_path.patch; do
-            diff -u --label /dev/null --label "b/subprojects/packagefiles/ecl/$patch_file" /dev/null ".image-patches/subprojects/packagefiles/ecl/$patch_file" > ".ecl-package-$patch_file.patch" || test "$?" -eq 1
-            git -C sage-source apply --check "../.ecl-package-$patch_file.patch"
-            git -C sage-source apply "../.ecl-package-$patch_file.patch"
+            if [ -f "sage-source/subprojects/packagefiles/ecl/$patch_file" ]; then
+              diff -u --label "a/subprojects/packagefiles/ecl/$patch_file" --label "b/subprojects/packagefiles/ecl/$patch_file" "sage-source/subprojects/packagefiles/ecl/$patch_file" ".image-patches/subprojects/packagefiles/ecl/$patch_file" > ".ecl-package-$patch_file.patch" || test "$?" -eq 1
+            else
+              diff -u --label /dev/null --label "b/subprojects/packagefiles/ecl/$patch_file" /dev/null ".image-patches/subprojects/packagefiles/ecl/$patch_file" > ".ecl-package-$patch_file.patch" || test "$?" -eq 1
+            fi
+            if [ -s ".ecl-package-$patch_file.patch" ]; then
+              git -C sage-source apply --check "../.ecl-package-$patch_file.patch"
+              git -C sage-source apply "../.ecl-package-$patch_file.patch"
+            fi
           done
           # The ECL child meson.build derives ecl_version from its parent
           # project. Carry the parent packagefile too: develop's project has no
