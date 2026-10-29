@@ -180,7 +180,7 @@ jobs:
           git -C sage-source apply --check -C0 ../.maxima-prefix.patch
           git -C sage-source apply -C0 ../.maxima-prefix.patch
           git -C sage-source diff --check
-          sed -i '/^RUN just research-environment-sync$/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
+          sed -i '/^RUN just research-environment-sync/i RUN git config --global url."https://github.com/".insteadOf "git@github.com:"' sage-source/docker/research-environment.Dockerfile
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
