@@ -57,18 +57,18 @@ jobs:
       - name: Check out the triggering Sage fix revision
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          # Pin the maintained source PR head, not the independent image-CI
+          # branch that happens to trigger this producer workflow.
+          ref: b963c7c613217d25cc93c3beed5893bc560ce1c0
           path: .spinor-patch
           fetch-depth: 0
 
       - name: Apply maintained Sage spinor and Maxima source changes
         id: patch-revision
         env:
-          BUILD_TRIGGER_SHA: ${{ github.sha }}
-          SPINOR_PATCH_SHA: b6ec30fa8993852e1c03eb2734a36e47db4e43fe
+          SPINOR_PATCH_SHA: b963c7c613217d25cc93c3beed5893bc560ce1c0
         run: |
-          test "$(git -C .spinor-patch rev-parse HEAD)" = "$BUILD_TRIGGER_SHA"
-          test "$(git -C .spinor-patch merge-base "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA")" = "$SPINOR_PATCH_SHA"
+          test "$(git -C .spinor-patch rev-parse HEAD)" = "$SPINOR_PATCH_SHA"
           # Apply the full maintained genus.py delta from the build base to
           # the triggering branch revision, including owner-level acceptance
           # doctests added after the original implementation commit. The
@@ -240,7 +240,7 @@ jobs:
           echo "patchset_sha=$PATCHSET_SHA" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$DOCKERFILE_SHA" > sage-source/.spinor-dockerfile-sha
           printf '%s\n' "$PATCHSET_SHA" > sage-source/.spinor-patchset-sha
-          printf 'Build trigger SHA: %s\nApplied Sage PR SHA: %s\nPatchset SHA: %s\n' "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA" "$PATCHSET_SHA"
+          printf 'Workflow trigger SHA: %s\nApplied Sage PR SHA: %s\nPatchset SHA: %s\n' "$GITHUB_SHA" "$SPINOR_PATCH_SHA" "$PATCHSET_SHA"
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py build/pkgs/maxima/spkg-install.in
 
       - uses: docker/setup-buildx-action@v3
