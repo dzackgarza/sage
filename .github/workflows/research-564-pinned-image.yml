@@ -63,7 +63,7 @@ jobs:
         id: patch-revision
         env:
           BUILD_TRIGGER_SHA: ${{ github.sha }}
-          SPINOR_PATCH_SHA: be7579575935bc25bcebb595a5a3889ad4673420
+          SPINOR_PATCH_SHA: b6ec30fa8993852e1c03eb2734a36e47db4e43fe
         run: |
           test "$(git -C .spinor-patch rev-parse HEAD)" = "$BUILD_TRIGGER_SHA"
           test "$(git -C .spinor-patch merge-base "$BUILD_TRIGGER_SHA" "$SPINOR_PATCH_SHA")" = "$SPINOR_PATCH_SHA"
