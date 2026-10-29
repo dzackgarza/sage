@@ -273,7 +273,7 @@ jobs:
           marker = 'RUN just research-environment-sync\n'
           if source.count(marker) != 1:
               raise SystemExit("expected exactly one environment-sync marker")
-          maxima = 'RUN set -eu; srcdir=$(find /sage/builddir/subprojects -type f -path "*/maxima-5.47.0/build/src/Makefile" -print -quit | xargs -r dirname); test -n "$srcdir"; make -C "$srcdir" binary-ecl/maxima; src="$srcdir/binary-ecl/maxima.fas"; test -s "$src"; dst=/sage/.venv/lib/ecl-26.5.5/maxima.fas; install -D -m 0644 "$src" "$dst"; test -s "$dst"\nENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas\n'
+          maxima = 'RUN set -eu; srcdir=$(find /sage/builddir/subprojects -type f -path "*/maxima-5.47.0/build/Makefile" -print -quit | xargs -r dirname); test -n "$srcdir"; make -C "$srcdir" binary-ecl/maxima; src="$srcdir/binary-ecl/maxima.fas"; test -s "$src"; dst=/sage/.venv/lib/ecl-26.5.5/maxima.fas; install -D -m 0644 "$src" "$dst"; test -s "$dst"\nENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas\n'
           source = source.replace(marker, marker + maxima)
           dockerfile.write_text(source)
           PY
