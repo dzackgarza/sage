@@ -168,6 +168,11 @@ jobs:
               git -C sage-source apply "../.ecl-package-$patch_file.patch"
             fi
           done
+          # The research image Dockerfile belongs to the image-CI branch, not
+          # upstream Sage develop. Install that maintained build recipe into
+          # the pinned Sage source context before applying checked markers.
+          mkdir -p sage-source/docker
+          cp .image-patches/docker/research-environment.Dockerfile sage-source/docker/research-environment.Dockerfile
           # The ECL child meson.build derives ecl_version from its parent
           # project. Carry the parent packagefile too: develop's project has no
           # version, so project_version() otherwise returns "undefined" and
