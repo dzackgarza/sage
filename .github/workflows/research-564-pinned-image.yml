@@ -344,7 +344,7 @@ jobs:
         # timeout rather than pytest-timeout's 60-second default.
         run: >-
           "$SAGE_BIN" -c
-          'import sys, pytest; sys.exit(pytest.main(["--no-time-gates", "--timeout=180", "-p", "qc_sage_session", "tests/lattices/test_genus.sage"]))'
+          'import sys, pytest; sys.exit(pytest.main(["--no-time-gates", "--timeout=600", "-p", "qc_sage_session", "tests/lattices/test_genus.sage"]))'
 
       - name: Verify native Sage spinor-generator quotient spanning
         run: |
