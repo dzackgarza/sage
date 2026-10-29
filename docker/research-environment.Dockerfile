@@ -39,9 +39,10 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
  && curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
 
 # Everything up to the full source copy below depends only on Sage's package
-# metadata (build/ and pyproject.toml), so a source change reuses these layers.
+# metadata (build/, pyproject.toml, and configure.ac, which sage_bootstrap
+# requires to recognise SAGE_ROOT), so a source change reuses these layers.
 COPY build /sage/build
-COPY pyproject.toml /sage/pyproject.toml
+COPY pyproject.toml configure.ac /sage/
 WORKDIR /sage
 
 # Sage's own package metadata names what the build links against: every
