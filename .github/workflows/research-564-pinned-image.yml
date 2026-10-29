@@ -208,11 +208,6 @@ jobs:
           git -C sage-source apply --check -C0 ../.maxima-prefix.patch
           git -C sage-source apply -C0 ../.maxima-prefix.patch
           git -C sage-source diff --check
-          # Instantiate the bridge project only after Oscar and JSON have been
-          # installed and precompiled in the shared depot. Inserting directly
-          # after JULIA_DEPOT_PATH would build the bridge project first and then
-          # repeat that dependency work in the default environment.
-          sed -i '/^    chmod -R a+rX \/opt\/julia-depot$/a RUN julia --project=/sage/.venv/lib/python3.14/site-packages/sage_julia_bridge/julia_env --startup-file=no --history-file=no --color=no -e '\''using Pkg; Pkg.instantiate(); Pkg.precompile(); import JSON; using Oscar'\''' sage-source/docker/research-environment.Dockerfile
           sed -i 's#^RUN just research-environment-sync$#RUN just research-environment-sync || { cat /sage/builddir/meson-logs/maxima-5.47.0-build.log; exit 1; }#' sage-source/docker/research-environment.Dockerfile
           sed -i '/^RUN just research-environment-sync/i RUN git config --global url.\"https://github.com/\".insteadOf \"git@github.com:\"' sage-source/docker/research-environment.Dockerfile
           git -C sage-source diff --check
@@ -319,6 +314,15 @@ jobs:
         run: >-
           /root/.local/bin/uv pip install --python /sage/.venv/bin/python
           'sage-julia-bridge @ git+https://github.com/dzackgarza/sage-julia-bridge@f85758d06c54a61f74cba0a1b328fbb5a29fddff'
+
+      - name: Instantiate the installed bridge Julia project
+        env:
+          JULIA_DEPOT_PATH: /tmp/julia-depot:/opt/julia-depot:
+        run: >-
+          julia
+          --project=/sage/.venv/lib/python3.14/site-packages/sage_julia_bridge/julia_env
+          --startup-file=no --history-file=no --color=no
+          -e 'using Pkg; Pkg.instantiate(); Pkg.precompile(); import JSON; using Oscar'
 
       - name: Install the pinned Sage pytest collector plugin
         uses: actions/checkout@v4
