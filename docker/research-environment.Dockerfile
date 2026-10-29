@@ -83,11 +83,11 @@ RUN set -eu; \
 # does not link without it.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-    libbliss-dev libbraiding-dev libhomfly-dev librw-dev \
+    libbliss-dev libhomfly-dev librw-dev \
     macaulay2 \
     4ti2 latte-int lrslib topcom msolve normaliz-bin libnormaliz-dev \
     polymake libpolymake-dev libgiac-dev xcas fricas kissat cliquer \
-    gap-atlasrep gap-design gap-grape gap-guava gap-guava-bin gap-hap \
+    gap-atlasrep gap-design gap-grape gap-guava gap-guava-bin gap-hap gap-radiroot \
     gap-polycyclic gap-alnuth gap-autpgrp gap-cryst gap-crystcat gap-io gap-nq \
     gap-character-tables gap-table-of-marks gap-transgrp gap-primgrp gap-smallgrp-extra \
     gap-utils gap-float gap-toric gap-laguna gap-sonata gap-factint gap-congruence \
@@ -104,6 +104,33 @@ RUN set -eu; \
     echo "aabf20981e438c2b361f416527163ae299a27a0a95ff3eb908a1aeae07b21bc1  /tmp/polenta.tar.gz" | sha256sum -c -; \
     tar -xzf /tmp/polenta.tar.gz -C /usr/share/gap/pkg; \
     rm /tmp/polenta.tar.gz
+
+# Debian installs these programs under package prefixes (4ti2-hilbert,
+# latte-count, topcom-points2allfinetriangs); Sage's features look for the
+# unprefixed names, so link them into /usr/local/bin. 4ti2 and LattE both ship
+# `minimize`; 4ti2 is linked first and keeps the name, which Sage's 4ti2
+# feature uses.
+RUN set -eu; \
+    for prefix in 4ti2- latte- topcom-; do \
+        for program in /usr/bin/"$prefix"*; do \
+            name="${program#/usr/bin/$prefix}"; \
+            if [ "$prefix$name" = latte-minimize ]; then continue; fi; \
+            ln -s "$program" /usr/local/bin/"$name"; \
+        done; \
+    done; \
+    command -v hilbert count points2allfinetriangs
+
+# Sage needs libbraiding >= 1.3.1 and Debian trixie ships 1.1, so the release
+# Sage's own package metadata pins (build/pkgs/libbraiding) is built here.
+RUN set -eu; \
+    version="$(cat build/pkgs/libbraiding/package-version.txt)"; \
+    sha256="$(sed -n 's/^sha256=//p' build/pkgs/libbraiding/checksums.ini)"; \
+    curl -fsSL -o /tmp/libbraiding.tar.gz "https://github.com/miguelmarco/libbraiding/releases/download/$version/libbraiding-$version.tar.gz"; \
+    echo "$sha256  /tmp/libbraiding.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/libbraiding; tar -xzf /tmp/libbraiding.tar.gz -C /tmp/libbraiding --strip-components=1; \
+    cd /tmp/libbraiding; ./configure --prefix=/usr/local; make -j"$(nproc)"; make install; ldconfig; \
+    rm -rf /tmp/libbraiding /tmp/libbraiding.tar.gz; \
+    pkg-config --atleast-version=1.3.1 libbraiding
 
 # CoxIter (Guglielmetti) computes invariants of hyperbolic Coxeter groups.
 # It is not packaged anywhere and needs PCRE1, which Debian trixie no longer
