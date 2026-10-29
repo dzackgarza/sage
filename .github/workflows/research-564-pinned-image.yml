@@ -317,7 +317,7 @@ jobs:
 
       - name: Instantiate the installed bridge Julia project
         env:
-          JULIA_DEPOT_PATH: /tmp/julia-depot:/opt/julia-depot:
+          JULIA_DEPOT_PATH: "/tmp/julia-depot:/opt/julia-depot:"
         run: >-
           julia
           --project=/sage/.venv/lib/python3.14/site-packages/sage_julia_bridge/julia_env
