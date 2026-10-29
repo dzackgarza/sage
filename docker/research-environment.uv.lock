@@ -315,6 +315,7 @@ dependencies = [
     { name = "python-flint" },
     { name = "python-frontmatter" },
     { name = "sage-categories" },
+    { name = "sage-extensions" },
     { name = "sage-julia-bridge" },
     { name = "streamlit" },
     { name = "tree-sitter-sage" },
@@ -337,11 +338,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "haystack-ai", specifier = ">=2.31.0" },
-    { name = "pandoc-config", url = "https://github.com/dzackgarza/pandoc-config/archive/b567314b56b11326fdba05041afdccd11adee5b3.tar.gz" },
+    { name = "pandoc-config", git = "https://github.com/dzackgarza/pandoc-config" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "python-flint", specifier = ">=0.9" },
     { name = "python-frontmatter", specifier = ">=1.1" },
-    { name = "sage-categories", git = "https://github.com/dzackgarza/sage-categories.git?rev=484727f4f9605836ba409962e0c750c9366d3312" },
+    { name = "sage-categories", git = "https://github.com/dzackgarza/sage-categories.git" },
+    { name = "sage-extensions", git = "https://github.com/dzackgarza/sage-extensions" },
     { name = "sage-julia-bridge", git = "https://github.com/dzackgarza/sage-julia-bridge" },
     { name = "streamlit", specifier = ">=1.59.2" },
     { name = "tree-sitter-sage", git = "https://github.com/dzackgarza/tree-sitter-sage" },
@@ -1028,17 +1030,10 @@ wheels = [
 [[package]]
 name = "pandoc-config"
 version = "0.1.0"
-source = { url = "https://github.com/dzackgarza/pandoc-config/archive/b567314b56b11326fdba05041afdccd11adee5b3.tar.gz" }
+source = { git = "https://github.com/dzackgarza/pandoc-config#edf6f363d6f4dfb6145cdd4f1a045b42401db2fc" }
 dependencies = [
     { name = "cyclopts" },
     { name = "pydantic" },
-]
-sdist = { hash = "sha256:f196f92015b9aae4334a558892a64ada4df1c1073e9256358d815bd9ed64bdec" }
-
-[package.metadata]
-requires-dist = [
-    { name = "cyclopts", specifier = ">=4.5.1" },
-    { name = "pydantic", specifier = ">=2.12.5" },
 ]
 
 [[package]]
@@ -1647,7 +1642,7 @@ wheels = [
 [[package]]
 name = "sage-categories"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-categories.git?rev=484727f4f9605836ba409962e0c750c9366d3312#484727f4f9605836ba409962e0c750c9366d3312" }
+source = { git = "https://github.com/dzackgarza/sage-categories#37ec1642fe19f24fb00f402fe45350341ebf6920" }
 dependencies = [
     { name = "attrs" },
     { name = "makefun" },
@@ -1655,6 +1650,18 @@ dependencies = [
     { name = "plum-dispatch" },
     { name = "sympy" },
     { name = "wrapt" },
+]
+
+[[package]]
+name = "sage-extensions"
+version = "0.1.0"
+source = { git = "https://github.com/dzackgarza/sage-extensions#48b9163c19fa6fbf11c9889058f46ba9c9ff345b" }
+dependencies = [
+    { name = "networkx" },
+    { name = "sage-categories" },
+    { name = "sage-julia-bridge" },
+    { name = "tree-sitter-sage" },
+    { name = "vinal" },
 ]
 
 [[package]]
