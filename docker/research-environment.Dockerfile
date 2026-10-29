@@ -64,19 +64,11 @@ ENV PATH="/root/.local/bin:${PATH}"
 RUN git config --global url."https://github.com/".insteadOf "git@github.com:"
 RUN just research-environment-sync
 
-# Maxima is built as a Meson external project; install the generated CL-INFO
-# indexes at its configured staged prefix before Sage imports symbolic code.
-RUN set -eu; \
-    prefix=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local; \
-    info_dir="$prefix/share/info"; \
-    mkdir -p "$info_dir"; \
-    for name in maxima-index.lisp maxima-index-html.lisp; do \
-        index="$(find /sage/builddir/subprojects/maxima-5.47.0 -type f -name "$name" -print -quit)"; \
-        if [ -z "$index" ]; then echo "FATAL: Maxima generated index $name not found" >&2; exit 1; fi; \
-        cp "$index" "$info_dir/$name"; \
-        test -s "$info_dir/$name"; \
-    done
-ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local
+# The Sage build installs Maxima and its CL-INFO indexes into the same venv
+# prefix. Keep the runtime prefix independent of the Maxima version and the
+# Meson external-project staging directory.
+ENV MAXIMA_PREFIX=/sage/.venv
+ENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas
 ENV SAGE_BIN=/sage/.venv/bin/sage
 
 RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"

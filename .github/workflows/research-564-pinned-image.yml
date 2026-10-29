@@ -264,7 +264,6 @@ jobs:
           source = dockerfile.read_text()
           replacements = (
               ('RUN curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin', 'RUN apt-get update && apt-get install -y --no-install-recommends just && rm -rf /var/lib/apt/lists/*'),
-              ('ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local', 'ENV MAXIMA_PREFIX=/sage/.venv'),
           )
           for old, new in replacements:
               if source.count(old) != 1:
@@ -273,12 +272,9 @@ jobs:
           marker = 'RUN just research-environment-sync\n'
           if source.count(marker) != 1:
               raise SystemExit("expected exactly one environment-sync marker")
-          maxima = 'RUN set -eu; srcdir=$(find /sage/builddir/subprojects/maxima-5.47.0 -type f -path "*/src/Makefile" -print -quit | xargs -r dirname); test -n "$srcdir"; make -C "$srcdir" binary-ecl/maxima; src="$srcdir/binary-ecl/maxima.fas"; test -s "$src"; dst=/sage/.venv/lib/ecl-26.5.5/maxima.fas; install -D -m 0644 "$src" "$dst"; test -s "$dst"\nENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas\n'
-          source = source.replace(marker, marker + maxima)
           dockerfile.write_text(source)
           PY
           git -C sage-source diff --check
-          sed -i 's#^RUN just research-environment-sync$#RUN just research-environment-sync || { cat /sage/builddir/meson-logs/maxima-5.47.0-build.log; exit 1; }#' sage-source/docker/research-environment.Dockerfile
           sed -i '/^RUN just research-environment-sync/i RUN git config --global url.\"https://github.com/\".insteadOf \"git@github.com:\"' sage-source/docker/research-environment.Dockerfile
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
