@@ -102,7 +102,8 @@ ENV JULIA_DEPOT_PATH=/opt/julia-depot:
 RUN set -eu; \
     julia --startup-file=no --color=no -e ' \
         using Pkg; \
-        Pkg.add(["Oscar", "JSON"]); \
+        Pkg.add(Pkg.PackageSpec(name="Oscar", version="1.7.1")); \
+        Pkg.add("JSON"); \
         Pkg.precompile(); \
         import JSON; \
         using Oscar; \
