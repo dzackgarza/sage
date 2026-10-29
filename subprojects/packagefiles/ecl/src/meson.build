@@ -17,6 +17,10 @@ ecl_env.append(
 # Need to tell ECL where to find the fas files after installation.
 ecl_env.append('CFLAGS', '-DECLDIR=\"' + ecldir + '\"', separator : ' ')
 ecl_env.set('ECL_SIDE_MODULES_PATH', ecl_side_modules_dir)
+# Keep ECL's installed *.fas modules at the same canonical directory
+# embedded by DECLDIR and used for Maxima's side module. The configure default
+# follows libdir, which can be multiarch and would diverge from ecldir above.
+ecl_env.set('ecldir', ecldir)
 
 proj = mod.add_project('configure',
   configure_options : [
