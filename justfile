@@ -32,9 +32,9 @@ research-environment-sync:
     export PATH="${sage_environment}/bin:${PATH}"
     meson_command="${sage_environment}/bin/meson"
     if [ -f "${sage_build_path}/meson-private/coredata.dat" ]; then
-        "${meson_command}" setup --reconfigure "${sage_build_path}" --prefix "${sage_environment}" -Dpython.install_env=prefix
+        "${meson_command}" setup --reconfigure "${sage_build_path}" --prefix "${sage_environment}" -Dpython.install_env=auto
     else
-        "${meson_command}" setup "${sage_build_path}" --prefix "${sage_environment}" -Dpython.install_env=prefix
+        "${meson_command}" setup "${sage_build_path}" --prefix "${sage_environment}" -Dpython.install_env=auto
     fi
     "${meson_command}" compile -C "${sage_build_path}"
     "${meson_command}" install -C "${sage_build_path}"
