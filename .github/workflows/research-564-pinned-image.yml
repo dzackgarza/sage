@@ -313,6 +313,18 @@ jobs:
           /root/.local/bin/uv pip install --python /sage/.venv/bin/python
           pytest-timeout pytest-reportlog
 
+      - name: Diagnose ECL and Maxima runtime paths before acceptance
+        run: |
+          set -eu
+          printf 'MAXIMA_FAS=%s\nMAXIMA_PREFIX=%s\nECLDIR=%s\nLD_LIBRARY_PATH=%s\n' \
+            "${MAXIMA_FAS:-}" "${MAXIMA_PREFIX:-}" "${ECLDIR:-}" "${LD_LIBRARY_PATH:-}"
+          test -n "${MAXIMA_FAS:-}"
+          ls -l "$MAXIMA_FAS"
+          file "$MAXIMA_FAS"
+          ldd "$MAXIMA_FAS" || true
+          readelf -d "$MAXIMA_FAS" | grep -E 'NEEDED|RPATH|RUNPATH' || true
+          "$SAGE_BIN" -c 'from sage.libs.ecl import ecl_eval; print("ECL SYS directory:", ecl_eval("(si::get-library-pathname)"))'
+
       - name: Run the complete public genus acceptance suite
         env:
           PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
