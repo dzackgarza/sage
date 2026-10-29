@@ -115,6 +115,14 @@ jobs:
             git -C sage-source apply --check ../.maxima-fas-install.patch
             git -C sage-source apply ../.maxima-fas-install.patch
           fi
+          # The base wrap does not list this new patch in diff_files; enable it
+          # explicitly or Meson silently ignores the ECL build-order correction.
+          cp sage-source/subprojects/maxima.wrap .maxima-wrap.original
+          if ! grep -q 'maxima/maxima_fas_install.patch' sage-source/subprojects/maxima.wrap; then
+            sed -i '/^diff_files = /s/$/, maxima\/maxima_fas_install.patch/' sage-source/subprojects/maxima.wrap
+          fi
+          grep -q 'maxima/maxima_fas_install.patch' sage-source/subprojects/maxima.wrap
+          diff -u --label a/subprojects/maxima.wrap --label b/subprojects/maxima.wrap .maxima-wrap.original sage-source/subprojects/maxima.wrap > .maxima-wrap-enable.patch || test "$?" -eq 1
           # Maxima's Lisp loader expects MAXIMA_PREFIX to be the installed
           # share/maxima/<version>/share directory, not the staging prefix
           # root. Carry this path correction from the maintained source branch.
@@ -196,7 +204,7 @@ jobs:
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
-          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .meson-toolchain.patch .maxima-meson.patch .maxima-fas-install.patch .maxima-prefix-path.patch .ecl-wrap.patch .ecl-project-meson.patch .ecl-meson.patch .ecl-config-template.patch .ecl-package-59de50b52380132d44bfa05f573544cba0a8c65f.patch.patch .ecl-package-ecl_side_modules_path.patch.patch .maxima-ecl-anchor.patch .maxima-loader-path.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
+          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .meson-toolchain.patch .maxima-meson.patch .maxima-fas-install.patch .maxima-wrap-enable.patch .maxima-prefix-path.patch .ecl-wrap.patch .ecl-project-meson.patch .ecl-meson.patch .ecl-config-template.patch .ecl-package-59de50b52380132d44bfa05f573544cba0a8c65f.patch.patch .ecl-package-ecl_side_modules_path.patch.patch .maxima-ecl-anchor.patch .maxima-loader-path.patch .maxima-prefix.patch | sha256sum | cut -c 1-64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
