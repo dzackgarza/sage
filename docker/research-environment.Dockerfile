@@ -73,7 +73,9 @@ ENV MAXIMA_PREFIX=/sage/.venv
 # Point Sage at the installed artifact so the path is independent of Maxima's
 # source version and the external project's staging-prefix layout.
 ENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas
-ENV SAGE_BIN=/sage/.venv/bin/sage
+# Meson installs the Python environment under .venv; Sage's command-line
+# launcher is the tracked executable at the source root, not a venv script.
+ENV SAGE_BIN=/sage/sage
 
 RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
 
