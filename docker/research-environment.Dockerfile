@@ -22,7 +22,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # python3 is needed here, not later: build/bin/sage-package is a Python
 # script, and it is what reports which packages to install.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git python3 \
+ && apt-get install -y --no-install-recommends ca-certificates curl git python3 rustc cargo \
  && rm -rf /var/lib/apt/lists/*
 
 COPY . /sage
