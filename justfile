@@ -60,7 +60,10 @@ research-environment-sync:
         sage_categories_checkout="${HOME}/gitclones/sage-categories"
     fi
     if [ -d "${sage_categories_checkout}" ]; then
-        uv pip install --python "${sage_environment}/bin/python" --project "${sage_categories_checkout}" --group platform --editable "${sage_categories_checkout}"
+        # `--project` and `--group` are `uv sync` options, not `uv pip install`
+        # options. Target the already-active Sage environment and preserve its
+        # other installed packages while adding the category platform workspace.
+        uv sync --active --project "${sage_categories_checkout}" --frozen --inexact --no-default-groups --group platform
     fi
 
     uv pip check --python "${sage_environment}/bin/python"
