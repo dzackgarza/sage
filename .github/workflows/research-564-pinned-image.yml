@@ -208,10 +208,11 @@ jobs:
           git -C sage-source apply --check -C0 ../.maxima-prefix.patch
           git -C sage-source apply -C0 ../.maxima-prefix.patch
           git -C sage-source diff --check
-          # The Julia executable is installed later in this Dockerfile. Add
-          # the bridge-project instantiation after that installation and its
-          # shared-depot setup, not immediately after Sage's Python build.
-          sed -i '/^ENV JULIA_DEPOT_PATH=\/opt\/julia-depot:$/a RUN julia --project=/sage/.venv/lib/python3.14/site-packages/sage_julia_bridge/julia_env --startup-file=no --history-file=no --color=no -e '\''using Pkg; Pkg.instantiate(); Pkg.precompile(); import JSON; using Oscar'\''' sage-source/docker/research-environment.Dockerfile
+          # Instantiate the bridge project only after Oscar and JSON have been
+          # installed and precompiled in the shared depot. Inserting directly
+          # after JULIA_DEPOT_PATH would build the bridge project first and then
+          # repeat that dependency work in the default environment.
+          sed -i '/^    chmod -R a+rX \/opt\/julia-depot$/a RUN julia --project=/sage/.venv/lib/python3.14/site-packages/sage_julia_bridge/julia_env --startup-file=no --history-file=no --color=no -e '\''using Pkg; Pkg.instantiate(); Pkg.precompile(); import JSON; using Oscar'\''' sage-source/docker/research-environment.Dockerfile
           sed -i 's#^RUN just research-environment-sync$#RUN just research-environment-sync || { cat /sage/builddir/meson-logs/maxima-5.47.0-build.log; exit 1; }#' sage-source/docker/research-environment.Dockerfile
           sed -i '/^RUN just research-environment-sync/i RUN git config --global url.\"https://github.com/\".insteadOf \"git@github.com:\"' sage-source/docker/research-environment.Dockerfile
           git -C sage-source diff --check
