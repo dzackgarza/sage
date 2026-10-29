@@ -2,7 +2,7 @@ name: Research issue 564 pinned Sage image and public consumer acceptance
 
 on:
   push:
-    branches: [fix-spinor-generator-accumulation-clean]
+    branches: [fix-spinor-generator-accumulation-clean, research-564-image-ci]
     paths:
       - '.github/workflows/research-564-pinned-image.yml'
       - 'docker/research-environment.Dockerfile'
