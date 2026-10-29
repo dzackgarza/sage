@@ -1,6 +1,6 @@
 --- a/docker/research-environment.Dockerfile
 +++ b/docker/research-environment.Dockerfile
-@@ -59,19 +59,21 @@
+@@ -59,19 +59,19 @@
  # uv supplies the managed 3.14 interpreter this fork requires; just runs the
  # build recipe the desk uses, so the image and the desk build the same way.
  RUN curl -LsSf https://astral.sh/uv/install.sh | sh
