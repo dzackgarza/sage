@@ -11,7 +11,13 @@ research-environment-sync:
     sage_build_path="${sage_root}/builddir"
 
     cd "${sage_root}"
-    uv sync --python "${sage_python_version}" --frozen --inexact --no-install-project --group research-environment
+    # Sage's own pyproject has a `dev` group; the research-environment group
+    # belongs to the separately locked research project and is not declared in
+    # Sage's pyproject. Install each lock into the same Sage runtime explicitly.
+    uv sync --python "${sage_python_version}" --frozen --inexact --no-install-project --group dev
+    research_requirements="${sage_root}/.research-requirements.txt"
+    uv export --project "${sage_root}/.research-env" --frozen --no-dev --no-emit-project --format requirements-txt --output-file "${research_requirements}"
+    uv pip install --python "${sage_environment}/bin/python" --requirement "${research_requirements}"
     # Maxima 5.47.0's external project requires Meson >=1.11.2, while the
     # develop uv.lock currently pins 1.10.0. Upgrade only this build tool after
     # the frozen environment sync and before configuring any Meson project.

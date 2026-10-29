@@ -46,6 +46,7 @@ jobs:
       base_sha: ${{ steps.patch-revision.outputs.base_sha }}
       dockerfile_sha: ${{ steps.patch-revision.outputs.dockerfile_sha }}
       patchset_sha: ${{ steps.patch-revision.outputs.patchset_sha }}
+      research_env_sha: ${{ steps.patch-revision.outputs.research_env_sha }}
     steps:
       - name: Check out the exact Sage develop base as the complete build context
         uses: actions/checkout@v4
@@ -70,6 +71,17 @@ jobs:
           path: .image-patches
           fetch-depth: 0
 
+      - name: Check out the locked research environment metadata
+        uses: actions/checkout@v4
+        with:
+          repository: dzackgarza/research
+          ref: 217fbdbc789e7a4c75d70e53ebbf398df78990b8
+          path: .research-env
+          sparse-checkout: |
+            pyproject.toml
+            uv.lock
+          sparse-checkout-cone-mode: false
+
       - name: Apply maintained Sage spinor and Maxima source changes
         id: patch-revision
         env:
@@ -77,6 +89,11 @@ jobs:
           BUILD_TRIGGER_SHA: ${{ github.sha }}
         run: |
           test "$(git -C .spinor-patch rev-parse HEAD)" = "$SPINOR_PATCH_SHA"
+          RESEARCH_ENV_SHA="$(git -C .research-env rev-parse HEAD)"
+          mkdir -p sage-source/.research-env
+          cp .research-env/pyproject.toml sage-source/.research-env/pyproject.toml
+          cp .image-patches/docker/research-environment.uv.lock sage-source/.research-env/uv.lock
+          printf '%s\n' "$RESEARCH_ENV_SHA" > sage-source/.spinor-research-env-revision
           # Apply the full maintained genus.py delta from the build base to
           # the triggering branch revision, including owner-level acceptance
           # doctests added after the original implementation commit. The
@@ -252,11 +269,12 @@ jobs:
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
           # Hash every generated patch rather than maintaining a parallel
           # hand-written inventory that can silently omit a newly applied one.
-          PATCHSET_SHA="$(find . -maxdepth 1 -type f -name '*.patch' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c 1-64)"
+          PATCHSET_SHA="$({ find . -maxdepth 1 -type f -name '*.patch' -print0 | sort -z | xargs -0 sha256sum; sha256sum .image-patches/docker/research-environment.uv.lock sage-source/.research-env/pyproject.toml; } | sha256sum | cut -c 1-64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
           echo "patchset_sha=$PATCHSET_SHA" >> "$GITHUB_OUTPUT"
+          echo "research_env_sha=$RESEARCH_ENV_SHA" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$DOCKERFILE_SHA" > sage-source/.spinor-dockerfile-sha
           printf '%s\n' "$PATCHSET_SHA" > sage-source/.spinor-patchset-sha
           printf 'Workflow trigger SHA: %s\nApplied Sage PR SHA: %s\nPatchset SHA: %s\n' "$GITHUB_SHA" "$SPINOR_PATCH_SHA" "$PATCHSET_SHA"
@@ -277,8 +295,9 @@ jobs:
           SAGE_BASE_SHA: ${{ steps.patch-revision.outputs.base_sha }}
           DOCKERFILE_SHA: ${{ steps.patch-revision.outputs.dockerfile_sha }}
           PATCHSET_SHA: ${{ steps.patch-revision.outputs.patchset_sha }}
+          RESEARCH_ENV_SHA: ${{ steps.patch-revision.outputs.research_env_sha }}
         run: |
-          image_key="$(printf '%s\n%s\n%s\n%s' "$SAGE_SOURCE_SHA" "$SAGE_BASE_SHA" "$DOCKERFILE_SHA" "$PATCHSET_SHA" | sha256sum | cut -c 1-40)"
+          image_key="$(printf '%s\n%s\n%s\n%s\n%s' "$SAGE_SOURCE_SHA" "$SAGE_BASE_SHA" "$DOCKERFILE_SHA" "$PATCHSET_SHA" "$RESEARCH_ENV_SHA" | sha256sum | cut -c 1-40)"
           tag="spinor-$image_key"
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:$tag"
           set +e
@@ -307,6 +326,7 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ steps.patch-revision.outputs.source_sha }}
             io.dzackgarza.sage.spinor-patchset=${{ steps.patch-revision.outputs.patchset_sha }}
+            io.dzackgarza.sage.research-environment=${{ steps.patch-revision.outputs.research_env_sha }}
             org.opencontainers.image.source=https://github.com/dzackgarza/sage
             org.opencontainers.image.title=Research Sage image with spinor generator correction
           cache-from: type=gha
@@ -331,11 +351,13 @@ jobs:
           SAGE_BASE_SHA: ${{ needs.publish.outputs.base_sha }}
           DOCKERFILE_SHA: ${{ needs.publish.outputs.dockerfile_sha }}
           PATCHSET_SHA: ${{ needs.publish.outputs.patchset_sha }}
+          RESEARCH_ENV_SHA: ${{ needs.publish.outputs.research_env_sha }}
         run: |
           test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
           test "$(cat /sage/.spinor-base-revision)" = "$SAGE_BASE_SHA"
           test "$(cat /sage/.spinor-dockerfile-sha)" = "$DOCKERFILE_SHA"
           test "$(cat /sage/.spinor-patchset-sha)" = "$PATCHSET_SHA"
+          test "$(cat /sage/.spinor-research-env-revision)" = "$RESEARCH_ENV_SHA"
           printf 'Applied Sage source SHA: %s\n' "$(cat /sage/.spinor-source-revision)"
           printf 'Sage develop base SHA: %s\n' "$(cat /sage/.spinor-base-revision)"
           "$SAGE_BIN" --version
