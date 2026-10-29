@@ -230,7 +230,9 @@ jobs:
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
-          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .meson-toolchain.patch .maxima-meson.patch .maxima-fas-install.patch .maxima-wrap-enable.patch .maxima-prefix-path.patch .ecl-wrap.patch .ecl-project-meson.patch .ecl-meson.patch .ecl-config-template.patch .ecl-package-59de50b52380132d44bfa05f573544cba0a8c65f.patch.patch .ecl-package-ecl_side_modules_path.patch.patch .maxima-ecl-anchor.patch .maxima-loader-path.patch .sage-ecl-provider.patch | sha256sum | cut -c 1-64)"
+          # Hash every generated patch rather than maintaining a parallel
+          # hand-written inventory that can silently omit a newly applied one.
+          PATCHSET_SHA="$(find . -maxdepth 1 -type f -name '*.patch' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c 1-64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
