@@ -17,7 +17,12 @@ research-environment-sync:
     uv sync --python "${sage_python_version}" --frozen --inexact --no-install-project --group dev
     research_requirements="${sage_root}/.research-requirements.txt"
     uv export --project "${sage_root}/.research-env" --frozen --no-dev --no-emit-project --format requirements-txt --output-file "${research_requirements}"
-    uv pip install --python "${sage_environment}/bin/python" --requirement "${research_requirements}"
+    # The frozen export already contains every transitive requirement. Do not
+    # re-resolve their direct-URL metadata: sage-extensions and the research
+    # project name the same sage-julia-bridge repository at different lock
+    # revisions, and uv's resolver rejects those URL constraints despite the
+    # later public-consumer step deliberately installing its exact bridge SHA.
+    uv pip install --no-deps --python "${sage_environment}/bin/python" --requirement "${research_requirements}"
     # Maxima 5.47.0's external project requires Meson >=1.11.2, while the
     # develop uv.lock currently pins 1.10.0. Upgrade only this build tool after
     # the frozen environment sync and before configuring any Meson project.
