@@ -64,14 +64,14 @@ jobs:
           # branch that happens to trigger this producer workflow.
           ref: b963c7c613217d25cc93c3beed5893bc560ce1c0
           path: .spinor-patch
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Check out the image environment patch revision
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           path: .image-patches
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Check out the locked research environment metadata
         uses: actions/checkout@v4
@@ -99,6 +99,9 @@ jobs:
           BUILD_TRIGGER_SHA: ${{ github.sha }}
         run: |
           test "$(git -C .spinor-patch rev-parse HEAD)" = "$SPINOR_PATCH_SHA"
+          # Both checkouts are shallow. Fetch only the immutable base needed
+          # for the reviewed genus.py delta instead of all Sage history.
+          git -C .spinor-patch fetch --depth=1 origin 36e49d91b0568f07ad4373362c15ce8970587e67
           RESEARCH_ENV_SHA="$(git -C .research-env rev-parse HEAD)"
           test "$RESEARCH_ENV_SHA" = 217fbdbc789e7a4c75d70e53ebbf398df78990b8
           SAGE_CATEGORIES_SHA="$(git -C .sage-categories rev-parse HEAD)"
