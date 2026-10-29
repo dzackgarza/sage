@@ -320,9 +320,10 @@ jobs:
             "${MAXIMA_FAS:-}" "${MAXIMA_PREFIX:-}" "${ECLDIR:-}" "${LD_LIBRARY_PATH:-}"
           test -n "${MAXIMA_FAS:-}"
           ls -l "$MAXIMA_FAS"
-          file "$MAXIMA_FAS"
-          ldd "$MAXIMA_FAS" || true
-          readelf -d "$MAXIMA_FAS" | grep -E 'NEEDED|RPATH|RUNPATH' || true
+          od -An -tx1 -N16 "$MAXIMA_FAS"
+          if command -v file >/dev/null 2>&1; then file "$MAXIMA_FAS"; fi
+          if command -v ldd >/dev/null 2>&1; then ldd "$MAXIMA_FAS" || true; fi
+          if command -v readelf >/dev/null 2>&1; then readelf -d "$MAXIMA_FAS" | grep -E 'NEEDED|RPATH|RUNPATH' || true; fi
           "$SAGE_BIN" -c 'from sage.libs.ecl import ecl_eval; print("ECL SYS directory:", ecl_eval("(si::get-library-pathname)"))'
 
       - name: Run the complete public genus acceptance suite
