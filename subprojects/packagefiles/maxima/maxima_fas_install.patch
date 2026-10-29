@@ -24,9 +24,11 @@ diff --git a/configure b/configure
 diff --git a/src/Makefile.in b/src/Makefile.in
 --- a/src/Makefile.in
 +++ b/src/Makefile.in
-@@ -241,4 +241,5 @@ LTLIBOBJS = @LTLIBOBJS@
+@@ -241,4 +241,7 @@ LTLIBOBJS = @LTLIBOBJS@
  MAKEINFO = @MAKEINFO@
 +MAXIMA_FAS_DIR = @MAXIMA_FAS_DIR@
++ECLDIR = $(abspath $(dir $(ECL_NAME))../lib/$(notdir $(MAXIMA_FAS_DIR)))/
++export ECLDIR
  MKDIR_P = @MKDIR_P@
  NEED_MATHJAX = @NEED_MATHJAX@
  NO_DISPLAYMATH = @NO_DISPLAYMATH@

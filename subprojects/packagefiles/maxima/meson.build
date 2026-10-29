@@ -15,10 +15,11 @@ ecl_dep = ecl_proj.get_variable('ecl_dep')
 # dependency lookup; registering it again here is an error.
 ecl = ecl_dep.get_variable(internal: 'ecl_bin')
 ecl_version = ecl_dep.version()
-# ECL's installed executable is built with the final ECLDIR compiled in,
-# but this external project invokes it before Meson copies the staged ECL
-# modules into the final Sage prefix. Override ECLDIR for this build only so
-# Maxima's compiler finds CMP.NEWEST in the ECL staging tree.
+# ECL's executable embeds the final ECLDIR, but Maxima invokes it before
+# Meson copies staged ECL modules into the final Sage prefix. Pass the staged
+# path during configure; maxima_fas_install.patch also exports it from the
+# generated Makefile because the later make phase does not inherit configure's
+# environment.
 ecl_staged_prefix = ecl_proj.get_variable('staged_prefix')
 ecl_staged_modules_dir = ecl_staged_prefix / 'lib' / ('ecl-' + ecl_version)
 # Carry the ECL build dependency into the external project.
