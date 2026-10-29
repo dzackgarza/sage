@@ -310,6 +310,11 @@ jobs:
       - name: Install the checked-out sage-extensions source
         run: /root/.local/bin/uv pip install --python /sage/.venv/bin/python --no-deps -e .
 
+      - name: Install the exact isometry engine bridge dependency
+        run: >-
+          /root/.local/bin/uv pip install --python /sage/.venv/bin/python
+          'sage-julia-bridge @ git+https://github.com/dzackgarza/sage-julia-bridge'
+
       - name: Install the pinned Sage pytest collector plugin
         uses: actions/checkout@v4
         with:
