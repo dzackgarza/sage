@@ -55,7 +55,10 @@ research-environment-sync:
     # but declares it only in its `platform` dependency group, which a --no-deps
     # install never reads. Its checkout is installed the way its own CI installs
     # it: the project together with that group.
-    sage_categories_checkout="${HOME}/gitclones/sage-categories"
+    sage_categories_checkout="${sage_root}/.research-env/sage-categories"
+    if [ ! -d "${sage_categories_checkout}" ]; then
+        sage_categories_checkout="${HOME}/gitclones/sage-categories"
+    fi
     if [ -d "${sage_categories_checkout}" ]; then
         uv pip install --python "${sage_environment}/bin/python" --project "${sage_categories_checkout}" --group platform --editable "${sage_categories_checkout}"
     fi
