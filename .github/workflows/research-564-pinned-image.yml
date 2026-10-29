@@ -204,16 +204,33 @@ jobs:
           printf '%s\n' "$SPINOR_PATCH_SHA" > sage-source/.spinor-source-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
-          git -C .spinor-patch show "$BUILD_TRIGGER_SHA:docker/research-maxima-prefix.patch" > .maxima-prefix.patch
-          git -C sage-source apply --check -C0 ../.maxima-prefix.patch
-          git -C sage-source apply -C0 ../.maxima-prefix.patch
+          # Apply image-specific changes by unique Dockerfile markers rather than a line-number-sensitive patch against moving develop.
+          python - <<'PY'
+          from pathlib import Path
+          dockerfile = Path("sage-source/docker/research-environment.Dockerfile")
+          source = dockerfile.read_text()
+          replacements = (
+              ('RUN curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin', 'RUN apt-get update && apt-get install -y --no-install-recommends just && rm -rf /var/lib/apt/lists/*'),
+              ('ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0', 'ENV MAXIMA_PREFIX=/sage/.venv'),
+          )
+          for old, new in replacements:
+              if source.count(old) != 1:
+                  raise SystemExit(f"expected exactly one Dockerfile marker: {old!r}")
+              source = source.replace(old, new)
+          marker = 'RUN just research-environment-sync\n'
+          if source.count(marker) != 1:
+              raise SystemExit("expected exactly one environment-sync marker")
+          maxima = 'RUN set -eu; srcdir=$(find /sage/builddir/subprojects -type f -path "*/maxima-5.47.0/build/src/Makefile" -print -quit | xargs -r dirname); test -n "$srcdir"; make -C "$srcdir" binary-ecl/maxima; src="$srcdir/binary-ecl/maxima.fas"; test -s "$src"; dst=/sage/.venv/lib/ecl-26.5.5/maxima.fas; install -D -m 0644 "$src" "$dst"; test -s "$dst"\nENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas\n'
+          source = source.replace(marker, marker + maxima)
+          dockerfile.write_text(source)
+          PY
           git -C sage-source diff --check
           sed -i 's#^RUN just research-environment-sync$#RUN just research-environment-sync || { cat /sage/builddir/meson-logs/maxima-5.47.0-build.log; exit 1; }#' sage-source/docker/research-environment.Dockerfile
           sed -i '/^RUN just research-environment-sync/i RUN git config --global url.\"https://github.com/\".insteadOf \"git@github.com:\"' sage-source/docker/research-environment.Dockerfile
           git -C sage-source diff --check
           BASE_SHA="$(cat sage-source/.spinor-base-revision)"
           DOCKERFILE_SHA="$(sha256sum sage-source/docker/research-environment.Dockerfile | head -c 64)"
-          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .meson-toolchain.patch .maxima-meson.patch .maxima-fas-install.patch .maxima-wrap-enable.patch .maxima-prefix-path.patch .ecl-wrap.patch .ecl-project-meson.patch .ecl-meson.patch .ecl-config-template.patch .ecl-package-59de50b52380132d44bfa05f573544cba0a8c65f.patch.patch .ecl-package-ecl_side_modules_path.patch.patch .maxima-ecl-anchor.patch .maxima-loader-path.patch .maxima-prefix.patch .sage-ecl-provider.patch | sha256sum | cut -c 1-64)"
+          PATCHSET_SHA="$(sha256sum .spinor.patch .maxima-spkg.patch .meson-toolchain.patch .maxima-fas-install.patch .maxima-wrap-enable.patch .maxima-prefix-path.patch .ecl-wrap.patch .ecl-project-meson.patch .ecl-meson.patch .ecl-config-template.patch .ecl-package-59de50b52380132d44bfa05f573544cba0a8c65f.patch.patch .ecl-package-ecl_side_modules_path.patch.patch .maxima-ecl-anchor.patch .maxima-loader-path.patch .sage-ecl-provider.patch | sha256sum | cut -c 1-64)"
           echo "source_sha=$SPINOR_PATCH_SHA" >> "$GITHUB_OUTPUT"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
           echo "dockerfile_sha=$DOCKERFILE_SHA" >> "$GITHUB_OUTPUT"
