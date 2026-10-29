@@ -74,7 +74,7 @@ jobs:
           # doctests added after the original implementation commit. The
           # patch-set digest records that complete delta independently of the
           # immutable owner-fix provenance SHA.
-          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SPINOR_PATCH_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
+          git -C .spinor-patch diff 36e49d91b0568f07ad4373362c15ce8970587e67 "$SPINOR_PATCH_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
           test -s .spinor.patch
           git -C sage-source apply --check ../.spinor.patch
           git -C sage-source apply ../.spinor.patch
