@@ -1,6 +1,7 @@
 name: Research issue 564 pinned Sage image and public consumer acceptance
 
 on:
+  workflow_dispatch:
   push:
     branches: [fix-spinor-generator-accumulation-clean, research-564-image-ci]
     paths:
