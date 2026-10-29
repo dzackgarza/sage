@@ -105,6 +105,12 @@ jobs:
             git -C sage-source apply --check ../.maxima-meson.patch
             git -C sage-source apply ../.maxima-meson.patch
           fi
+          # Carry the Maxima ECL build-order correction into the exact source tree.
+          diff -u --label a/subprojects/packagefiles/maxima/maxima_fas_install.patch --label b/subprojects/packagefiles/maxima/maxima_fas_install.patch sage-source/subprojects/packagefiles/maxima/maxima_fas_install.patch .spinor-patch/subprojects/packagefiles/maxima/maxima_fas_install.patch > .maxima-fas-install.patch || test "$?" -eq 1
+          if [ -s .maxima-fas-install.patch ]; then
+            git -C sage-source apply --check ../.maxima-fas-install.patch
+            git -C sage-source apply ../.maxima-fas-install.patch
+          fi
           # Maxima's Lisp loader expects MAXIMA_PREFIX to be the installed
           # share/maxima/<version>/share directory, not the staging prefix
           # root. Carry this path correction from the maintained source branch.
