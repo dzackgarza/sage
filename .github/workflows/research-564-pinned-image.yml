@@ -231,7 +231,7 @@ jobs:
           source = dockerfile.read_text()
           replacements = (
               ('RUN curl -LsSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin', 'RUN apt-get update && apt-get install -y --no-install-recommends just && rm -rf /var/lib/apt/lists/*'),
-              ('ENV MAXIMA_PREFIX=/sage/.venv/share/maxima/5.47.0', 'ENV MAXIMA_PREFIX=/sage/.venv'),
+              ('ENV MAXIMA_PREFIX=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local', 'ENV MAXIMA_PREFIX=/sage/.venv'),
           )
           for old, new in replacements:
               if source.count(old) != 1:
