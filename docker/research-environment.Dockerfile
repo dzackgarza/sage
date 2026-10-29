@@ -84,7 +84,7 @@ RUN apt-get update \
     macaulay2 \
     4ti2 latte-int lrslib topcom msolve normaliz-bin libnormaliz-dev \
     polymake libpolymake-dev libgiac-dev xcas fricas kissat cliquer \
-    gap-atlasrep gap-design gap-grape gap-guava gap-guava-bin gap-hap gap-polenta \
+    gap-atlasrep gap-design gap-grape gap-guava gap-guava-bin gap-hap \
     gap-polycyclic gap-alnuth gap-autpgrp gap-cryst gap-crystcat gap-io gap-nq \
     gap-character-tables gap-table-of-marks gap-transgrp gap-primgrp gap-smallgrp-extra \
     gap-utils gap-float gap-toric gap-laguna gap-sonata gap-factint gap-congruence \
