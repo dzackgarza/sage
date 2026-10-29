@@ -106,6 +106,7 @@ jobs:
           cp .image-patches/docker/research-environment.uv.lock sage-source/.research-env/uv.lock
           cp -a .sage-categories sage-source/.research-env/sage-categories
           printf '%s\n' "$SAGE_CATEGORIES_SHA" > sage-source/.spinor-sage-categories-revision
+          rm -rf sage-source/.research-env/sage-categories/.git
           printf '%s\n' "$RESEARCH_ENV_SHA" > sage-source/.spinor-research-env-revision
           # Apply the full maintained genus.py delta from the build base to
           # the triggering branch revision, including owner-level acceptance
