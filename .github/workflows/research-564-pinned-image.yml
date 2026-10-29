@@ -17,6 +17,7 @@ on:
       - 'subprojects/packagefiles/ecl/ecl_side_modules_path.patch'
       - 'subprojects/packagefiles/ecl/src/sage-ecl-config.in'
       - 'subprojects/packagefiles/maxima/build_dependency.c'
+      - 'subprojects/packagefiles/maxima/maxima_fas_install.patch'
       - 'src/sage/interfaces/maxima_lib.py'
       - 'justfile'
       - 'src/sage/quadratic_forms/genera/genus.py'
