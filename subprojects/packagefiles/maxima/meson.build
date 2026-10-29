@@ -51,9 +51,9 @@ proj = mod.add_project('configure',
 maxima_fas_dep = proj.dependency('maxima').partial_dependency(sources : true)
 maxima_dep = declare_dependency(
   variables: {
-    'MAXIMA_FAS': staged_prefix / ecl_side_modules_subdir / 'maxima.fas',
-    'MAXIMA_PREFIX': staged_prefix,
-    'MAXIMA_BIN': staged_prefix / get_option('bindir') / 'maxima',
+    'MAXIMA_FAS': get_option('prefix') / ecl_side_modules_subdir / 'maxima.fas',
+    'MAXIMA_PREFIX': get_option('prefix'),
+    'MAXIMA_BIN': get_option('prefix') / get_option('bindir') / 'maxima',
   },
   dependencies: maxima_fas_dep
 )
