@@ -68,7 +68,9 @@ RUN just research-environment-sync
 # prefix. Keep the runtime prefix independent of the Maxima version and the
 # Meson external-project staging directory.
 ENV MAXIMA_PREFIX=/sage/.venv
-ENV MAXIMA_FAS=/sage/.venv/lib/ecl-26.5.5/maxima.fas
+# Meson's Maxima external project stages its ECL side module under its build
+# directory; `MAXIMA_FAS` is deliberately not the final Python venv prefix.
+ENV MAXIMA_FAS=/sage/builddir/subprojects/maxima-5.47.0/dist/usr/local/lib/ecl-26.5.5/maxima.fas
 ENV SAGE_BIN=/sage/.venv/bin/sage
 
 RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
