@@ -56,6 +56,13 @@ RUN set -eu; \
         echo "FATAL: no C compiler after installing Sage's prerequisites" >&2; exit 1; \
     fi
 
+# Bliss is optional in Sage's metadata, so the standard list above omits it,
+# but lattice and graph-isomorphism work in every research project needs it.
+# Meson's `bliss` feature is `auto`; the library present makes it build.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libbliss-dev \
+ && rm -rf /var/lib/apt/lists/*
+
 # uv supplies the managed 3.14 interpreter this fork requires; just runs the
 # build recipe the desk uses, so the image and the desk build the same way.
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -66,7 +73,7 @@ RUN just research-environment-sync
 
 ENV SAGE_BIN=/sage/.venv/bin/sage
 
-RUN "$SAGE_BIN" -c "import sage.all; print(sage.version.version)"
+RUN "$SAGE_BIN" -c "import sage.all; from sage.features.bliss import Bliss; Bliss().require(); print(sage.version.version)"
 
 # Maxima is built in a staged subproject tree; runtime must use the installed Sage prefix.
 
