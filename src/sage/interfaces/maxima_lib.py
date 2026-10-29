@@ -340,9 +340,10 @@ if MAXIMA_PREFIX:
     # setup and CL-INFO. Package files are installed in the versioned share
     # tree below it; searching only at the prefix root makes load(to_poly_solve)
     # fail when Sage embeds Maxima through ECL.
-    maxima_share = os.path.join(
-        MAXIMA_PREFIX, "share", "maxima", "5.47.0", "share"
-    )
+    # Ask the loaded Maxima runtime for its canonical share directory instead
+    # of pinning the package version here: Sage's develop base may build a
+    # newer Maxima than the maintained image recipe originally targeted.
+    maxima_share = ecl_eval("*maxima-sharedir*").python()[1:-1]
     ecl_eval(f'#$file_search_maxima: append(file_search_maxima, ["{maxima_share}/###.{{mac,mc,wxm}}", "{maxima_share}/{import_packages}/###.{{mac,mc,wxm}}"] )$')
     ecl_eval(f'#$file_search_lisp: append(file_search_lisp, ["{maxima_share}/###.{{fas,lisp,lsp}}", "{maxima_share}/../src/###.{{fas,lisp,lsp}}", "{maxima_share}/{import_packages}/###.{{fas,lisp,lsp}}"] )$')
 
