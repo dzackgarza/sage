@@ -385,3 +385,9 @@ src/sage/calculus/__init__.py
 
 # doctesting noise
 PrOgReSs.gFaN
+
+# Local environment and meson-python build tree; excluded from the image
+# build context through .dockerignore.
+/.venv/
+/build/meson-python/
+/builddir/

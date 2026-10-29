@@ -55,14 +55,15 @@ WORKDIR /sage
 # for want of a compiler. Both checks turn that into an immediate, named
 # failure.
 #
-# BRiAl is the one name Sage lists that Debian no longer ships; it is excluded
-# by name so that any *other* name failing to resolve still fails the build.
+# BRiAl and gap-polenta are the names Sage lists that Debian trixie does not
+# ship; they are excluded by name so that any *other* name failing to resolve
+# still fails the build. Polenta is pure GAP and is installed below.
 # Its meson feature is `auto`, so sage.rings.polynomial.pbori -- Boolean
 # polynomial rings -- is absent from this image and present on a desk whose
 # distribution still packages BRiAl.
 RUN set -eu; \
     packages="$(build/bin/sage-get-system-packages debian $(build/bin/sage-package list :standard:) \
-        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev' | tr '\n' ' ')"; \
+        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev|gap-polenta' | tr '\n' ' ')"; \
     if [ -z "$packages" ]; then \
         echo "FATAL: Sage's package metadata produced no Debian packages" >&2; exit 1; \
     fi; \
@@ -93,6 +94,14 @@ RUN apt-get update \
     pandoc graphviz dvipng imagemagick texlive-latex-extra \
     cmake libpcre2-dev cargo rustc ccache \
  && rm -rf /var/lib/apt/lists/*
+
+# Polenta (polycyclic presentations of matrix groups) is a standard GAP package
+# for Sage, but Debian trixie does not package it; its release is pure GAP.
+RUN set -eu; \
+    curl -fsSL -o /tmp/polenta.tar.gz https://github.com/gap-packages/polenta/releases/download/v1.3.11/polenta-1.3.11.tar.gz; \
+    echo "aabf20981e438c2b361f416527163ae299a27a0a95ff3eb908a1aeae07b21bc1  /tmp/polenta.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/polenta.tar.gz -C /usr/share/gap/pkg; \
+    rm /tmp/polenta.tar.gz
 
 # CoxIter (Guglielmetti) computes invariants of hyperbolic Coxeter groups.
 # It is not packaged anywhere and needs PCRE1, which Debian trixie no longer
@@ -147,4 +156,4 @@ RUN --mount=type=cache,target=/ccache just research-environment-sync && ccache -
 ENV SAGE_BIN=/sage/.venv/bin/sage
 
 # Fail the build if any system the image exists to provide is absent.
-RUN "$SAGE_BIN" -c "from sage.features.all import all_features; required = {'bliss', 'macaulay2', '4ti2', 'latte_int', 'lrslib', 'topcom', 'msolve', 'pynormaliz', 'polymake', 'jupymake', 'giac', 'libbraiding', 'libhomfly', 'rankwidth', 'database_graphs', 'polytopes_db', 'gap_package_guava', 'gap_package_hap', 'gap_package_grape', 'gap_package_polycyclic', 'pycosat', 'python_igraph', 'lrcalc_python', 'sage.symbolic'}; features = {f.name: f for f in all_features()}; missing = sorted(n for n in required if not features[n].is_present()); assert not missing, missing; import sage_julia_bridge, sage_extensions, sage_categories, sage_categories_homotopy, sage_lsp, vinal, tree_sitter_sage; print(sage.version.version)"
+RUN "$SAGE_BIN" -c "from sage.features.all import all_features; required = {'bliss', 'macaulay2', '4ti2', 'latte_int', 'lrslib', 'topcom', 'msolve', 'pynormaliz', 'polymake', 'jupymake', 'giac', 'libbraiding', 'libhomfly', 'rankwidth', 'database_graphs', 'polytopes_db', 'gap_package_guava', 'gap_package_hap', 'gap_package_grape', 'gap_package_polycyclic', 'gap_package_polenta', 'pycosat', 'python_igraph', 'lrcalc_python', 'sage.symbolic'}; features = {f.name: f for f in all_features()}; missing = sorted(n for n in required if not features[n].is_present()); assert not missing, missing; import sage_julia_bridge, sage_extensions, sage_categories, sage_categories_homotopy, sage_lsp, vinal, tree_sitter_sage; print(sage.version.version)"
