@@ -1,7 +1,7 @@
 ecl_version = meson.project_version()
 staged_prefix = meson.current_build_dir() + '/dist' + get_option('prefix')
 libpath = staged_prefix / get_option('libdir')
-ecldir = libpath / ('ecl-' + ecl_version)
+ecldir = get_option('prefix') / 'lib' / ('ecl-' + ecl_version)
 # Keep side modules in the canonical SPKG/conda location, independently of the
 # platform-specific libdir used by ECL itself.
 ecl_side_modules_dir = get_option('prefix') / 'lib' / ('ecl-' + ecl_version)
