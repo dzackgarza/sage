@@ -79,6 +79,8 @@ RUN set -eu; \
 # Debian names come from build/pkgs/*/distros/debian.txt where Sage records one.
 # Meson's optional features (bliss, libbraiding, libhomfly, rankwidth) are
 # `auto`, so their libraries being present is what builds them.
+# binutils-gold: polymake-config's --ldflags select -fuse-ld=gold, so jupymake
+# does not link without it.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
     libbliss-dev libbraiding-dev libhomfly-dev librw-dev \
@@ -92,7 +94,7 @@ RUN apt-get update \
     sagemath-database-graphs sagemath-database-polytopes \
     pari-galdata pari-elldata pari-seadata pari-galpol \
     pandoc graphviz dvipng imagemagick texlive-latex-extra \
-    cmake libpcre2-dev cargo rustc ccache \
+    cmake libpcre2-dev cargo rustc ccache binutils-gold \
  && rm -rf /var/lib/apt/lists/*
 
 # Polenta (polycyclic presentations of matrix groups) is a standard GAP package
@@ -106,6 +108,8 @@ RUN set -eu; \
 # CoxIter (Guglielmetti) computes invariants of hyperbolic Coxeter groups.
 # It is not packaged anywhere and needs PCRE1, which Debian trixie no longer
 # ships, so PCRE 8.45 (the final PCRE1 release) is built into /opt/pcre for it.
+# Its coxiter_maths target includes pcre.h without PCRE's include path, hence
+# the explicit -I.
 RUN set -eu; \
     curl -fsSL -o /tmp/pcre.tar.bz2 https://sourceforge.net/projects/pcre/files/pcre/8.45/pcre-8.45.tar.bz2/download; \
     echo "4dae6fdcd2bb0bb6c37b5f97c33c2be954da743985369cddac3546e3218bffb8  /tmp/pcre.tar.bz2" | sha256sum -c -; \
@@ -114,7 +118,7 @@ RUN set -eu; \
     make -j"$(nproc)"; make install; \
     git clone https://github.com/rgugliel/CoxIter /tmp/coxiter; \
     git -C /tmp/coxiter -c advice.detachedHead=false checkout b800be48d8240fbabd2d1c9542e61054584ad7fe; \
-    cmake -S /tmp/coxiter -B /tmp/coxiter/build -DCMAKE_PREFIX_PATH=/opt/pcre -DCMAKE_INSTALL_PREFIX=/usr/local; \
+    cmake -S /tmp/coxiter -B /tmp/coxiter/build -DCMAKE_PREFIX_PATH=/opt/pcre -DCMAKE_CXX_FLAGS=-I/opt/pcre/include -DCMAKE_INSTALL_PREFIX=/usr/local; \
     cmake --build /tmp/coxiter/build -j"$(nproc)"; \
     cmake --install /tmp/coxiter/build; \
     rm -rf /tmp/pcre /tmp/pcre.tar.bz2 /tmp/coxiter; \
