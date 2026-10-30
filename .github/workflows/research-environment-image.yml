@@ -122,9 +122,9 @@ jobs:
         id: image-tag
         env:
           SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha || github.sha }}
-          IS_DEVELOP_PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' && !inputs.sage_source_sha }}
+          IS_DEVELOP: ${{ github.ref == 'refs/heads/develop' && !inputs.sage_source_sha }}
         run: |
-          if [ "$IS_DEVELOP_PUSH" = "true" ]; then
+          if [ "$IS_DEVELOP" = "true" ]; then
             echo "tag=develop" >> "$GITHUB_OUTPUT"
             echo "exists=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -245,7 +245,7 @@ jobs:
 
       - name: Install the checked-out sage-extensions source
         run: >-
-          "$SAGE_BIN" -pip install --no-deps -e .
+          uv pip install --python /sage/.venv/bin/python --no-deps -e .
 
       - name: Install the Sage pytest collector plugin
         uses: actions/checkout@v4
@@ -258,7 +258,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
         run: >-
-          "$SAGE_BIN" -python -m pytest
+          /sage/.venv/bin/python -m pytest
           -p qc_sage_session
           tests/lattices/test_genus.sage
           -k test_published_four_spinor_genus_is_counted_from_all_generators
