@@ -26,12 +26,20 @@ on:
       - 'src/**'
       - 'build/pkgs/**'
       - 'docker/research-environment.Dockerfile'
+      - 'docker/research-environment-incremental.Dockerfile'
+      - 'docker/relock-research-packages.sh'
+      - 'docker/research-environment-check.py'
   workflow_dispatch:
     inputs:
       sage_source_sha:
         description: Exact maintained Sage PR commit whose genus.py correction is applied to current develop for an isolated image; omit for ordinary develop image
         required: false
         type: string
+      relock:
+        description: Lock every git-sourced research package at its head, build the image on that lock, and commit it
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: research-environment-image-${{ inputs.sage_source_sha || github.ref }}
@@ -42,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
-      contents: read
+      contents: write
       packages: write
     outputs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
@@ -138,12 +146,40 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
+      # As upstream's build.yml does, a source change is rebuilt on top of the
+      # last published image. The full build runs when the system layers
+      # changed, when a file was deleted (the incremental copy deletes
+      # nothing), or for an isolated spinor image.
+      - name: Select a full or an incremental build
+        id: build-kind
+        if: steps.image-tag.outputs.exists != 'true'
+        env:
+          BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/sage:develop
+          IS_SPINOR: ${{ inputs.sage_source_sha != '' }}
+        run: |
+          if [ "$IS_SPINOR" = "true" ]; then
+            echo "kind=full" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          base_revision="$(docker buildx imagetools inspect "$BASE_IMAGE" --format '{{ index .Image.Config.Labels "org.opencontainers.image.revision" }}')"
+          git -C sage-source fetch --depth 1 origin "$base_revision"
+          changes="$(git -C sage-source diff --name-status "$base_revision" HEAD)"
+          printf 'Changes since the base image (%s):\n%s\n' "$base_revision" "$changes"
+          if grep -qE '^D|docker/research-environment\.Dockerfile$' <<<"$changes"; then
+            echo "kind=full" >> "$GITHUB_OUTPUT"
+          else
+            echo "kind=incremental" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build and publish the selected Sage image
         if: steps.image-tag.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: sage-source
-          file: sage-source/docker/research-environment.Dockerfile
+          file: sage-source/docker/research-environment${{ steps.build-kind.outputs.kind == 'incremental' && '-incremental' || '' }}.Dockerfile
+          build-args: |
+            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
+            RELOCK=${{ inputs.relock && 'true' || 'false' }}
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/sage:${{ steps.image-tag.outputs.tag }}
           labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
@@ -151,6 +187,32 @@ jobs:
           # per repository, which a Sage image's layers exceed.
           cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache,mode=max
+
+      # The lock stage reuses the build above from the BuildKit cache.
+      - name: Export the lock the image was built on
+        if: inputs.relock
+        uses: docker/build-push-action@v6
+        with:
+          context: sage-source
+          file: sage-source/docker/research-environment${{ steps.build-kind.outputs.kind == 'incremental' && '-incremental' || '' }}.Dockerfile
+          target: lock
+          build-args: |
+            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
+            RELOCK=true
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
+          outputs: type=local,dest=relock
+
+      - name: Commit the lock
+        if: inputs.relock
+        working-directory: sage-source
+        run: |
+          cp ../relock/uv.lock uv.lock
+          git diff --stat -- uv.lock
+          git diff --quiet -- uv.lock && exit 0
+          git config user.name github-actions
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "build: lock the research packages at their heads" -- uv.lock
+          git push origin HEAD:develop
 
   consumer-acceptance:
     if: needs.publish.outputs.image_tag != 'develop'

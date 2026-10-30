@@ -15,7 +15,7 @@
 # build/pkgs/*/distros/debian.txt names a package Debian ships. Ubuntu 24.04
 # is missing five of them -- maxima-sage and HiGHS among them -- so the same
 # metadata that resolves completely here resolves partially there.
-FROM debian:trixie
+FROM debian:trixie AS environment
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -94,7 +94,7 @@ RUN apt-get update \
     sagemath-database-graphs sagemath-database-polytopes \
     pari-galdata pari-elldata pari-seadata pari-galpol \
     pandoc graphviz dvipng imagemagick texlive-latex-extra \
-    cmake libpcre2-dev cargo rustc ccache binutils-gold \
+    cmake libpcre2-dev cargo rustc ccache rsync binutils-gold \
  && rm -rf /var/lib/apt/lists/*
 
 # Polenta (polycyclic presentations of matrix groups) is a standard GAP package
@@ -182,7 +182,17 @@ COPY . /sage
 # is on PATH. The cache mount is not part of the image, and CI carries it
 # between runs, so a source change recompiles only the modules it touches.
 ENV CCACHE_DIR=/ccache
-RUN --mount=type=cache,target=/ccache just research-environment-sync && ccache --show-stats
+# RELOCK=true first moves the git-sourced research packages to their heads; the
+# sync then installs that lock, and the `lock` stage below exports it.
+ARG RELOCK=false
+RUN --mount=type=cache,target=/ccache \
+    if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
+ && just research-environment-sync && ccache --show-stats
+
+FROM scratch AS lock
+COPY --from=environment /sage/uv.lock /uv.lock
+
+FROM environment
 
 ENV SAGE_BIN=/sage/.venv/bin/sage
 
