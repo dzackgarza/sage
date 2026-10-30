@@ -18,6 +18,10 @@
 FROM debian:trixie AS environment
 
 ENV DEBIAN_FRONTEND=noninteractive
+# /sage is the fork's git checkout. Meson's vcs_tag would stamp its commit into
+# HiGHS's HConfig.h and recompile HiGHS on every commit; git stops looking for a
+# repository at the subprojects directory, so the stamp stays at its fallback.
+ENV GIT_CEILING_DIRECTORIES=/sage/subprojects
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git \
@@ -175,6 +179,14 @@ RUN set -eu; \
         using Oscar; \
         println("JSON ", pkgversion(JSON), ", Oscar ", Oscar.VERSION_NUMBER, " loaded")'; \
     chmod -R a+rX /opt/julia-depot
+
+# Lean 4 through elan; install-research-repositories.sh installs the toolchain
+# each Lean checkout pins.
+ENV ELAN_HOME=/opt/elan
+ENV PATH=/opt/elan/bin:$PATH
+RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+    | sh -s -- -y --no-modify-path --default-toolchain none \
+ && elan --version
 
 COPY . /sage
 

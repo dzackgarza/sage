@@ -29,6 +29,8 @@ on:
       - 'docker/research-environment-incremental.Dockerfile'
       - 'docker/relock-research-packages.sh'
       - 'docker/research-environment-check.py'
+      - 'docker/install-research-repositories.sh'
+      - 'docker/research-repositories.txt'
   workflow_dispatch:
     inputs:
       sage_source_sha:
@@ -61,7 +63,12 @@ jobs:
         with:
           ref: ${{ github.event_name == 'push' && github.sha || 'develop' }}
           path: sage-source
-          fetch-depth: 1
+          # /sage is the fork's working checkout in the image: full history,
+          # contents fetched on demand.
+          fetch-depth: 0
+          filter: blob:none
+          # .git goes into the image, so the token stays out of its config.
+          persist-credentials: false
 
       - name: Check out the exact maintained Sage PR revision
         if: inputs.sage_source_sha != ''
@@ -95,6 +102,13 @@ jobs:
         run: |
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-source-revision
+
+      # The image carries Sage's build tree, every research checkout and
+      # Mathlib's build; the runner's preinstalled toolchains make room for it.
+      - name: Free the runner's disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
 
       - uses: docker/setup-buildx-action@v3
 
@@ -205,6 +219,8 @@ jobs:
       - name: Commit the lock
         if: inputs.relock
         working-directory: sage-source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cp ../relock/uv.lock uv.lock
           git diff --stat -- uv.lock
@@ -212,7 +228,7 @@ jobs:
           git config user.name github-actions
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "build: lock the research packages at their heads" -- uv.lock
-          git push origin HEAD:develop
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:develop
 
   consumer-acceptance:
     if: needs.publish.outputs.image_tag != 'develop'

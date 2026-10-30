@@ -40,4 +40,6 @@ research-environment-sync:
     meson compile -C "${sage_build_path}"
     meson install -C "${sage_build_path}"
 
+    docker/install-research-repositories.sh
+
     uv pip check --python "${sage_environment}/bin/python"

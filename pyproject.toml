@@ -219,9 +219,11 @@ extra = [
 
 [dependency-groups]
 research-environment = [
+  "dzack-research",
   "igraph",
   "jupymake",
   "jupyter-mcp-server",
+  "latticedb",
   "lrcalc ~=2.1",
   "mypy",
   "pycosat >=0.6.3",
@@ -229,6 +231,7 @@ research-environment = [
   "sage-categories",
   "sage-categories-homotopy",
   "sage-extensions",
+  "sage-indefinite-port",
   "sage-julia-bridge",
   "sage-lsp",
   "sage-mypy-category-plugin",
@@ -280,6 +283,9 @@ test = ["coverage", "pytest"]
 # research-environment-sync reinstalls any of these it finds checked out
 # locally, so editing them stays live without a path here.
 [tool.uv.sources]
+dzack-research = { git = "https://github.com/dzackgarza/research" }
+latticedb = { git = "https://github.com/dzackgarza/lattice-database" }
+sage-indefinite-port = { git = "https://github.com/dzackgarza/sage-indefinite-port" }
 jupyter-mcp-server = { git = "https://github.com/dzackgarza/jupyter-mcp-server" }
 sage-categories = { git = "https://github.com/dzackgarza/sage-categories" }
 sage-categories-homotopy = { git = "https://github.com/dzackgarza/sage-categories", subdirectory = "native/homotopy-python" }

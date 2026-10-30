@@ -391,8 +391,3 @@ PrOgReSs.gFaN
 /.venv/
 /build/meson-python/
 /builddir/
-
-# Docker reads this file as .dockerignore. The repository stays out of the image
-# context: HiGHS stamps the enclosing git hash into HConfig.h, so a .git in the
-# image recompiles all of HiGHS on every commit.
-/.git
