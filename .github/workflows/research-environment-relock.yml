@@ -33,15 +33,13 @@ jobs:
         with:
           ref: develop
 
-      # sagemath builds without isolation, so uv needs the image's environment,
-      # which holds meson-python and the other build requirements. The image
-      # can predate this checkout, so the environment first takes the
-      # checkout's locked build requirements, as `just research-environment-sync`
-      # does.
-      - name: Bring the image's environment to the checked-out lock
-        env:
-          UV_PROJECT_ENVIRONMENT: /sage/.venv
-        run: uv sync --frozen --inexact --no-install-project --group research-environment
+      # sagemath builds without isolation, so uv builds it in the image's
+      # environment. The image can predate this checkout, so that environment
+      # first takes the checkout's own [build-system] requirements.
+      - name: Install the checkout's build requirements
+        run: |
+          /sage/.venv/bin/python -c 'import tomllib; print("\n".join(tomllib.load(open("pyproject.toml", "rb"))["build-system"]["requires"]))' > "$RUNNER_TEMP/build-requires.txt"
+          uv pip install --python /sage/.venv/bin/python -r "$RUNNER_TEMP/build-requires.txt"
 
       - name: Lock the research packages at their heads
         env:
