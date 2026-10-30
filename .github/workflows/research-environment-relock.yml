@@ -33,7 +33,11 @@ jobs:
         with:
           ref: develop
 
+      # sagemath builds without isolation, so uv needs the image's environment,
+      # which holds meson-python and the other build requirements.
       - name: Lock the research packages at their heads
+        env:
+          UV_PROJECT_ENVIRONMENT: /sage/.venv
         run: >-
           uv lock
           --upgrade-package vinal
