@@ -9,7 +9,8 @@
 # mtime and rebuild all of Sage. Nothing is deleted: meson writes generated
 # files into the source tree, and removing them forces a reconfigure. A file
 # deleted from the source, or a change to the system layers
-# (research-environment.Dockerfile), needs the full build instead.
+# (research-environment.Dockerfile), needs the full build instead. /sage/.git
+# is removed because HiGHS stamps the enclosing git hash into HConfig.h.
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE} AS environment
 
@@ -17,7 +18,7 @@ COPY . /tmp/sage-source
 RUN rsync --recursive --links --checksum \
         --exclude /builddir/ --exclude /.venv/ \
         /tmp/sage-source/ /sage/ \
- && rm -rf /tmp/sage-source
+ && rm -rf /tmp/sage-source /sage/.git
 
 ENV CCACHE_DIR=/ccache
 # RELOCK=true first moves the git-sourced research packages to their heads; the

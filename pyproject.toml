@@ -788,8 +788,9 @@ no-build-isolation-package = ["sagemath"]
 # metadata, so every `uv lock` or `uv sync` that reads this project's metadata
 # builds it, and meson-python's default throwaway directory makes that a cold
 # Sage compile each time. It is `builddir`, the directory upstream CI passes to
-# meson-python, and research-environment-sync builds through uv into the same
-# one, so a lock after a sync finds the tree configured and compiled.
+# meson-python, and research-environment-sync configures it with meson-python's
+# own setup arguments, so a lock after a sync finds the tree configured and
+# compiled.
 config-settings-package = { tree-sitter-sage = { editable_mode = "strict" }, sagemath = { build-dir = "builddir" } }
 # Build these packages from source instead of installing pre-built wheels.
 no-binary-package = ["cypari2", "pplpy", "primecountpy"]
