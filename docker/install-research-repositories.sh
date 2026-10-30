@@ -62,8 +62,7 @@ uv pip install --python "${sage_python}" --no-deps "${editable[@]}"
 # Every Lake package a manifest pins is checked out once per revision under
 # /opt/lake-packages and linked into the checkout's .lake/packages, so the
 # checkouts share one Mathlib, whose prebuilt cache is unpacked into it once.
-# Each checkout is built, so the environment needs no Lean compilation at first
-# use.
+# The checkouts' own targets are the agents' work and are not built here.
 lake_packages=/opt/lake-packages
 mkdir -p "${lake_packages}"
 for checkout in "${repositories_root}"/*/; do
@@ -91,5 +90,4 @@ PY
     if [ -L "${checkout}/.lake/packages/mathlib" ]; then
         (cd "${checkout}" && lake exe cache get)
     fi
-    (cd "${checkout}" && lake build)
 done
