@@ -1,0 +1,64 @@
+# Move the research environment's git dependencies to their current heads.
+#
+# uv must build sagemath to read its dynamic version, which compiles Sage, so
+# the lock is refreshed here, inside the published image, and never on a desk.
+# A push made with GITHUB_TOKEN starts no workflow, so this run dispatches the
+# image build for the new lock itself.
+
+name: Research environment relock
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: research-environment-relock
+  cancel-in-progress: false
+
+jobs:
+  relock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    permissions:
+      contents: write
+      actions: write
+      packages: read
+    container:
+      image: ghcr.io/${{ github.repository_owner }}/sage:develop
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+      options: --user root
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Lock the research packages at their heads
+        run: >-
+          uv lock
+          --upgrade-package vinal
+          --upgrade-package sage-extensions
+          --upgrade-package sage-julia-bridge
+          --upgrade-package sage-categories
+          --upgrade-package sage-categories-homotopy
+          --upgrade-package sage-stubs
+          --upgrade-package tree-sitter-sage
+          --upgrade-package sage-lsp
+          --upgrade-package sage-mypy-category-plugin
+
+      - name: Commit the lock and build its image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git diff --stat -- uv.lock
+          git diff --quiet -- uv.lock && exit 0
+          git config user.name github-actions
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "build: lock the research packages at their heads" -- uv.lock
+          git push origin HEAD:develop
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/research-environment-image.yml/dispatches" \
+            -d '{"ref":"develop"}'
