@@ -7,7 +7,7 @@ from pathlib import Path
 from sage.features.all import all_features
 from sage.features.gap import GapPackage
 from sage.features.interfaces import Macaulay2
-from sage.all import QQ
+from sage.all import Graph, graphs, QQ
 from sage_julia_bridge import julia
 
 subprocess.run([
@@ -27,6 +27,22 @@ features += [GapPackage(name) for name in (
 )]
 missing = [feature.name for feature in features if not feature.is_present()]
 assert not missing, missing
+
+# Both canonical-label backends return the same label for a relabelled copy of
+# a labelled graph, and the bliss automorphism search finishes.  A system
+# libbliss built with a different BigNum representation than its headers
+# segfaults on the first assertion, and one whose bliss::Stats is copied
+# instead of referenced aborts on a double free in the last: this image
+# installs that library, so its build has to link it the way the library's
+# pkg-config file asks.
+labelled = Graph([(0, 1, "a"), (2, 3, None), (1, 2, "a"), (3, 0, None)])
+relabelled = labelled.relabel({0: 2, 1: 0, 2: 3, 3: 1}, inplace=False)
+for algorithm in ("bliss", "sage"):
+    assert labelled.canonical_label(algorithm=algorithm, edge_labels=True) == (
+        relabelled.canonical_label(algorithm=algorithm, edge_labels=True)
+    ), algorithm
+assert Graph([[0, 1]]).canonical_label(edge_labels=True) == Graph([[0, 1]])
+assert graphs.PetersenGraph().automorphism_group().order() == 120
 
 # The research packages run from their checkouts under /repos. The homotopy
 # package is a compiled extension built from its checkout, so its module is in
