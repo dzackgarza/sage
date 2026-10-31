@@ -13,6 +13,7 @@ https://github.com/dzackgarza/lean-cas-dsl-leaf-contracts
 https://github.com/dzackgarza/lean-cas-dsl-leaves
 https://github.com/dzackgarza/lean-categories
 https://github.com/dzackgarza/lean-jupyter-kernel
+https://github.com/dzackgarza/pandoc-config
 https://github.com/dzackgarza/polyhedral_common
 https://github.com/dzackgarza/prove2me_workspace
 https://github.com/dzackgarza/research

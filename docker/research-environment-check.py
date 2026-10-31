@@ -7,6 +7,8 @@ from pathlib import Path
 from sage.features.all import all_features
 from sage.features.gap import GapPackage
 from sage.features.interfaces import Macaulay2
+from sage.all import QQ
+from sage_julia_bridge import julia
 
 subprocess.run([
     "python", "-c", "import sys, sage.all; assert sys.prefix == '/sage/.venv'",
@@ -30,13 +32,18 @@ assert not missing, missing
 # package is a compiled extension built from its checkout, so its module is in
 # site-packages.
 for module in (
-    "dzack_research", "latticedb", "sage_categories", "sage_extensions",
+    "dzack_research", "latticedb", "pandoc_config", "sage_categories", "sage_extensions",
     "sage_indefinite_port", "sage_julia_bridge", "sage_lsp", "tree_sitter_sage",
     "vinal",
 ):
     origin = importlib.import_module(module).__file__
     assert origin.startswith("/repos/"), (module, origin)
 importlib.import_module("sage_categories_homotopy")
+
+assert julia.sage("1 // 2") == QQ(1) / 2
+julia.eval("using Oscar")
+assert julia.sage("ZZ(2)^10") == 1024
+julia.quit()
 
 # Each Lean checkout runs Lake on the toolchain it pins.
 for toolchain in Path("/repos").glob("*/lean-toolchain"):
