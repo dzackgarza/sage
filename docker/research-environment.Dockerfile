@@ -168,7 +168,10 @@ RUN set -eu; \
     rm /tmp/julia.tar.gz; \
     ln -s /opt/julia/bin/julia /usr/local/bin/julia
 
-ENV JULIA_DEPOT_PATH=/opt/julia-depot:
+# Package caches must load on both the CI CPU and the host CPU.
+# https://docs.julialang.org/en/v1.12/manual/environment-variables/#JULIA_CPU_TARGET
+ENV JULIA_DEPOT_PATH=/opt/julia-depot: \
+    JULIA_CPU_TARGET=generic
 
 RUN set -eu; \
     julia --startup-file=no --color=no -e ' \

@@ -13,6 +13,8 @@
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE} AS environment
 
+ENV JULIA_CPU_TARGET=generic
+
 COPY . /tmp/sage-source
 RUN rsync --recursive --links --checksum \
         --exclude /builddir/ --exclude /.venv/ \
