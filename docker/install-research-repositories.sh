@@ -91,3 +91,4 @@ PY
         (cd "${checkout}" && lake exe cache get)
     fi
 done
+elan default "$(cat "${repositories_root}/lean-categories/lean-toolchain")"
