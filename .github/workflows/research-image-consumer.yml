@@ -1,0 +1,37 @@
+name: Research image consumer
+'on':
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Exact research image reference to run on a fresh hosted runner
+        required: true
+        type: string
+permissions:
+  contents: read
+  packages: read
+jobs:
+  consumer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: ${{ inputs.image }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+      options: --user root
+    steps:
+    - name: Compute over the rational numbers
+      shell: bash
+      run: '/sage/.venv/bin/python - <<''PYTHON''
+
+        import sys
+
+        from sage.all import QQ, matrix
+
+        assert matrix(QQ, [[2, 1], [1, 2]]).det() == 3
+
+        print(sys.executable)
+
+        PYTHON
+
+        '
