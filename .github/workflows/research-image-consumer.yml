@@ -22,11 +22,13 @@ jobs:
     steps:
     - name: Compute over the rational numbers
       shell: bash
-      run: '/sage/.venv/bin/python - <<''PYTHON''
+      run: 'python - <<''PYTHON''
 
         import sys
 
         from sage.all import QQ, matrix
+
+        assert sys.prefix == "/sage/.venv"
 
         assert matrix(QQ, [[2, 1], [1, 2]]).det() == 3
 
