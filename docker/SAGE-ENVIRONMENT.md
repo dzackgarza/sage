@@ -113,6 +113,21 @@ Provisioning is owned here, once: consumers call `docker/sage-image.py` or use
 the image as their job container, and do not carry their own copy of a fetch,
 unpack or launcher script.
 
+## Julia and the bridge
+
+`/usr/local/bin/julia` is a launcher, not a symlink: it adds `/opt/julia-depot`
+to whatever `JULIA_DEPOT_PATH` the caller has. The image declares that depot in
+its own environment and a container runtime applies it; a host that runs the
+unpacked filesystem — PRoot, a bare exec, an entrypoint that rebuilds the
+environment — does not, and `sage_julia_bridge` then stops at
+`julia_bridge.jl:2` with `Package JSON ... is required but does not seem
+installed`. The image instantiates the bridge's worker project
+(`/repos/sage-julia-bridge/src/sage_julia_bridge/julia_env`) into that depot, so
+JSON and Oscar come from the image and no consumer installs them for itself.
+A bridge checkout changed inside the persistent volume brings its own
+`Project.toml`/`Manifest.toml`; its `just julia-deps` instantiates that revision
+into the writable depot.
+
 ## Checking a change to the image
 
 ```sh

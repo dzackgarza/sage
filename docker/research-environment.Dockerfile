@@ -165,8 +165,13 @@ RUN set -eu; \
     echo "41b84d727e4e96fbf3ed9e92fa195d773d247b9097f73fad688f8b699758bae7  /tmp/julia.tar.gz" | sha256sum -c -; \
     mkdir /opt/julia; \
     tar -xzf /tmp/julia.tar.gz -C /opt/julia --strip-components=1; \
-    rm /tmp/julia.tar.gz; \
-    ln -s /opt/julia/bin/julia /usr/local/bin/julia
+    rm /tmp/julia.tar.gz
+
+# /usr/local/bin/julia is the image's entry point rather than a symlink: it
+# adds /opt/julia-depot to whatever JULIA_DEPOT_PATH the caller has, so a
+# process whose environment did not come from this image (PRoot over the
+# unpacked filesystem, a bare exec) still resolves the bridge's packages.
+COPY --chmod=0755 docker/julia-launcher.sh /usr/local/bin/julia
 
 # Package caches must load on both the CI CPU and the host CPU.
 # https://docs.julialang.org/en/v1.12/manual/environment-variables/#JULIA_CPU_TARGET

@@ -1,6 +1,7 @@
 # Fails the image build if any system the research image exists to provide is
 # absent. Run with the image's sage: `sage docker/research-environment-check.py`.
 import importlib
+import os
 import subprocess
 from pathlib import Path
 
@@ -59,7 +60,25 @@ importlib.import_module("sage_categories_homotopy")
 assert julia.sage("1 // 2") == QQ(1) / 2
 julia.eval("using Oscar")
 assert julia.sage("ZZ(2)^10") == 1024
+assert julia.eval("JSON.json((a=1,))") == '{"a":1}'
 julia.quit()
+
+# The bridge's worker project pins JSON and imports it in its first statement
+# (julia_bridge.jl:2). That package lives in /opt/julia-depot, so a host that
+# runs this filesystem without a container runtime -- and so without the
+# image's JULIA_DEPOT_PATH -- reaches it through /usr/local/bin/julia. This is
+# that host: the bridge, with the variable removed from the environment.
+without_depot = {name: value for name, value in os.environ.items() if name != "JULIA_DEPOT_PATH"}
+subprocess.run(
+    [
+        "python",
+        "-c",
+        "from sage_julia_bridge import Julia; j = Julia();"
+        " assert j.eval('JSON.json((a=1,))') == '{\"a\":1}'; j.quit()",
+    ],
+    env=without_depot,
+    check=True,
+)
 
 # Each Lean checkout runs Lake on the toolchain it pins.
 for toolchain in Path("/repos").glob("*/lean-toolchain"):
