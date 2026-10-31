@@ -278,3 +278,46 @@ jobs:
           -p qc_sage_session
           tests/lattices/test_genus.sage
           -k test_published_four_spinor_genus_is_counted_from_all_generators
+
+  # The image is also the environment for hosts that cannot run Docker, chroot
+  # or PRoot, which docker/sage-image.py provides by unpacking the image and
+  # running it under bubblewrap. This job is the only place that path runs on a
+  # host it was not developed on; a regression there is invisible to every
+  # consumer that uses the container.
+  no-runtime:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      # The script comes from the branch that triggered this run, not from
+      # needs.publish.outputs.source_sha: a dispatched spinor image is built
+      # from a Sage PR commit that predates it.
+      - name: Check out the provisioning script
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: docker
+
+      # The image is ~14 GB compressed and larger unpacked.
+      - name: Free the runner's disk
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Install bubblewrap and permit unprivileged user namespaces
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --ro-bind / / --proc /proc --dev /dev --unshare-user --unshare-pid -- /bin/true
+
+      - name: Fetch and check the image with no container runtime
+        env:
+          IMAGE: ${{ github.repository_owner }}/sage
+          IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
+        run: |
+          ./docker/sage-image.py --image "$IMAGE" --reference "$IMAGE_TAG" fetch
+          ./docker/sage-image.py --image "$IMAGE" --reference "$IMAGE_TAG" check

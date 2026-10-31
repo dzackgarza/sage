@@ -110,7 +110,7 @@ def read_stamp(cache: Path) -> dict | None:
 
 def fetch_blob(credentials: str, image: str, digest: str, destination: Path) -> None:
     sha = hashlib.sha256()
-    with urllib.request.urlopen(blob_request(credentials, image, f"blobs/{digest}", "*/*"), timeout=3600) as response:
+    with urllib.request.urlopen(blob_request(credentials, image, f"blobs/{digest}", "*/*"), timeout=300) as response:
         with destination.open("wb") as handle:
             while chunk := response.read(1 << 22):
                 sha.update(chunk)
@@ -170,6 +170,9 @@ def unpack(cache: Path, image: str, reference: str, digest: str | None) -> dict:
 
     _, config = read_json(credentials, image, f"blobs/{resolved['config']}", "*/*")
     resolved["revision"] = config.get("config", {}).get("Labels", {}).get("org.opencontainers.image.revision", "")
+    # What the image declares for its own processes: JULIA_DEPOT_PATH, SAGE_BIN,
+    # PATH and the rest. A container runtime applies these; so does this one.
+    resolved["env"] = config.get("config", {}).get("Env", []) or []
     if root.exists():
         shutil.rmtree(root)
     root.mkdir(parents=True)
@@ -183,7 +186,7 @@ def unpack(cache: Path, image: str, reference: str, digest: str | None) -> dict:
         blob.unlink()
     if skipped:
         log(f"{skipped} files not writable by this user; the rest of the image is intact")
-    record = {key: resolved[key] for key in ("image", "reference", "index", "manifest", "config", "revision")}
+    record = {key: resolved[key] for key in ("image", "reference", "index", "manifest", "config", "revision", "env")}
     record["unpacked"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     stamp_path(cache).write_text(json.dumps(record, indent=2) + "\n")
     return record
@@ -200,7 +203,14 @@ def user_namespaces() -> str | None:
         text=True,
     )
     if probe.returncode != 0:
-        return (probe.stderr or "bwrap cannot create a user namespace").strip().splitlines()[-1]
+        reason = (probe.stderr or "bwrap cannot create a user namespace").strip().splitlines()[-1]
+        apparmor = Path("/proc/sys/kernel/apparmor_restrict_unprivileged_userns")
+        if apparmor.exists() and apparmor.read_text().strip() == "1":
+            reason += (
+                "; kernel.apparmor_restrict_unprivileged_userns is 1, so load the distribution's"
+                " AppArmor profile for bwrap or set that to 0"
+            )
+        return reason
     return None
 
 
@@ -220,7 +230,14 @@ def runtime() -> None:
         )
 
 
-def command(rootfs: Path, arguments: list[str], binds: list[str], environment: list[str], directory: str | None) -> int:
+def command(
+    rootfs: Path,
+    arguments: list[str],
+    binds: list[str],
+    environment: list[str],
+    directory: str | None,
+    image_environment: list[str] = (),
+) -> int:
     runtime()
     home = rootfs.parent / "home"
     home.mkdir(exist_ok=True)
@@ -237,25 +254,23 @@ def command(rootfs: Path, arguments: list[str], binds: list[str], environment: l
         source, _, destination = mount.partition(":")
         source = os.path.abspath(source)
         mounts += ["--bind", source, destination or source]
-    argv = [
-        "bwrap",
-        *mounts,
-        "--chdir",
-        workdir,
-        "--unshare-pid",
-        "--die-with-parent",
-        "--setenv",
-        "HOME",
-        "/root",
-        "--setenv",
-        "PATH",
-        "/sage/.venv/bin:/opt/elan/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        "--setenv",
-        "TMPDIR",
-        "/tmp",
-    ]
+    variables: dict[str, str] = {}
+    for entry in image_environment:
+        key, _, value = entry.partition("=")
+        variables[key] = value
+    variables.setdefault(
+        "PATH", "/sage/.venv/bin:/opt/elan/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+    )
+    variables["HOME"] = "/root"
+    variables["TMPDIR"] = "/tmp"
     for entry in environment:
         key, _, value = entry.partition("=")
+        variables[key] = value
+    # --clearenv: a container runtime gives the process the image's environment,
+    # not the caller's. Inheriting the host's PYTHONPATH, LD_LIBRARY_PATH or
+    # XDG_* would let it shadow the image's own modules and paths.
+    argv = ["bwrap", *mounts, "--clearenv", "--chdir", workdir, "--unshare-pid", "--die-with-parent"]
+    for key, value in variables.items():
         argv += ["--setenv", key, value]
     argv += ["--", *arguments]
     return subprocess.run(argv).returncode
@@ -308,9 +323,18 @@ def main(argv: list[str]) -> int:
         return 0
     if not rootfs.is_dir():
         raise SystemExit(f"{rootfs} is not an unpacked image; run fetch first")
+    image_environment = record.get("env", [])
+    environment = getattr(options, "env", [])
     if options.command == "check":
-        return command(rootfs, ["/sage/.venv/bin/sage", "docker/research-environment-check.py"], [], [], "/sage")
-    return command(rootfs, rest, options.bind, options.env, options.chdir)
+        return command(
+            rootfs,
+            ["/sage/.venv/bin/sage", "docker/research-environment-check.py"],
+            [],
+            environment,
+            "/sage",
+            image_environment,
+        )
+    return command(rootfs, rest, options.bind, environment, options.chdir, image_environment)
 
 
 if __name__ == "__main__":

@@ -52,8 +52,9 @@ with [bubblewrap](https://github.com/containers/bubblewrap)'s unprivileged user
 namespaces — no root, no chroot, no ptrace, no container runtime:
 
 ```sh
-# once per image, and whenever the tag moves
-docker/sage-image.py fetch --digest sha256:<manifest from info>
+# once per image: the current develop, then the same image pinned
+docker/sage-image.py fetch
+docker/sage-image.py fetch --digest sha256:<the manifest it printed>
 
 # the same interpreter, Sage build and libraries the image ships
 docker/sage-image.py run -- sage -c 'print(ZZ(2)**10)'
@@ -64,8 +65,12 @@ docker/sage-image.py check
 ```
 
 The current directory is mounted at `/work`, which is the working directory
-inside the image, so a consumer checkout is visible to its tests.  Use
-`--bind SRC[:DEST]` for more paths and `--env KEY=VALUE` for variables:
+inside the image, so a consumer checkout is visible to its tests.  The process
+starts with the environment the image declares for itself — `PATH`,
+`JULIA_DEPOT_PATH`, `SAGE_BIN` and the rest — and not with the host's, so a
+host `PYTHONPATH`, `LD_LIBRARY_PATH` or `XDG_*` cannot leak in.  Use
+`--bind SRC[:DEST]` for more paths and `--env KEY=VALUE` for variables of your
+own:
 
 ```sh
 docker/sage-image.py run --bind ~/research/src:/repos/research/src \
@@ -77,7 +82,10 @@ Requirements, both checked before anything runs:
 * `bubblewrap` installed (`apt install bubblewrap`, `dnf install bubblewrap`);
 * unprivileged user namespaces permitted by the kernel
   (`/proc/sys/kernel/unprivileged_userns_clone` is `1`, or the distribution's
-  equivalent).
+  equivalent). On Ubuntu 24.04 and later AppArmor restricts them: the packaged
+  `bwrap-userns-restrict` profile permits bubblewrap, and on a host without
+  that profile `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`
+  permits them.
 
 `run` stops with the missing piece named.  The cache lives in
 `$XDG_CACHE_HOME/sage-image` and is reused only when its recorded manifest
