@@ -32,10 +32,14 @@ research-environment-sync:
         "--native-file=${native_file}"
         --prefix "${sage_environment}" -Dpython.install_env=prefix
     )
-    # A configured tree is left as it is: `meson compile` regenerates it when a
-    # meson.build changes, and an explicit reconfigure costs minutes.
+    # A configured tree is otherwise left as it is: `meson compile` regenerates
+    # it when a meson.build changes, and an explicit reconfigure costs minutes.
+    # meson-python configures a fresh tree without the install prefix (a relock
+    # builds it before this sync), so the prefix is set when it differs.
     if [ ! -f "${sage_build_path}/meson-private/coredata.dat" ]; then
         meson setup "${sage_root}" "${sage_build_path}" "${setup_arguments[@]}"
+    elif [ "$(meson introspect --buildoptions "${sage_build_path}" | python -c 'import json, sys; print(next(o["value"] for o in json.load(sys.stdin) if o["name"] == "prefix"))')" != "${sage_environment}" ]; then
+        meson configure "${sage_build_path}" --prefix "${sage_environment}" -Dpython.install_env=prefix
     fi
     meson compile -C "${sage_build_path}"
     meson install -C "${sage_build_path}"
