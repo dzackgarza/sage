@@ -207,6 +207,7 @@ COPY --from=environment /sage/uv.lock /uv.lock
 FROM environment
 
 ENV SAGE_BIN=/sage/.venv/bin/sage
+ENV PATH=/sage/.venv/bin:$PATH
 
 # Fail the build if any system the image exists to provide is absent.
 RUN "$SAGE_BIN" docker/research-environment-check.py

@@ -58,6 +58,8 @@ done < "${sage_root}/docker/research-repositories.txt"
 cd "${sage_root}"
 uv pip install --python "${sage_python}" --no-deps "${editable[@]}"
 
+just -f "${repositories_root}/sage-julia-bridge/justfile" julia-deps
+
 # Lean: each checkout with a root lean-toolchain gets its toolchain from elan.
 # Every Lake package a manifest pins is checked out once per revision under
 # /opt/lake-packages and linked into the checkout's .lake/packages, so the
@@ -91,3 +93,4 @@ PY
         (cd "${checkout}" && lake exe cache get)
     fi
 done
+elan default "$(cat "${repositories_root}/lean-categories/lean-toolchain")"

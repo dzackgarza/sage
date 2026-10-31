@@ -32,4 +32,6 @@ COPY --from=environment /sage/uv.lock /uv.lock
 
 FROM environment
 
+ENV PATH=/sage/.venv/bin:$PATH
+
 RUN "$SAGE_BIN" docker/research-environment-check.py
