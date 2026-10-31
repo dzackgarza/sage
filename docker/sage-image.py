@@ -207,8 +207,8 @@ def user_namespaces() -> str | None:
         apparmor = Path("/proc/sys/kernel/apparmor_restrict_unprivileged_userns")
         if apparmor.exists() and apparmor.read_text().strip() == "1":
             reason += (
-                "; kernel.apparmor_restrict_unprivileged_userns is 1, so load the distribution's"
-                " AppArmor profile for bwrap or set that to 0"
+                "; kernel.apparmor_restrict_unprivileged_userns is 1, and it is the distribution's"
+                " AppArmor profile for bwrap, where it is loaded, that permits it"
             )
         return reason
     return None
@@ -225,8 +225,9 @@ def runtime() -> None:
     if reason:
         raise SystemExit(
             f"unprivileged user namespaces are not permitted here ({reason}).\n"
-            "Ask the host administrator for kernel.unprivileged_userns_clone=1, or run this\n"
-            "job in the image on a CI runner. Do not substitute a distribution Sage."
+            "This host is unsupported for the no-runtime path, and this script does not\n"
+            "change host policy. Run the job in the image on a CI runner or another host\n"
+            "that permits them; do not substitute a distribution Sage."
         )
 
 

@@ -83,9 +83,11 @@ Requirements, both checked before anything runs:
 * unprivileged user namespaces permitted by the kernel
   (`/proc/sys/kernel/unprivileged_userns_clone` is `1`, or the distribution's
   equivalent). On Ubuntu 24.04 and later AppArmor restricts them: the packaged
-  `bwrap-userns-restrict` profile permits bubblewrap, and on a host without
-  that profile `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`
-  permits them.
+  `bwrap-userns-restrict` profile permits bubblewrap, and where that profile is
+  not loaded the restriction is the host administrator's to change. This
+  script and the image workflow never change a sysctl or an AppArmor profile;
+  such a host is reported as unsupported, and the image runs there through
+  Docker or as a CI job container instead.
 
 `run` stops with the missing piece named.  The cache lives in
 `$XDG_CACHE_HOME/sage-image` and is reused only when its recorded manifest
