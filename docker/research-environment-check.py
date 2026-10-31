@@ -8,6 +8,10 @@ from sage.features.all import all_features
 from sage.features.gap import GapPackage
 from sage.features.interfaces import Macaulay2
 
+subprocess.run([
+    "python", "-c", "import sys, sage.all; assert sys.prefix == '/sage/.venv'",
+], check=True)
+
 registered = {feature.name: feature for feature in all_features()}
 features = [registered[name] for name in (
     "4ti2", "bliss", "database_graphs", "giac", "jupymake", "latte_int",
