@@ -3985,7 +3985,7 @@ source = { git = "https://github.com/dzackgarza/sage-categories?subdirectory=nat
 [[package]]
 name = "sage-extensions"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-extensions#441519c574cec12ada06ad586f6c3862fbca96d0" }
+source = { git = "https://github.com/dzackgarza/sage-extensions#7b222e86214524a53802350f3cfda9c513707600" }
 dependencies = [
     { name = "networkx" },
     { name = "sage-categories" },
@@ -3997,9 +3997,10 @@ dependencies = [
 [[package]]
 name = "sage-indefinite-port"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-indefinite-port#86d860a428c2c50604bfeff2c5c0793137179dc1" }
+source = { git = "https://github.com/dzackgarza/sage-indefinite-port#4f0ee50c3ef432681ecdbbd7a5a7f5adb244d83b" }
 dependencies = [
-    { name = "dzack-research" },
+    { name = "pynormaliz" },
+    { name = "sage-extensions" },
 ]
 
 [[package]]

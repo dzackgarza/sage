@@ -3,12 +3,14 @@
 import importlib
 import os
 import subprocess
+from importlib.metadata import requires as distribution_requires
 from pathlib import Path
 
 from sage.features.all import all_features
 from sage.features.gap import GapPackage
 from sage.features.interfaces import Macaulay2
-from sage.all import Graph, graphs, QQ
+from sage.all import Graph, graphs, ZZ, QQ
+from sage_extensions.all import Lattices
 from sage_julia_bridge import julia
 
 subprocess.run([
@@ -56,6 +58,23 @@ for module in (
     origin = importlib.import_module(module).__file__
     assert origin.startswith("/repos/"), (module, origin)
 importlib.import_module("sage_categories_homotopy")
+
+# The canonical pair: the port reads sage-extensions, and nothing revives the
+# predecessor research library it used to read. A stale pair still loads, so
+# the requirement the port installs and the category it composes are both
+# checked, with one isometry and one group that exercise them.
+requirements = distribution_requires("sage-indefinite-port") or []
+assert any("sage-extensions" in line for line in requirements), requirements
+assert not any("research" in line for line in requirements), requirements
+assert Lattices.__module__ == "sage_extensions.categories.lattices", Lattices.__module__
+
+lattices = Lattices(ZZ)
+plane = lattices([[0, 1], [1, 0]])
+assert not plane.Isom(plane).is_empty()
+assert lattices([[2, 1], [1, 2]]).Isom(lattices([[1, 0], [0, 1]])).is_empty()
+assert plane.O().cardinality() == 4
+assert plane.Aut().cardinality() == 4
+assert plane.stable_orthogonal_group().order() == 4
 
 assert julia.sage("1 // 2") == QQ(1) / 2
 julia.eval("using Oscar")
