@@ -1,17 +1,27 @@
-# Some distributions (Debian, Ubuntu) build libbliss with BLISS_USE_GMP,
-# which changes the layout of bliss::Stats.  Such a library records the
-# definition its consumers need in a pkg-config file named libbliss-cxx; the
-# name is bliss on other distributions.  Linking -lbliss alone leaves
-# bliss/bignum.hh on its default representation, so the Stats that bliss.pyx
-# hands to the library is smaller than the one the library writes and
-# canonical_form() corrupts the heap.  Sage's own bliss spkg builds with
-# USE_GMP=OFF and installs no pkg-config file, so it keeps using -lbliss.
-bliss = dependency('libbliss-cxx', required: get_option('bliss'), disabler: true)
-if not bliss.found()
-  bliss = dependency('bliss', required: get_option('bliss'), disabler: true)
-endif
-if not bliss.found()
-  bliss = cc.find_library('bliss', required: get_option('bliss'), disabler: true)
+# Some distributions (Debian, Ubuntu) build libbliss with BLISS_USE_GMP, which
+# changes the layout of bliss::Stats.  Such a library records the definition its
+# consumers need in a pkg-config file named libbliss-cxx; the name is bliss on
+# other distributions.  Linking -lbliss alone leaves bliss/bignum.hh on its
+# default representation, so the Stats that bliss.pyx hands to the library is
+# smaller than the one the library writes and canonical_form() corrupts the
+# heap.
+#
+# Only the last probe can satisfy 'enabled': a missing pkg-config name falls
+# through to the raw library, and a missing raw library fails the configure.
+# The raw library is assumed to be built with the headers' default
+# representation -- Sage's own bliss spkg builds with USE_GMP=OFF and installs
+# no pkg-config file -- so a distribution library found only this way would be
+# the ABI mismatch this code exists to avoid.
+bliss_opt = get_option('bliss')
+bliss = disabler()
+if not bliss_opt.disabled()
+  bliss = dependency('libbliss-cxx', required: false, disabler: true)
+  if not bliss.found()
+    bliss = dependency('bliss', required: false, disabler: true)
+  endif
+  if not bliss.found()
+    bliss = cc.find_library('bliss', required: bliss_opt, disabler: true)
+  endif
 endif
 
 mcqd = disabler()
