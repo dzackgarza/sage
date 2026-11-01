@@ -177,6 +177,32 @@ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
   -- /bin/sh -c 'cd /repos/lean-categories && printf "import Mathlib\n#check (Nat.add_comm : ∀ a b : Nat, a + b = b + a)\n" > /tmp/mathlib-import.lean && lake env lean /tmp/mathlib-import.lean'
 ```
 
+## Deploying the Bliss repair into an existing copy
+
+The published image links its system libbliss without the ABI its headers
+describe, so `sage.graphs.bliss` corrupts the heap and `canonical_label()`
+segfaults (`Graph([[0,1]]).canonical_label(edge_labels=True)`, and every other
+canonical label, and `automorphism_group()`). The repair is checked in
+`src/sage/graphs/meson.build` and `bliss_cpp/bliss_find_automorphisms.h`; while
+publication is held, an existing unpacked copy can carry it without being
+rebuilt, by applying that same patch and rebuilding only the module it touches:
+
+```sh
+python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+  --bind results/apply-bliss-repair.sh:/opt/apply-bliss-repair.sh \
+  --bind results/bliss-repair.patch:/opt/bliss-repair.patch \
+  -- /bin/bash /opt/apply-bliss-repair.sh /opt/bliss-repair.patch
+```
+
+It checks that the copy is the published revision with the two files untouched,
+applies the patch, runs Ninja and Meson install in `/sage/builddir` (the image's
+own build system, so the build files are regenerated from the patched Meson),
+runs the graph and automorphism smoke tests, and records the base revision,
+patch and module digests in `/opt/bliss-repair.json`. A copy that fails the
+smoke tests gets its previous module and source back. Nothing is published and
+the image is unchanged: the copy is repaired, not a new image. Re-running it is
+a no-op once the stamp matches.
+
 ## Checking a change to the image
 
 ```sh
