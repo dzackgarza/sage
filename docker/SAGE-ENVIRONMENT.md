@@ -234,6 +234,36 @@ the configure instead of falling through. The second patch fixes that and keeps
 correct for this image, which has `libbliss-cxx`, but is not evidence that the
 fallback works elsewhere.
 
+## Shared hosts: one writer per unpacked copy
+
+On a host where several projects run as the same user, `$HOME` — and therefore
+`$HOME/sage-image/rootfs` — is one physical tree, not one per project. Only one
+project should write to it: the one that provisioned it. Everyone else reads the
+stamps and runs readback, and takes the artifacts (`provision-lean-packages.sh`,
+`apply-bliss-repair.sh` with its patches) if they need to deploy into a copy of
+their own; two projects running builds into one tree race on the same
+`.lake/build` and site-packages, and produce duplicate builds.
+
+Readback, without writing:
+
+```sh
+cat ~/sage-image/rootfs/opt/bliss-repair.json          # base revision, patch and module digests
+cat ~/sage-image/rootfs/opt/lake-views/index.json      # per checkout, its Lean package overrides
+```
+
+What can be observed of the host: one RAM figure and no swap (`free`), one set
+of CPUs (`nproc`), and a cgroup path per project and session — this project's is
+`/system.slice/nucleus.service/project-<id>/p<pid>`. What cannot: whether an
+ancestor of those cgroups imposes a memory limit. `memory.max` and
+`memory.events` are not readable from inside the namespace, so neither the
+effective limit nor whether an earlier kill was an OOM is known here. Distinct
+per-project paths are not evidence that no shared ancestor limit exists.
+
+Because the limit is unknown, treat long builds as competing for one machine:
+run them one at a time across projects, bound them, and keep a copy of their
+logs. That guidance is about scheduling, not about a limit that has been
+measured.
+
 ## Checking a change to the image
 
 ```sh
