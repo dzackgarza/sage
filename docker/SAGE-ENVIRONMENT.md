@@ -145,7 +145,11 @@ speaks for itself in the working directory: it walks `/repos` itself. It links
 or adopts the Lake packages each manifest pins, retrieves Mathlib's official
 cache only if the image does not already carry it, builds the packages Mathlib
 imports, and stops unless Mathlib is loadable. No toolchain is added, no package
-is cloned twice, and no consumer checkout is edited.
+is cloned twice, and no consumer checkout is edited. After provisioning it
+checks every project against its own manifest — each pinned package present, in
+the directory that project declares, at the pinned revision — and exits non-zero
+when two checkouts pin one package at different revisions while sharing a
+packages directory, since one directory cannot resolve both.
 
 Readback, from the pinned project:
 
