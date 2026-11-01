@@ -60,65 +60,8 @@ uv pip install --python "${sage_python}" --no-deps "${editable[@]}"
 
 just -f "${repositories_root}/sage-julia-bridge/justfile" julia-deps
 
-# Lean: each checkout with a root lean-toolchain gets its toolchain from elan.
-# Every Lake package a manifest pins is checked out once per revision under
-# /opt/lake-packages and linked into the directory that project resolves: a
-# manifest records it as packagesDir, and a project that sets one -- these set
-# ../../.local/share/lean/<toolchain>/packages -- never reads .lake/packages.
-# The packages are one copy under /opt because each project's link points there.
-# Mathlib's oleans come from the official cache for the pinned revision, so the
-# multi-hour Mathlib build is never run; the packages Mathlib imports have no
-# such cache and are built once, here. The checkouts' own targets are the
-# agents' work and are not built.
-lake_packages=/opt/lake-packages
-mkdir -p "${lake_packages}"
-lean_project=
-lean_packages_dir=
-for checkout in "${repositories_root}"/*/; do
-    checkout="${checkout%/}"
-    [ -f "${checkout}/lean-toolchain" ] || continue
-    elan toolchain install "$(cat "${checkout}/lean-toolchain")"
-    [ -f "${checkout}/lake-manifest.json" ] || continue
-    packages_dir="$("${sage_python}" - "${checkout}/lake-manifest.json" <<'PY'
-import json
-import sys
-
-print(json.load(open(sys.argv[1])).get("packagesDir") or ".lake/packages")
-PY
-)"
-    case "${packages_dir}" in
-        /*) ;;
-        *) packages_dir="${checkout}/${packages_dir}" ;;
-    esac
-    packages_dir="$(realpath -m "${packages_dir}")"
-    mkdir -p "${packages_dir}"
-    "${sage_python}" - "${checkout}/lake-manifest.json" <<'PY' |
-import json
-import sys
-
-for package in json.load(open(sys.argv[1]))["packages"]:
-    if package["type"] == "git":
-        print(package["name"], package["url"], package["rev"])
-PY
-    while read -r name url revision; do
-        shared="${lake_packages}/${name}@${revision}"
-        if [ ! -d "${shared}" ]; then
-            git clone --quiet --filter=blob:none "${url}" "${shared}"
-            git -C "${shared}" checkout --quiet "${revision}"
-        fi
-        ln -sfn "${shared}" "${packages_dir}/${name}"
-    done
-    if [ -e "${packages_dir}/mathlib" ] && [ -z "${lean_project}" ]; then
-        lean_project="${checkout}"
-        lean_packages_dir="${packages_dir}"
-    fi
-done
-
-# One project's Mathlib closure is every project's: the packages are shared by
-# revision. The cache is retrieved before the build, so Mathlib itself is not
-# compiled here, and the image fails if Mathlib does not end up loadable.
-if [ -n "${lean_project}" ]; then
-    ( cd "${lean_project}" && lake exe cache get && lake build Mathlib )
-    test -f "${lean_packages_dir}/mathlib/.lake/build/lib/lean/Mathlib.olean"
-fi
+# Lean: the toolchain each checkout pins and the packages its manifest
+# resolves. The same script provisions an image that was unpacked earlier,
+# without a rebuild: docker/provision-lean-packages.sh.
+PYTHON="${sage_python}" "${sage_root}/docker/provision-lean-packages.sh" "${repositories_root}"
 elan default "$(cat "${repositories_root}/lean-categories/lean-toolchain")"

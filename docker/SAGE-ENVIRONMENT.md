@@ -128,6 +128,33 @@ A bridge checkout changed inside the persistent volume brings its own
 `Project.toml`/`Manifest.toml`; its `just julia-deps` instantiates that revision
 into the writable depot.
 
+## Provisioning an image that is already unpacked
+
+An image unpacked before a provisioning change reaches the same state without
+being rebuilt, by running the repair the image build runs:
+
+```sh
+python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+  --bind docker/provision-lean-packages.sh:/opt/provision-lean-packages.sh \
+  --env ELAN_HOME=/opt/elan \
+  -- /bin/bash /opt/provision-lean-packages.sh /repos
+```
+
+`ELAN_HOME` is the only environment it needs beyond the runner's `PATH`, and it
+speaks for itself in the working directory: it walks `/repos` itself. It links
+or adopts the Lake packages each manifest pins, retrieves Mathlib's official
+cache only if the image does not already carry it, builds the packages Mathlib
+imports, and stops unless Mathlib is loadable. No toolchain is added, no package
+is cloned twice, and no consumer checkout is edited.
+
+Readback, from the pinned project:
+
+```sh
+python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+  --env ELAN_HOME=/opt/elan \
+  -- /bin/sh -c 'cd /repos/lean-categories && printf "import Mathlib\n#check (Nat.add_comm : ∀ a b : Nat, a + b = b + a)\n" > /tmp/mathlib-import.lean && lake env lean /tmp/mathlib-import.lean'
+```
+
 ## Checking a change to the image
 
 ```sh
