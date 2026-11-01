@@ -194,14 +194,23 @@ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
   -- /bin/bash /opt/apply-bliss-repair.sh /opt/bliss-repair.patch
 ```
 
-It checks that the copy is the published revision with the two files untouched,
-applies the patch, runs Ninja and Meson install in `/sage/builddir` (the image's
-own build system, so the build files are regenerated from the patched Meson),
-runs the graph and automorphism smoke tests, and records the base revision,
-patch and module digests in `/opt/bliss-repair.json`. A copy that fails the
-smoke tests gets its previous module and source back. Nothing is published and
-the image is unchanged: the copy is repaired, not a new image. Re-running it is
-a no-op once the stamp matches.
+It checks that the copy is the published revision, that every file the patches
+touch is either untouched or modified exactly by patches this copy already
+carries, applies the ones it does not carry in the order given, runs Ninja and
+Meson install in `/sage/builddir` (the image's own build system, so the build
+files are regenerated from the patched Meson), runs the graph and automorphism
+smoke tests, and records the base revision, every patch digest and the module
+digest in `/opt/bliss-repair.json`. A copy that fails the smoke tests gets its
+previous module and source back. Nothing is published and the image is
+unchanged: the copy is repaired, not a new image. Re-running it is a no-op once
+the stamp matches.
+
+Two patches exist because the first one's Meson fallback chain was wrong: under
+`-Dbliss=enabled` (or `auto_features=enabled`) a missing `libbliss-cxx` aborted
+the configure instead of falling through. The second patch fixes that and keeps
+`disabled`/`auto`/`enabled` semantics; a copy deployed with the first alone is
+correct for this image, which has `libbliss-cxx`, but is not evidence that the
+fallback works elsewhere.
 
 ## Checking a change to the image
 
