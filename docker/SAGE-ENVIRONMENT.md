@@ -267,43 +267,45 @@ measured.
 ## Published image and what was verified
 
 `ghcr.io/dzackgarza/sage:develop` built from `develop` at
-`b1997dd9f1ba33ca3861786973cf177bfd1d9aa6`
-([producer run 41270454732](https://github.com/dzackgarza/sage/actions/runs/41270454732)):
+`a20baff9109a3afa5b7cffb8e0dca6103eae8bc8`
+([producer run 41281611312](https://github.com/dzackgarza/sage/actions/runs/41281611312),
+built 2026-11-01 06:54:39 UTC):
 
 | object | digest |
 | --- | --- |
-| OCI index | `sha256:1b9628b453c06a67ec77a3a02e3631c589858e9b160ac01a5a058f23385e7efb` |
-| linux/amd64 manifest | `sha256:5b1f54f7bf1a8bd472cba07cdd12d34a918ad02baadad0b3b4e8b3cdab2c5017` |
-| config | `sha256:1befcc38fea053601ef5d60ceca2c32857613ffe670b1e9522fa5e909b5278e5` |
+| OCI index | `sha256:4542f7bfb6051b82cadd74825a928bfb03a01cdcfff069d4d66b38fc06e644fb` |
+| linux/amd64 manifest | `sha256:7e0fb939cf32170495c75c47f1292ed9cde1b270b15d6e652c2e95f79d37217c` |
+| config | `sha256:028d7710055aeea357790fd5a3c983f349ae6681c7119cd3123c9bdad267d8e8` |
 
-`org.opencontainers.image.revision` in that config is `b1997dd9f1ba33…`. Pin the
-manifest digest; the tag follows `develop`.
+`org.opencontainers.image.revision` is `a20baff9109a…`. Pin the manifest digest;
+the tag follows `develop`.
 
 Scope of what these runs establish, and what they do not:
 
 * the image build ran `docker/research-environment-check.py` and passed — every
-  system feature, the research checkouts, both canonical-label backends, the
-  port/sage-extensions pair with its isometry and group checks, the bridge's
-  `import JSON` without a depot path in the environment, and `import Mathlib`
-  from a pinned checkout;
+  system feature, the research checkouts, the Maxima prefix, both
+  canonical-label backends, the port/sage-extensions pair with its isometry and
+  group checks, the bridge's `import JSON` without a depot path in the
+  environment, and `import Mathlib` from a pinned checkout;
 * a fresh hosted runner pulled the amd64 manifest by digest and passed the
   consumer smoke — container initialisation and exact arithmetic with
-  `sys.prefix == /sage/.venv` ([run
-  41275674403](https://github.com/dzackgarza/sage/actions/runs/41275674403));
-* not established: the `no-runtime` job's fetch-and-check step, which that
-  runner skips because it does not permit unprivileged user namespaces (the job
-  probes first and skips by design rather than relaxing host policy);
-  `consumer-acceptance` is skipped on `develop` by design; and no port or spinor
-  acceptance suite was run against this digest.
+  `sys.prefix == /sage/.venv`
+  ([run 41282864265](https://github.com/dzackgarza/sage/actions/runs/41282864265),
+  finished 2026-11-01 07:09:15 UTC);
+* **not** established by CI: the `no-runtime` job's fetch-and-check step, which
+  every hosted runner so far has skipped because it does not permit
+  unprivileged user namespaces — the probe runs, the step is skipped by policy,
+  and the job reports success without executing it. `consumer-acceptance` is
+  skipped on `develop` by its own condition. No port or spinor acceptance suite
+  was run against this digest.
+
+The Maxima regression is exercised by the reconfigure path in these runs, not
+only by a fresh build. Both runs below are incremental builds on the same base
+image (`develop@sha256:1b9628b4…`), both reconfigure the tree
+(`[0/1] Regenerating build files`, with the Maxima `.fas` already loadable, so
+the system-ECL branch is taken): 41280147369 predates the fix and the check
+failed on `load(linearalgebra)` with an empty prefix; 41281611312 carries the
+fix and its check layer completed in 90 s. The pair is the control and the
+result for that branch.
 
 ## Checking a change to the image
-
-```sh
-docker/sage-image.py check
-```
-
-`docker/research-environment-check.py` runs inside the image at build time and
-verifies that every system the image exists to provide is present and works,
-including the environment's own interpreter and both canonical-label backends.
-A change that removes a library, breaks a link, or ships a build of Sage that
-crashes is meant to fail the image build here rather than a consumer's job.
