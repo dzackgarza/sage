@@ -3,6 +3,7 @@
 import importlib
 import os
 import subprocess
+import tempfile
 from importlib.metadata import requires as distribution_requires
 from pathlib import Path
 
@@ -99,8 +100,22 @@ subprocess.run(
     check=True,
 )
 
-# Each Lean checkout runs Lake on the toolchain it pins.
+# Each Lean checkout runs Lake on the toolchain it pins, and the pinned project
+# imports Mathlib. A version string says nothing about whether the packages the
+# project resolves carry object files, which is what the import needs: the
+# image ships Mathlib's official cache and builds the packages it imports.
 for toolchain in Path("/repos").glob("*/lean-toolchain"):
     subprocess.run(["lake", "--version"], cwd=toolchain.parent, check=True)
+
+mathlib_project = Path("/repos/lean-categories")
+with tempfile.NamedTemporaryFile(
+    "w", suffix=".lean", prefix="mathlib-import-", delete=False
+) as handle:
+    handle.write("import Mathlib\n#check (Nat.add_comm : \u2200 a b : Nat, a + b = b + a)\n")
+    import_file = handle.name
+try:
+    subprocess.run(["lake", "env", "lean", import_file], cwd=mathlib_project, check=True)
+finally:
+    Path(import_file).unlink()
 
 print(version())
