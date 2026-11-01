@@ -181,7 +181,7 @@ done <<< "${plan}"
 
 # One Mathlib for every view: the official cache for the pinned revision first,
 # so Mathlib itself is not compiled here, then the packages it imports.
-mathlib_checkout="$(awk -F'\t' '$1 == "VIEW" && $5 == "mathlib" { print $2; exit }' <<< "${plan}")"
+mathlib_checkout="$(awk -F'\t' '$1 == "PIN" && $4 == "mathlib" { print $2; exit }' <<< "${plan}")"
 if [ -n "${mathlib_checkout}" ]; then
     mathlib_dir="$(awk -F'\t' -v c="${mathlib_checkout}" '$1 == "PIN" && $2 == c && $4 == "mathlib" { print $3; exit }' <<< "${plan}")"
     mathlib_olean="${mathlib_dir}/mathlib/.lake/build/lib/lean/Mathlib.olean"

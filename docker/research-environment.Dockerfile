@@ -217,5 +217,8 @@ FROM environment
 ENV SAGE_BIN=/sage/.venv/bin/sage
 ENV PATH=/sage/.venv/bin:$PATH
 
-# Fail the build if any system the image exists to provide is absent.
+# Fail the build if any system the image exists to provide is absent. The Lean
+# part of the check imports Mathlib from a pinned checkout, which exercises
+# docker/provision-lean-packages.sh against whatever this build left in place: a
+# full build is the only one that runs it with an empty packages directory.
 RUN "$SAGE_BIN" docker/research-environment-check.py
