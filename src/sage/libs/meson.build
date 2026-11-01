@@ -119,15 +119,17 @@ if not maxima_present
 else
   maxima = declare_dependency()
   # ECL can load Maxima itself, but Maxima's package files -- linearalgebra.mac
-  # and the rest of share/maxima -- are found through MAXIMA_PREFIX. A tree in
-  # which Maxima was staged into SAGE_LOCAL keeps that directory there, and a
-  # reconfigure of such a tree must keep pointing at it: an empty prefix sends
-  # ECL to its own defaults, where those packages are not, and importing
-  # sage.symbolic dies in load(linearalgebra). The first build does not see
-  # this, because its maxima.fas is not yet loadable and it takes the branch
-  # above; every later reconfigure does.
-  maxima_share = join_paths(get_option('SAGE_LOCAL'), 'share', 'maxima')
-  if fs.is_dir(maxima_share)
+  # and the rest of share/maxima -- are found through MAXIMA_PREFIX. Sage
+  # installs that share directory under its install prefix, and a reconfigure
+  # of a tree that already built Maxima must keep pointing at it: an empty
+  # prefix sends ECL to its own defaults, where those packages are not, and
+  # importing sage.symbolic dies in load(linearalgebra). Only the first build
+  # escapes this, because its maxima.fas is not yet loadable and it takes the
+  # branch above. The SAGE_LOCAL option is empty unless a distribution sets it,
+  # so the install prefix is consulted first and it second.
+  if fs.is_dir(join_paths(get_option('prefix'), 'share', 'maxima'))
+    conf_data.set('SAGE_MAXIMA_PREFIX', get_option('prefix'))
+  elif get_option('SAGE_LOCAL') != '' and fs.is_dir(join_paths(get_option('SAGE_LOCAL'), 'share', 'maxima'))
     conf_data.set('SAGE_MAXIMA_PREFIX', get_option('SAGE_LOCAL'))
   else
     conf_data.set('SAGE_MAXIMA_PREFIX', '')
