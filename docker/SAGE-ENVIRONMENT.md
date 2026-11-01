@@ -264,6 +264,38 @@ run them one at a time across projects, bound them, and keep a copy of their
 logs. That guidance is about scheduling, not about a limit that has been
 measured.
 
+## Published image and what was verified
+
+`ghcr.io/dzackgarza/sage:develop` built from `develop` at
+`b1997dd9f1ba33ca3861786973cf177bfd1d9aa6`
+([producer run 41270454732](https://github.com/dzackgarza/sage/actions/runs/41270454732)):
+
+| object | digest |
+| --- | --- |
+| OCI index | `sha256:1b9628b453c06a67ec77a3a02e3631c589858e9b160ac01a5a058f23385e7efb` |
+| linux/amd64 manifest | `sha256:5b1f54f7bf1a8bd472cba07cdd12d34a918ad02baadad0b3b4e8b3cdab2c5017` |
+| config | `sha256:1befcc38fea053601ef5d60ceca2c32857613ffe670b1e9522fa5e909b5278e5` |
+
+`org.opencontainers.image.revision` in that config is `b1997dd9f1ba33…`. Pin the
+manifest digest; the tag follows `develop`.
+
+Scope of what these runs establish, and what they do not:
+
+* the image build ran `docker/research-environment-check.py` and passed — every
+  system feature, the research checkouts, both canonical-label backends, the
+  port/sage-extensions pair with its isometry and group checks, the bridge's
+  `import JSON` without a depot path in the environment, and `import Mathlib`
+  from a pinned checkout;
+* a fresh hosted runner pulled the amd64 manifest by digest and passed the
+  consumer smoke — container initialisation and exact arithmetic with
+  `sys.prefix == /sage/.venv` ([run
+  41275674403](https://github.com/dzackgarza/sage/actions/runs/41275674403));
+* not established: the `no-runtime` job's fetch-and-check step, which that
+  runner skips because it does not permit unprivileged user namespaces (the job
+  probes first and skips by design rather than relaxing host policy);
+  `consumer-acceptance` is skipped on `develop` by design; and no port or spinor
+  acceptance suite was run against this digest.
+
 ## Checking a change to the image
 
 ```sh
