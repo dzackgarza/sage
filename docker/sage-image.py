@@ -231,8 +231,31 @@ def runtime() -> None:
         )
 
 
+def resolve_in(rootfs: Path, path: Path) -> Path:
+    """Resolve a link that may point into the image, not at the host."""
+    for _ in range(40):
+        if not path.is_symlink():
+            break
+        target = Path(os.readlink(path))
+        path = (rootfs / str(target).lstrip("/")) if target.is_absolute() else (path.parent / target)
+    return path
+
+
+def git_head(path: Path) -> str | None:
+    result = subprocess.run(
+        ["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
 def lean_view_mounts(rootfs: Path, checkout: str) -> list[tuple[Path, str]]:
-    """The package overrides provisioning recorded for a checkout."""
+    """The mounts a checkout needs, after checking its whole manifest resolves.
+
+    Every package the manifest pins must already be present at that revision --
+    in the checkout's override or, for a package it shares with the others, in
+    the packages directory its lakefile declares. A package that resolves to
+    another revision stops the launch instead of running against it.
+    """
     index = json.loads((rootfs / "opt" / "lake-views" / "index.json").read_text())
     entry = index.get(checkout)
     if entry is None:
@@ -240,10 +263,32 @@ def lean_view_mounts(rootfs: Path, checkout: str) -> list[tuple[Path, str]]:
             f"{checkout} has no Lean package view; run docker/provision-lean-packages.sh "
             "in this image first"
         )
-    return [
-        (rootfs / override["checkout"].lstrip("/"), f"{entry['packages_dir']}/{override['name']}")
-        for override in entry["overrides"]
-    ]
+    packages_dir = entry["packages_dir"]
+    overrides = {override["name"]: override for override in entry["overrides"]}
+    manifest = json.loads((rootfs / checkout.lstrip("/") / "lake-manifest.json").read_text())
+    mounts: list[tuple[Path, str]] = []
+    for package in manifest["packages"]:
+        if package.get("type") != "git":
+            continue
+        name, revision = package["name"], package["rev"]
+        override = overrides.get(name)
+        source = rootfs / (override["checkout"] if override else f"{packages_dir}/{name}").lstrip("/")
+        source = resolve_in(rootfs, source)
+        destination = f"{packages_dir}/{name}" if override else None
+        if not source.is_dir():
+            raise SystemExit(
+                f"{checkout} pins {name} at {revision} and it is not present at {source}; "
+                "run docker/provision-lean-packages.sh in this image"
+            )
+        resolved = git_head(source)
+        if resolved != revision:
+            raise SystemExit(
+                f"{checkout} pins {name} at {revision} but resolves {resolved or 'no revision'} "
+                f"from {source}; run docker/provision-lean-packages.sh in this image"
+            )
+        if destination:
+            mounts.append((source, destination))
+    return mounts
 
 
 def command(

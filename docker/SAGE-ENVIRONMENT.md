@@ -151,21 +151,43 @@ Lake fixes a project's packages directory in its lakefile and records it in the
 manifest — `-K packagesDir=` is ignored, and a lakefile whose `packagesDir`
 disagrees with its manifest is rejected as out of date — so two checkouts that
 pin one package at different revisions cannot both be served by that directory.
-The checkouts keep their pins. The shared packages directory carries the
-packages they agree on; `/opt/lake-views/index.json` records, per checkout,
-which packages its manifest pins at a revision the shared directory does not
-hold, each naming the content-addressed checkout under `/opt/lake-packages`.
-A run mounts exactly those over the packages directory for that invocation:
+
+The layout that resolves them:
+
+* `/opt/lake-packages/<name>@<revision>` holds one checkout per package revision;
+  every view links into it, so no revision is cloned twice.
+* The packages directory the checkouts declare
+  (`/.local/share/lean/v4.33.0/packages`) holds the packages they agree on, as
+  links to those checkouts. For a name they disagree on — here `lean_categories`,
+  pinned at `eea5c7f3…` by `lean-cas-dsl` and `82d1370d…` by
+  `lean-cas-dsl-leaf-contracts` — provisioning links nothing and deletes nothing:
+  the directory the published image shipped stays on disk, and no checkout is
+  expected to resolve through it.
+* `/opt/lake-views/index.json` records, per checkout, the override for each
+  package its manifest pins at a revision that directory does not hold, naming
+  the content-addressed checkout. Both checkouts carry an override for
+  `lean_categories`; `lean-categories` carries none.
+
+A run mounts a checkout's overrides over the packages directory for that
+invocation only, and before mounting it verifies the checkout's **whole
+manifest**: every pinned package must be present at exactly its revision — in
+its override or, for a shared package, in the directory the lakefile declares.
+A package that resolves to another revision refuses the launch, naming the
+pin and what was found, rather than running against it. Both projects are
+launched explicitly:
 
 ```sh
 python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
-  --lean-view /repos/lean-cas-dsl-leaf-contracts \
+  --env ELAN_HOME=/opt/elan --lean-view /repos/lean-cas-dsl \
+  -- /bin/sh -c 'cd /repos/lean-cas-dsl && lake env lean /tmp/file.lean'
+
+python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+  --env ELAN_HOME=/opt/elan --lean-view /repos/lean-cas-dsl-leaf-contracts \
   -- /bin/sh -c 'cd /repos/lean-cas-dsl-leaf-contracts && lake env lean /tmp/file.lean'
 ```
 
-Nothing global is rewritten, so two checkouts resolve different revisions of one
-package at the same time in separate mount namespaces. A checkout the shared
-directory fully carries needs no flag.
+Nothing global is rewritten, so the two resolve different revisions of one
+package at the same time in separate mount namespaces.
 Under PRoot the same mount is one `-b` per override, both paths taken from the
 index: `-b <rootfs>/opt/lake-packages/<name>@<revision>:<packagesDir>/<name>`.
 
