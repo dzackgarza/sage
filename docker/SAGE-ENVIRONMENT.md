@@ -145,11 +145,29 @@ speaks for itself in the working directory: it walks `/repos` itself. It links
 or adopts the Lake packages each manifest pins, retrieves Mathlib's official
 cache only if the image does not already carry it, builds the packages Mathlib
 imports, and stops unless Mathlib is loadable. No toolchain is added, no package
-is cloned twice, and no consumer checkout is edited. After provisioning it
-checks every project against its own manifest — each pinned package present, in
-the directory that project declares, at the pinned revision — and exits non-zero
-when two checkouts pin one package at different revisions while sharing a
-packages directory, since one directory cannot resolve both.
+is cloned twice, and no consumer checkout is edited.
+
+Lake fixes a project's packages directory in its lakefile and records it in the
+manifest — `-K packagesDir=` is ignored, and a lakefile whose `packagesDir`
+disagrees with its manifest is rejected as out of date — so two checkouts that
+pin one package at different revisions cannot both be served by that directory.
+The checkouts keep their pins. The shared packages directory carries the
+packages they agree on; `/opt/lake-views/index.json` records, per checkout,
+which packages its manifest pins at a revision the shared directory does not
+hold, each naming the content-addressed checkout under `/opt/lake-packages`.
+A run mounts exactly those over the packages directory for that invocation:
+
+```sh
+python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+  --lean-view /repos/lean-cas-dsl-leaf-contracts \
+  -- /bin/sh -c 'cd /repos/lean-cas-dsl-leaf-contracts && lake env lean /tmp/file.lean'
+```
+
+Nothing global is rewritten, so two checkouts resolve different revisions of one
+package at the same time in separate mount namespaces. A checkout the shared
+directory fully carries needs no flag.
+Under PRoot the same mount is one `-b` per override, both paths taken from the
+index: `-b <rootfs>/opt/lake-packages/<name>@<revision>:<packagesDir>/<name>`.
 
 Readback, from the pinned project:
 

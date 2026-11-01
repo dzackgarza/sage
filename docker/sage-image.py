@@ -231,6 +231,21 @@ def runtime() -> None:
         )
 
 
+def lean_view_mounts(rootfs: Path, checkout: str) -> list[tuple[Path, str]]:
+    """The package overrides provisioning recorded for a checkout."""
+    index = json.loads((rootfs / "opt" / "lake-views" / "index.json").read_text())
+    entry = index.get(checkout)
+    if entry is None:
+        raise SystemExit(
+            f"{checkout} has no Lean package view; run docker/provision-lean-packages.sh "
+            "in this image first"
+        )
+    return [
+        (rootfs / override["checkout"].lstrip("/"), f"{entry['packages_dir']}/{override['name']}")
+        for override in entry["overrides"]
+    ]
+
+
 def command(
     rootfs: Path,
     arguments: list[str],
@@ -238,6 +253,7 @@ def command(
     environment: list[str],
     directory: str | None,
     image_environment: list[str] = (),
+    lean_view: str | None = None,
 ) -> int:
     runtime()
     home = rootfs.parent / "home"
@@ -255,6 +271,12 @@ def command(
         source, _, destination = mount.partition(":")
         source = os.path.abspath(source)
         mounts += ["--bind", source, destination or source]
+    if lean_view:
+        # The packages this checkout's manifest pins differently from the shared
+        # directory, mounted over it for this invocation only: two checkouts
+        # resolve different revisions at the same time, and nothing global moves.
+        for source, destination in lean_view_mounts(rootfs, lean_view):
+            mounts += ["--bind", str(source), destination]
     variables: dict[str, str] = {}
     for entry in image_environment:
         key, _, value = entry.partition("=")
@@ -292,6 +314,11 @@ def main(argv: list[str]) -> int:
     run.add_argument("--bind", action="append", default=[], metavar="SRC[:DEST]", help="mount SRC at DEST (default: its own path)")
     run.add_argument("--env", action="append", default=[], metavar="KEY=VALUE")
     run.add_argument("--chdir", metavar="DIR")
+    run.add_argument(
+        "--lean-view",
+        metavar="CHECKOUT",
+        help="bind that checkout's Lean package view over its packages directory",
+    )
     options, rest = parser.parse_known_args(argv)
     if rest and rest[0] == "--":
         rest = rest[1:]
@@ -335,7 +362,15 @@ def main(argv: list[str]) -> int:
             "/sage",
             image_environment,
         )
-    return command(rootfs, rest, options.bind, environment, options.chdir, image_environment)
+    return command(
+        rootfs,
+        rest,
+        options.bind,
+        environment,
+        options.chdir,
+        image_environment,
+        getattr(options, "lean_view", None),
+    )
 
 
 if __name__ == "__main__":
