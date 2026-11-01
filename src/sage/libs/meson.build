@@ -118,8 +118,20 @@ if not maxima_present
   endif
 else
   maxima = declare_dependency()
-  # ecl does not have any problems with Maxima, so nothing needs to be set here:
-  conf_data.set('SAGE_MAXIMA_PREFIX', '')
+  # ECL can load Maxima itself, but Maxima's package files -- linearalgebra.mac
+  # and the rest of share/maxima -- are found through MAXIMA_PREFIX. A tree in
+  # which Maxima was staged into SAGE_LOCAL keeps that directory there, and a
+  # reconfigure of such a tree must keep pointing at it: an empty prefix sends
+  # ECL to its own defaults, where those packages are not, and importing
+  # sage.symbolic dies in load(linearalgebra). The first build does not see
+  # this, because its maxima.fas is not yet loadable and it takes the branch
+  # above; every later reconfigure does.
+  maxima_share = join_paths(get_option('SAGE_LOCAL'), 'share', 'maxima')
+  if fs.is_dir(maxima_share)
+    conf_data.set('SAGE_MAXIMA_PREFIX', get_option('SAGE_LOCAL'))
+  else
+    conf_data.set('SAGE_MAXIMA_PREFIX', '')
+  endif
   conf_data.set('SAGE_MAXIMA', maxima_bin.full_path())
 endif
 

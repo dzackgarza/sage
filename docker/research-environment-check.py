@@ -10,7 +10,7 @@ from pathlib import Path
 from sage.features.all import all_features
 from sage.features.gap import GapPackage
 from sage.features.interfaces import Macaulay2
-from sage.all import Graph, graphs, ZZ, QQ
+from sage.all import Graph, graphs, var, ZZ, QQ
 from sage_extensions.all import Lattices
 from sage_julia_bridge import julia
 
@@ -31,6 +31,23 @@ features += [GapPackage(name) for name in (
 )]
 missing = [feature.name for feature in features if not feature.is_present()]
 assert not missing, missing
+
+# Maxima's package files are found through MAXIMA_PREFIX, and in a tree where
+# Maxima was staged into SAGE_LOCAL they live under it. A reconfigure must not
+# leave the prefix empty merely because the system ECL can already load
+# maxima.fas: sage.symbolic then dies in load(linearalgebra), which the
+# symbolic check below reproduces.
+import sage.env
+
+maxima_prefix = Path(sage.env.MAXIMA_PREFIX) if sage.env.MAXIMA_PREFIX else None
+assert maxima_prefix is not None and maxima_prefix.is_dir(), (
+    "MAXIMA_PREFIX",
+    sage.env.MAXIMA_PREFIX,
+)
+assert list(
+    maxima_prefix.glob("share/maxima/*/share/linearalgebra/linearalgebra.mac")
+), maxima_prefix
+assert str((var("x") + 1) ** 2) == "(x + 1)^2"
 
 # Both canonical-label backends return the same label for a relabelled copy of
 # a labelled graph, and the bliss automorphism search finishes.  A system
