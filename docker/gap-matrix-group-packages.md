@@ -71,10 +71,50 @@ reference with the OCI *index* media type and then indexes into it; an amd64 man
 digest therefore answers 404. Pin with `--reference sha256:<index digest>` and check
 `info` reports the expected `index` and `manifest`.
 
-## The consumer workflow change that could not be pushed
+## Consumer validation of the published image
 
-`.github/workflows/research-image-consumer.yml` asserted only a `QQ` determinant, so a
-consumer run would pass on an image missing every GAP package. `gap-consumer-workflow.patch`
-adds a step making the same assertions from a fresh runner. Pushing it fails with
-`refusing to allow a GitHub App to create or update workflow .github/workflows/...
-without workflows permission`; apply it with a credential that has that permission.
+Run on 2026-11-02 from `docker/sage-image.py --cache … run`, over a tree unpacked from
+`sha256:122ccd3aac6d7dc7a991a3c35bbeb9e5749125dab8b0b62d6da004731e2ab8fb` (manifest
+`sha256:83aeb8ac…`, config `sha256:20fe067d…`, `org.opencontainers.image.revision` =
+`6dc2659dd4aa7156e9d812afb8ccb317df033dd5`, every layer sha256-checked before it was
+applied). Command, output verbatim:
+
+```
+kernel: GAP 4.14.0 arch x86_64-pc-linux-gnu-default64-kv9
+roots: /root/.gap/;/root/gap/;/usr/local/lib/gap/;/usr/local/share/gap/;/usr/lib/gap/;/usr/share/gap/
+LoadPackage(orb) = true in 0.073s, version 5.1.0
+LoadPackage(forms) = true in 0.000s, version 1.3.0
+LoadPackage(genss) = true in 0.000s, version 1.6.10
+LoadPackage(recog) = true in 0.000s, version 1.5.1
+genss chain order of the deg-4 GF(5) Borel: 62500 in 0.005s (expect 62500)
+CONSUMER CAPABILITY CHECK PASSED
+```
+
+The absent-package contract was checked in GAP (`LoadPackage("not_a_gap_package") = fail`);
+`.sage()` on `fail` raises, so the comparison cannot be made in Sage. `IsBound` held for
+`RecognizeGroup`, `StabilizerChain` and `SizeMC`.
+
+Scope: this establishes that the published image's Sage loads the four packages through
+libgap, from the root the Debian wrapper reports, and that genss's chain orders a
+generated matrix subgroup there. The chain is Monte Carlo bounded by `ErrorBound` and
+`VerifyStabilizerChainMC` has no method for a plain matrix group, so 62,500 is capability
+evidence and **not** an exact order for any subgroup of `O(V)`; the port's `p = 5`/`p = 7`
+acceptance nodes are untouched by it, and no degree-10 computation was attempted.
+
+`PEAKRSS_LIMIT_MIB=6144` bounded the run, but it finished in ~2 s, so the sampler recorded
+single 2 MiB samples and did not capture the child's peak; the earlier aborted run over the
+same tree peaked at 341 MiB. Treat the guard as a bound that was in place, not as a
+measured peak for this run.
+
+## Applying the consumer workflow change
+
+`docker/gap-consumer-workflow.patch` applies to `.github/workflows/research-image-consumer.yml`:
+
+```
+git am docker/gap-consumer-workflow.patch    # or: git apply
+```
+
+The workflow as published asserted only a `QQ` determinant, so a consumer run would pass on
+an image missing every GAP package; the patch adds a step making the same assertions from a
+fresh runner. This app's push is refused for that path (`without workflows permission`), so
+it travels as a patch and needs a credential that has `workflows` write.
