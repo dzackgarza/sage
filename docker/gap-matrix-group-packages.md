@@ -55,9 +55,16 @@ the module the port cares about has 9,765,625 points at p = 5.
 ```
 docker/sage-image.py --cache DIR --reference sha256:<index digest> fetch
 docker/sage-image.py --cache DIR --reference sha256:<index digest> info     # records both digests
-docker/sage-image.py --cache DIR run -- \
-    /bin/bash -c 'ulimit -v 6291456; exec /sage/.venv/bin/sage /work/results/consumer-check.py'
+PEAKRSS_LIMIT_MIB=6144 python peakrss.py -- \
+    python3 docker/sage-image.py --cache DIR run -- \
+        /sage/.venv/bin/sage /work/results/consumer-check.py
 ```
+
+The guard is the shared process-tree RSS guard (`sage-image/peakrss.py`): it samples the
+summed RSS of the whole tree every 2 s, stops the run above `PEAKRSS_LIMIT_MIB`, and
+propagates the child's exit status so a killed run cannot read as a pass. Do **not**
+substitute `ulimit -v` — a virtual-address cap is not the same bound and has already caused
+false setup failures in this environment.
 
 `--digest` is documented as the linux/amd64 manifest digest but `resolve()` fetches the
 reference with the OCI *index* media type and then indexes into it; an amd64 manifest
