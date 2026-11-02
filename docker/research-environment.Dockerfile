@@ -109,6 +109,46 @@ RUN set -eu; \
     tar -xzf /tmp/polenta.tar.gz -C /usr/share/gap/pkg; \
     rm /tmp/polenta.tar.gz
 
+# GAP's matrix-group recognition and order machinery: four packages that Debian
+# trixie does not have at all (packages.debian.org serves an error page for
+# gap-genss, gap-recog, gap-forms and gap-orb; sources.debian.org/api/src/ is 404
+# and madison has no row).
+#
+# Where they go is the whole question. Sage's libgap does not run a GAP of its
+# own here: sage.libs.gap.util.kernel_info runs the system `gap` binary and hands
+# libgap the root paths that binary reports, which are the Debian wrapper's --
+# /usr/share/gap among them. Sage's optional gap_packages spkg installs genss
+# into $SAGE_LOCAL/lib/gap/pkg, which is on none of those roots, so
+# `sage -i gap_packages` in this image would install files that never load.
+#
+# recog recognises a matrix group over a finite field, forms supplies the
+# sesquilinear and quadratic forms it works against, genss builds the
+# error-bounded Schreier-Sims chain in the matrix action, and orb is the orbit
+# engine both call. orb is the only one with C code and its README says the
+# package does not work without the compiled module, so gap-dev supplies gac and
+# the module is built against this image's GAP 4.14 headers.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends gap-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN set -eu; \
+    install_gap_package() { \
+        name="$1"; url="$2"; sha256="$3"; \
+        curl -fsSL -o "/tmp/$name.tar.gz" "$url"; \
+        echo "$sha256  /tmp/$name.tar.gz" | sha256sum -c -; \
+        tar -xzf "/tmp/$name.tar.gz" -C /usr/share/gap/pkg; \
+        rm "/tmp/$name.tar.gz"; \
+    }; \
+    install_gap_package orb https://github.com/gap-packages/orb/releases/download/v5.1.0/orb-5.1.0.tar.gz 73911bab4b31ae0f1771e76c1e3b9389100c6ede4ad27f27724cd4dc1239cb28; \
+    install_gap_package genss https://github.com/gap-packages/genss/releases/download/v1.6.10/genss-1.6.10.tar.gz 5cefe73cf61521e9cc8786aac2001fc686cd5f513585c163cf1bf426fc5c4893; \
+    install_gap_package forms https://github.com/gap-packages/forms/releases/download/v1.3.0/forms-1.3.0.tar.gz a5c823b0fc4d68f2bfbf9e30d4792ea501b413c7636596aae1be6407140f7e54; \
+    install_gap_package recog https://github.com/gap-packages/recog/releases/download/v1.5.1/recog-1.5.1.tar.gz eae7deaecb263242ee378f5728e4d7a717d6d1903d9d04e099d74ba1b7c53931; \
+    cd /usr/share/gap/pkg/orb-5.1.0; \
+    ./configure --with-gaproot=/usr/share/gap; \
+    make -j"$(nproc)"; \
+    cd /; \
+    gap -q --nointeract -c 'for n in ["orb", "forms", "genss", "recog"] do if LoadPackage(n) <> true then Print("FATAL: GAP package ", n, " does not load\n"); QUIT_GAP(1); fi; od;'
+
 # Debian installs these programs under package prefixes (4ti2-hilbert,
 # latte-count, topcom-points2allfinetriangs); Sage's features look for the
 # unprefixed names, so link them into /usr/local/bin. 4ti2 and LattE both ship

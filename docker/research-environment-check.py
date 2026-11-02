@@ -27,10 +27,44 @@ features = [registered[name] for name in (
 )]
 features.append(Macaulay2())
 features += [GapPackage(name) for name in (
-    "atlasrep", "design", "grape", "guava", "hap", "polenta", "polycyclic",
+    "atlasrep", "design", "genss", "grape", "guava", "hap", "polenta",
+    "polycyclic", "recog",
 )]
 missing = [feature.name for feature in features if not feature.is_present()]
 assert not missing, missing
+
+# Those two are only there if the GAP that libgap drives can see them, and that
+# instance is the system GAP: kernel_info runs the same `gap` binary and hands
+# libgap the roots it reports, which is why the packages are installed into
+# /usr/share/gap/pkg (docker/research-environment.Dockerfile) and why Sage's
+# gap_packages spkg, which fills $SAGE_LOCAL/lib/gap/pkg, would not be enough
+# here. Both halves are asserted: the roots, and each package loading in it.
+from sage.libs.gap.libgap import libgap
+from sage.libs.gap.util import kernel_info
+
+gap_version, gap_arch, gap_roots = kernel_info()
+assert "/usr/share/gap/" in gap_roots, gap_roots
+for name in ("orb", "forms", "genss", "recog"):
+    loaded = libgap.eval(f'LoadPackage("{name}")')
+    assert loaded.sage() is True, (name, loaded)
+assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
+
+# A generated matrix subgroup over F_5, ordered by genss's stabilizer chain in
+# the matrix action rather than through a permutation representation. This is
+# capability evidence and not a certificate: the chain is Monte Carlo bounded by
+# ErrorBound, VerifyStabilizerChainMC has no method for a plain matrix group, and
+# nothing here claims that any degree-10 image order is exact or cheap.
+borel = libgap.function_factory(
+    "function(d) local F, g, i, m; F := GF(5); g := []; "
+    "for i in [1..d-1] do m := IdentityMat(d, F); m[i][i+1] := One(F); Add(g, m); od; "
+    "m := IdentityMat(d, F); m[1][1] := Z(5); Add(g, m); return Group(g); end"
+)
+stabilizer_chain = libgap.function_factory(
+    "function(G) return StabilizerChain(G, rec(ErrorBound := 1/10^6)); end"
+)
+gap_size = libgap.function_factory("Size")
+order = gap_size(stabilizer_chain(borel(4))).sage()
+assert order == 4 * 5**6, order
 
 # Maxima's package files are found through MAXIMA_PREFIX, and in a tree where
 # Maxima was staged into SAGE_LOCAL they live under it. A reconfigure must not
