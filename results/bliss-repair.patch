@@ -1,0 +1,80 @@
+From 5176937e9d38c786e8d27b432f92592025d9bf74 Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sat, 31 Oct 2026 20:56:54 +0000
+Subject: [PATCH] fix: link bliss with the ABI its system library was built
+ with
+
+A distribution libbliss compiled with BLISS_USE_GMP stores an mpz_t in
+bliss::BigNum, so the bliss::Stats the headers describe is not the Stats that
+-lbliss was compiled for. bliss.pyx allocates that Stats on its own stack and
+passes it to the library, which writes past it; canonical_form_from_edge_list
+then frees a pointer built from the library's data and dies. On a Debian or
+Ubuntu system bliss (libbliss2 0.77) every canonical label segfaults this way:
+Graph([[0,1]]).canonical_label() and canonical_form(Graph(1)) included.
+
+Take the library's flags from its pkg-config file, which carries the required
+definition, and keep -lbliss as the fallback for Sage's own spkg, which is
+built with USE_GMP=OFF and installs no pkg-config file. The file is named
+libbliss-cxx on Debian and Ubuntu and bliss on other distributions.
+
+bliss_find_automorphisms also took its bliss::Stats by value while bliss.pyx
+declared and called it with a reference. With the GMP representation the copy
+shares one mpz_t and both destructors clear it, so automorphism_group() aborts
+on a double free once the layout matches; take the parameter by reference.
+
+The ABI mismatch only appears with a GMP system bliss, so a build against
+Sage's own spkg is unaffected and keeps its previous behaviour.
+---
+ .../graphs/bliss_cpp/bliss_find_automorphisms.h  |  4 ++--
+ src/sage/graphs/meson.build                      | 16 +++++++++++++++-
+ 2 files changed, 17 insertions(+), 3 deletions(-)
+
+diff --git a/src/sage/graphs/bliss_cpp/bliss_find_automorphisms.h b/src/sage/graphs/bliss_cpp/bliss_find_automorphisms.h
+index b87a14e..64996b3 100644
+--- a/src/sage/graphs/bliss_cpp/bliss_find_automorphisms.h
++++ b/src/sage/graphs/bliss_cpp/bliss_find_automorphisms.h
+@@ -3,7 +3,7 @@
+ #include <bliss/graph.hh>
+ #include <bliss/digraph.hh>
+ 
+-inline void bliss_find_automorphisms(bliss::Graph *graph, void (*hook)(void *user_param, unsigned int n, const unsigned int *aut), void *hook_user_param, bliss::Stats s)
++inline void bliss_find_automorphisms(bliss::Graph *graph, void (*hook)(void *user_param, unsigned int n, const unsigned int *aut), void *hook_user_param, bliss::Stats &s)
+ {
+   auto report_aut = [&](unsigned int n, const unsigned int *aut) -> void {
+     if(hook)
+@@ -13,7 +13,7 @@ inline void bliss_find_automorphisms(bliss::Graph *graph, void (*hook)(void *use
+   graph->find_automorphisms(s, report_aut);
+ }
+ 
+-inline void bliss_find_automorphisms(bliss::Digraph *graph, void (*hook)(void *user_param, unsigned int n, const unsigned int *aut), void *hook_user_param, bliss::Stats s)
++inline void bliss_find_automorphisms(bliss::Digraph *graph, void (*hook)(void *user_param, unsigned int n, const unsigned int *aut), void *hook_user_param, bliss::Stats &s)
+ {
+   auto report_aut = [&](unsigned int n, const unsigned int *aut) -> void {
+     if(hook)
+diff --git a/src/sage/graphs/meson.build b/src/sage/graphs/meson.build
+index ca09ee3..971785b 100644
+--- a/src/sage/graphs/meson.build
++++ b/src/sage/graphs/meson.build
+@@ -1,4 +1,18 @@
+-bliss = cc.find_library('bliss', required: get_option('bliss'), disabler: true)
++# Some distributions (Debian, Ubuntu) build libbliss with BLISS_USE_GMP,
++# which changes the layout of bliss::Stats.  Such a library records the
++# definition its consumers need in a pkg-config file named libbliss-cxx; the
++# name is bliss on other distributions.  Linking -lbliss alone leaves
++# bliss/bignum.hh on its default representation, so the Stats that bliss.pyx
++# hands to the library is smaller than the one the library writes and
++# canonical_form() corrupts the heap.  Sage's own bliss spkg builds with
++# USE_GMP=OFF and installs no pkg-config file, so it keeps using -lbliss.
++bliss = dependency('libbliss-cxx', required: get_option('bliss'), disabler: true)
++if not bliss.found()
++  bliss = dependency('bliss', required: get_option('bliss'), disabler: true)
++endif
++if not bliss.found()
++  bliss = cc.find_library('bliss', required: get_option('bliss'), disabler: true)
++endif
+ 
+ mcqd = disabler()
+ mcqd = dependency('Mcqd', method: 'cmake', required: false, disabler: true)
+-- 
+2.53.0
+

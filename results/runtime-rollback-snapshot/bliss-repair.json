@@ -1,0 +1,10 @@
+{
+  "base_revision": "b0cd7d86e21eb450ed90e4c83707920e1d5d429a",
+  "patches": [
+    {"patch": "bliss-repair.patch", "sha256": "baf4b826e8093c7891de3650789c7f1e13c7d9e82de362a124486956e53f32b3"},
+    {"patch": "bliss-repair-v2.patch", "sha256": "ff86f4a9a3cf02ae47ee81dc221ee048ba7f9fe277cfc3dbeb2f1ae091dbb5e1"}
+  ],
+  "module": "/sage/.venv/lib/python3.14/site-packages/sage/graphs/bliss.cpython-314-x86_64-linux-gnu.so",
+  "module_sha256": "d941337e3a69b8256771c2fbbff5c2604e724b717dcc41352e12a3f7f9b75a75",
+  "note": "Incremental deployment of the checked Bliss repair into this unpacked copy. The published image is unchanged and the repair ships in it only when a rebuilt image is published."
+}

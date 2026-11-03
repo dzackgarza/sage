@@ -1,0 +1,1 @@
+/opt/julia/bin/julia

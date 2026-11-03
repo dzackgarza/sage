@@ -1,0 +1,56 @@
+# Shared runtime pre-adoption state
+captured: 2026-11-01T05:24:18Z
+
+## /sage source
+HEAD: b0cd7d86e21eb450ed90e4c83707920e1d5d429a
+status:
+   M src/sage/graphs/bliss_cpp/bliss_find_automorphisms.h
+   M src/sage/graphs/meson.build
+  ?? .spinor-base-revision
+  ?? .spinor-source-revision
+working-tree diff sha256: 373d04d59ca7fdbb0b676e5422e89df31a6f7069eb7cdfe81c25e57856daf12f
+uv.lock sha256: b389c58acbb592c318a256845888b610e26072315215c2eaa0964d252b9dc0d9
+docker/ scripts shipped in /sage:
+  docker/provision-lean-packages.sh              (absent)
+  docker/install-research-repositories.sh        bd603523dabd7077
+  docker/julia-launcher.sh                       (absent)
+  docker/research-environment-check.py           a1ae79e3bc5caa8a
+
+## /repos checkouts
+  formalization-corpus         718341c4eed1
+  jupyter-mcp-server           57cba02e5199
+  lattice-database             230d41aef69b
+  lattice-research             73ccb47a439d
+  lattice_interface            e994e1071061
+  lean-cas-dsl-leaf-contracts  33a514c2c791
+  lean-cas-dsl-leaves          0030cccf6beb
+  lean-cas-dsl                 f34ce0debead
+  lean-categories              3f8aedfdbf8e
+  lean-jupyter-kernel          4c6c2a77abcc
+  pandoc-config                83e44b32f379
+  polyhedral_common            850f4caef07b
+  prove2me_workspace           8f6a5552a87e
+  research-computational       5819ce4ce0a9
+  research                     ec1333eeb074
+  sage-categories              de31eec22f84
+  sage-extensions              7b222e862145
+  sage-indefinite-port         86d860a428c2
+  sage-julia-bridge            f85758d06c54
+  sage-lsp-server              b22ecb0ed192
+  sage-stubs                   49780ceabc50
+  sagemath-mypy-plugin         dd2f93b55109
+  tree-sitter-sage             9cc82919f6df
+  vinal                        74ed7de08908
+
+## installed runtime
+bliss module sha256: d941337e3a69b8256771c2fbbff5c2604e724b717dcc41352e12a3f7f9b75a75
+bliss module backup: /workspace/nucleus/work/home/sage-image/rootfs/sage/.venv/lib/python3.14/site-packages/sage/graphs/bliss.cpython-314-x86_64-linux-gnu.so.orig
+launcher /usr/local/bin/julia: /opt/julia/bin/julia
+bliss stamp sha256: 4c95c399282a4f44829736294b99e84ea5f84fc3a4e96d877a470efb692d151a
+lean views sha256: f25a130044439d3e3b497e1e091d8dd1a43a8504620ad87b78a0b95292e96048
+lean_categories in shared store: eea5c7f3bce7
+mathlib oleans: 8322 in /opt, 0 via the store path
+
+## capacity
+/dev/vda4       248G   90G  158G  37% /
+rootfs size: 40G

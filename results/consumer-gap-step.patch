@@ -1,0 +1,65 @@
+From be61c3277614682fc443f36a8e0f0ede64014c17 Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Mon, 2 Nov 2026 19:04:02 +0000
+Subject: [PATCH] feat: assert GAP's matrix-group packages on the consumer run
+ too
+
+The producer's build runs docker/research-environment-check.py, so the claim
+"libgap can load orb, forms, genss and recog" is made once, inside the build.
+A consumer run on the immutable digest made only a rational-number assertion,
+which would pass on an image missing every one of them.
+
+The consumer now repeats the capability assertion from a fresh runner: the root
+paths the libgap instance reports contain /usr/share/gap, each package loads
+there, RecognizeGroup is bound, and a deg-4 GF(5) Borel subgroup is ordered
+through genss's stabilizer chain as 62,500. The chain is Monte Carlo bounded by
+ErrorBound and this asserts no exact order for a generated subgroup of O(V);
+the degree-10 module is not attempted.
+
+The producer's path filter does not include this file, so no image is rebuilt.
+---
+ .github/workflows/research-image-consumer.yml | 31 +++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/.github/workflows/research-image-consumer.yml b/.github/workflows/research-image-consumer.yml
+index cad571d4662..2b3faa09614 100644
+--- a/.github/workflows/research-image-consumer.yml
++++ b/.github/workflows/research-image-consumer.yml
+@@ -37,3 +37,34 @@ jobs:
+         PYTHON
+ 
+         '
++    # The producer's own build runs docker/research-environment-check.py, which
++    # asserts this too; this step is the same claim made from a fresh runner on
++    # the immutable digest, through the instance libgap actually drives. The
++    # order below is a randomised (Monte Carlo) stabilizer chain bounded by
++    # ErrorBound, so it is capability evidence and not an exact order for any
++    # generated subgroup of O(V).
++    - name: Load GAP's matrix-group order and recognition packages
++      shell: bash
++      run: |
++        python - <<'PYTHON'
++        from sage.libs.gap.libgap import libgap
++        from sage.libs.gap.util import kernel_info
++
++        version, arch, roots = kernel_info()
++        assert "/usr/share/gap/" in roots, roots
++        for name in ("orb", "forms", "genss", "recog"):
++            assert libgap.eval('LoadPackage("%s")' % name).sage() is True, name
++        assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
++
++        borel = libgap.function_factory(
++            "function(d) local F, g, i, m; F := GF(5); g := []; "
++            "for i in [1..d-1] do m := IdentityMat(d, F); m[i][i+1] := One(F); Add(g, m); od; "
++            "m := IdentityMat(d, F); m[1][1] := Z(5); Add(g, m); return Group(g); end"
++        )
++        chain = libgap.function_factory(
++            "function(G) return StabilizerChain(G, rec(ErrorBound := 1/10^6)); end"
++        )
++        order = libgap.function_factory("Size")(chain(borel(4))).sage()
++        assert order == 4 * 5**6, order
++        print(version, arch, order)
++        PYTHON
+-- 
+2.53.0
+
