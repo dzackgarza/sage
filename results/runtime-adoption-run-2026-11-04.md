@@ -65,3 +65,42 @@ Nothing is claimed for the consumer workflow. Issue #7 needs `workflows` write t
 apply `docker/gap-consumer-workflow.patch` and Actions write to dispatch, neither of
 which this session holds. The producer/consumer image path is validated
 (`sha256:122ccd3a`, revision `6dc2659`) but the *workflow step* is not applied.
+
+## Bounded acceptance run at the adopted pin (2026-11-04, second pass)
+
+Re-checked with `preflight` immediately before: `no process inside the rootfs`,
+`sage HEAD ec386a5b9b51`, `sage diff` clean (empty-tree sha).
+
+Published check, bounded — `PEAKRSS_LIMIT_MIB=10240`, `timeout 1800`:
+
+```
+SageMath version 11.0.beta5, Release Date: 2026-10-28
+[peakrss] envcheck: child waited=0 shell_code=0 samples=21
+[peakrss] peak tree RSS      : 8050 MiB
+CHECK_EXIT=0
+```
+
+The 10,240 MiB bound is above the check's measured peak (7,862 MiB in the earlier
+unbounded run, 8,050 MiB here) so it is a real guard and not a relaxed acceptance.
+
+GAP consumer check through Sage's libgap in the live rootfs:
+
+```
+kernel: GAP 4.14.0 arch x86_64-pc-linux-gnu-default64-kv9
+LoadPackage(orb|forms|genss|recog) = true   (5.1.0 / 1.3.0 / 1.6.10 / 1.5.1)
+genss chain order of the deg-4 GF(5) Borel: 62500 in 0.034s (expect 62500)
+CONSUMER CAPABILITY CHECK PASSED
+```
+
+Provider overrides and earlier local fixes verified intact after the sync:
+`/opt/bliss-repair.json` (both patches), `/opt/lake-views/index.json` (three
+checkouts), both `.spinor-*` markers, and `/repos` at port `4f0ee50c`, extensions
+`7b222e86`, research `ec1333ee`. `uv sync` repointed the research packages from
+their git sources to `file:///repos/…`, which is the intended provider override.
+
+## No runtime change since `ec386a5b`
+
+`git diff --stat ec386a5b9b5..develop -- src/ docker/ build/ justfile pyproject.toml uv.lock`
+reports one file, `docker/gap-matrix-group-packages.md`, which is documentation.
+Everything after `ec386a5b` on `develop` is docs and evidence, so the adopted pin is
+the current published runtime source and there is nothing newer to take.
