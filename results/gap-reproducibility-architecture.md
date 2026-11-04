@@ -317,3 +317,65 @@ this GAP rather than the distribution's `kv9`.
 
 This supersedes the interim state described above: the runtime now has a Sage-owned,
 pinned GAP in its image. The live shared rootfs has **not** been adopted to it.
+
+## Fresh consumer smoke on the published digest (isolated, 2026-11-04)
+
+Run in a **separate unpacked tree** at `$HOME/sage-verify/image`, from the registry,
+not adopted into the live runtime and with no consumer pin touched.
+
+| | |
+| --- | --- |
+| index | `sha256:59568577510bd76fc9c405c81e6cb185656a193a24ee08b33e1b8b7fa6ae9d2b` |
+| manifest | `sha256:caacdd4b7ff8b322e5a43bf23b93e45b473e08667ed9121518fa5845b3867cb0` |
+| config | `sha256:dfdadb84096d9ea01ad295c05b184aaecb5e2ad18b8cda88bdc781e5f505390b` |
+| revision | `9f1680d2a7bcf001e50714768e6066e6652d1708` |
+| unpacked | `2026-11-04T19:03:42Z`, 41 GB, every layer sha256-verified |
+
+### Provenance from a consumer process
+
+```
+gap on PATH: /sage/.venv/bin/gap
+kernel: 4.16.1 x86_64-pc-linux-gnu-default64-kv11
+roots: /root/.gap/;/sage/.venv/lib/gap/;/sage/.venv/share/gap/
+libgap mapped: ['/sage/.venv/lib/libgap.so.11']
+```
+
+The GAP *is* the Sage-owned one — not `/usr/bin/gap`, not Debian's 4.14 — and the
+mapped `libgap` comes from `$SAGE_LOCAL/lib`, which is the linkage claim the audit
+asked to be proven rather than asserted. The ABI is `kv11`, matching the module.
+
+### Package features
+
+```
+GapPackage(atlasrep) present: True     GapPackage(polenta)    present: True
+GapPackage(design)   present: True     GapPackage(polycyclic) present: True
+GapPackage(grape)    present: True     GapPackage(genss)      present: True
+GapPackage(guava)    present: True     GapPackage(recog)      present: True
+GapPackage(hap)      present: True
+```
+
+### Capability check
+
+```
+LoadPackage(orb)   = true, version 5.1.0    from /sage/.venv/lib/gap/pkg/orb/
+LoadPackage(forms) = true, version 1.3.0    from /sage/.venv/lib/gap/pkg/forms/
+LoadPackage(genss) = true, version 1.6.10   from /sage/.venv/lib/gap/pkg/genss/
+LoadPackage(recog) = true, version 1.5.1    from /sage/.venv/lib/gap/pkg/recog/
+genss chain order of the deg-4 GF(5) Borel: 62500 in 0.005s (expect 62500)
+CONSUMER CAPABILITY CHECK PASSED
+```
+
+Resolution is from `$SAGE_LOCAL/lib/gap/pkg`, i.e. the Sage-owned tree, in a consumer
+process on the published image. Peak tree RSS 344 MiB, run under
+`PEAKRSS_LIMIT_MIB=6144`.
+
+Scope unchanged: genss's chain is Monte Carlo bounded by `ErrorBound`; 62,500 is
+capability evidence, not an exact order for any subgroup of `O(V)`, and no degree-10
+computation was attempted.
+
+### A defect in this project's own check, found by running it
+
+`results/consumer-check.py` had literal `\n` escapes written into a comment by an
+earlier edit, leaving `root_list` undefined and the check dead at import time
+(`NameError: name 'root_list' is not defined`). Fixed before the run above; the
+passing output is from the corrected file.

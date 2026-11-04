@@ -23,7 +23,9 @@ version, arch, roots = kernel_info()
 print(f"kernel: GAP {version} arch {arch}")
 print(f"roots: {roots}")
 assert sys.prefix == "/sage/.venv", sys.prefix
-# Whichever GAP owns the packages, the directory they resolve from must be a\n# root that instance reports; no single owner path is enshrined here.\nroot_list = [root for root in roots.split(";") if root]
+# Whichever GAP owns the packages, the directory they resolve from must be a
+# root that instance reports; no single owner path is enshrined here.
+root_list = [root for root in roots.split(";") if root]
 
 for name in ("orb", "forms", "genss", "recog"):
     started = time.time()
