@@ -236,3 +236,47 @@ that instance actually searches.
   layout but must run only at a boundary, with consumers stopped.
 * Consumers are unaffected until then: the interim capability still loads, because
   the checks no longer name either tree.
+
+## Second implementation pass: defects found by testing (2026-11-04)
+
+| defect | how it showed | fix |
+| --- | --- | --- |
+| gate executed the new `gap` before `ldconfig` | reproduced locally: `error while loading shared libraries: libgap.so.11` | `ld.so.conf.d` + `ldconfig` moved inside the build RUN, before first execution |
+| GAP installed before the venv existed | `uv sync` refuses a nonempty `.venv`: "cannot be used because it is not a valid Python environment"; `uv venv` says "A directory already exists" | `uv venv /sage/.venv` first, then GAP, then sync — verified that sync then succeeds and keeps GAP's files |
+| package list was my hand-picked 18 | Sage's recipes install 30 pure + `cohomolo crypting grape orb datastructures` + `guava` (gnu17) + `nq io digraphs` | copied sets now mirror `build/pkgs/gap/spkg-install.in` and `build/pkgs/gap_packages/spkg-install.in`, and natives are compiled as Sage compiles them |
+| `polenta` needed `alnuth`, absent | read from the pinned source's own `PackageInfo.g`: `polenta -> alnuth, polycyclic`; `hap -> polycyclic`, `guava -> SONATA`, `orb -> IO`, `grape -> GAPDoc`, `recog -> AtlasRep`, `genss -> orb` | `alnuth` added; the build gate `LoadPackage`s fourteen packages, so a missing closure member fails the build |
+| adoption installer named versioned dirs (`forms-1.3.0`, …) and copied only packages + `gac` | the new image ships unversioned `pkg/forms` etc. and needs the whole prefix | installer now moves the installation as a unit: `bin/{gap,gac}`, `lib/libgap.so*`, `lib/pkgconfig/libgap.pc`, `include/gap`, `lib/gap`, `ld.so.conf.d` entry |
+| `PKG_CONFIG_PATH` existed only inside one RUN | incremental builds run their own sync | now `ENV` in **both** Dockerfiles |
+| `kernel_info()` proved nothing about the loaded library | it only runs the `gap` binary | the check reads `/proc/self/maps` and requires the mapped `libgap` to live under `$SAGE_LOCAL/lib` |
+
+Adoption path tested in isolation against a fabricated source rootfs built from the
+same pinned tarball: `preflight` (boundary + layout), `apply` (8 paths recorded),
+`rollback` (8 removed, no leftovers). `verify` needs a userland inside the target
+(the ELF interpreter is missing in a fabricated tree), so it is exercised only
+against a real image, which the producer check already does.
+
+## Patch bump hazard (needs a workflow change I cannot make)
+
+`research-environment-image.yml` chooses a full build only when the diff matches
+`^D` or `docker/research-environment.Dockerfile`. A change to
+`build/pkgs/gap/package-version.txt` alone therefore selects the **incremental**
+Dockerfile, which reuses the published base image and would not rebuild GAP. Until
+that pattern also covers `build/pkgs/`, a pin bump must be accompanied by any edit to
+`docker/research-environment.Dockerfile` (which forces a full build). Editing the
+workflow needs `workflows` write, which this session does not hold — reported, not
+worked around.
+
+## Reproducibility scope: what this does and does not fix
+
+Pinned and declared now: GAP source, its packages, the native modules, the GAP
+version the check asserts, and the libgap the process maps.
+
+Still mutable and outside this change, so no claim of full reproducibility:
+
+* the base image `debian:trixie` and every `apt-get install` (no snapshot pinning);
+* `uv`, `just` and `elan`, installed from their upstream installer scripts by URL;
+* the Python interpreter (`uv python install 3.14`) and Julia 1.12.5's tarball, which
+  is pinned by sha256 but its packages are resolved at build time by `Pkg.add`;
+* Mathlib and the Lean toolchain, provisioned from the projects' own manifests.
+
+Each would need its own pinning decision; none of them is made here.
