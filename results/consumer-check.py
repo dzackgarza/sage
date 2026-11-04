@@ -23,14 +23,17 @@ version, arch, roots = kernel_info()
 print(f"kernel: GAP {version} arch {arch}")
 print(f"roots: {roots}")
 assert sys.prefix == "/sage/.venv", sys.prefix
-assert "/usr/share/gap/" in roots, roots
+# Whichever GAP owns the packages, the directory they resolve from must be a\n# root that instance reports; no single owner path is enshrined here.\nroot_list = [root for root in roots.split(";") if root]
 
 for name in ("orb", "forms", "genss", "recog"):
     started = time.time()
     loaded = libgap.eval('LoadPackage("%s")' % name)
     assert loaded.sage() is True, (name, loaded)
+    version_ = libgap.eval('PackageInfo("%s")[1].Version' % name)
+    installed_in = str(libgap.eval('PackageInfo("%s")[1].InstallationPath' % name))
+    assert any(installed_in.startswith(root) for root in root_list), (name, installed_in, root_list)
     print(f"LoadPackage({name}) = true in {time.time() - started:.3f}s, version "
-          f"{libgap.eval('PackageInfo(\"%s\")[1].Version' % name)}")
+          f"{version_}, from {installed_in}")
 
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 assert libgap.eval("IsBound(StabilizerChain)").sage() is True

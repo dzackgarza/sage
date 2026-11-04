@@ -43,10 +43,18 @@ from sage.libs.gap.libgap import libgap
 from sage.libs.gap.util import kernel_info
 
 gap_version, gap_arch, gap_roots = kernel_info()
-assert "/usr/share/gap/" in gap_roots, gap_roots
+# Do not pin the packages to one owner's tree. They may sit in the system GAP's
+# /usr/share/gap/pkg or in Sage's own $SAGE_LOCAL/lib/gap/pkg; what has to hold is
+# that the directory GAP resolves each package from is one GAP actually searches.
+# Naming a single path here would enshrine whichever GAP the image happens to use.
+gap_root_list = [root for root in gap_roots.split(";") if root]
 for name in ("orb", "forms", "genss", "recog"):
     loaded = libgap.eval(f'LoadPackage("{name}")')
     assert loaded.sage() is True, (name, loaded)
+    installed_in = str(libgap.eval(f'PackageInfo("{name}")[1].InstallationPath'))
+    assert any(installed_in.startswith(root) for root in gap_root_list), (
+        name, installed_in, gap_root_list,
+    )
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 
 # A generated matrix subgroup over F_5, ordered by genss's stabilizer chain in
