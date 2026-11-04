@@ -1,0 +1,24 @@
+# Pre-adoption state of the shared runtime, captured 2026-11-04T19:17:32Z
+# Target: published image 9f1680d2 (index sha256:59568577)
+
+sage HEAD: ec386a5b9b51c88c349c0a8c33e74e53f96c7745
+sage diff digest: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+config.py MAXIMA_PREFIX: MAXIMA_PREFIX = "/sage/.venv"
+
+## GAP: distribution tree, to be replaced by the Sage-owned one
+usr/share/gap/pkg entries: 33
+AClib Alnuth AtlasRep AutPGrp Congruence Cryst CrystCat CtblLib FGA GAPDoc HAP Polycyclic PrimGrp RadiRoot SmallGrp TomLib TransGrp design factint float forms-1.3.0 genss-1.6.10 grape guava io laguna nq orb-5.1.0 polenta-1.3.11 recog-1.5.1 sonata toric utils 
+SAGE_LOCAL GAP present: no
+
+## /repos pins
+  sage-indefinite-port: 4f0ee50
+  sage-extensions: 7b222e8
+  research: ec1333eeb
+
+## retained local/provider overrides
+  bliss-repair.json: 4c95c399282a4f44
+  lake-views index : f25a130044439d3e
+  spinor markers   : 2
+
+## disk
+/dev/vda4       248G  197G   51G  80% /
