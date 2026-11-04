@@ -62,7 +62,7 @@ module — and no distribution GAP:
 | input | pin | where declared |
 | --- | --- | --- |
 | GAP source (binary + libgap) | **4.16.1**, `sha256=df7d116f03c426dac24bf7c76ea11416b29c5a48eac12f97811d80ec215f7f69`, `sha1=0162f289a10e9406e12555b92d566aa689ea9af6` | `build/pkgs/gap/checksums.ini` |
-| GAP optional packages | same tarball, version **4.16.1** | `build/pkgs/gap_packages/{package-version.txt,checksums.ini}` — it ships atlasrep, design, grape, guava, hap, polenta, polycyclic, **genss**, … |
+| GAP optional packages | same tarball, version **4.16.1** | `build/pkgs/gap_packages/{package-version.txt,checksums.ini}` — ships atlasrep, design, grape, guava, hap, polycyclic, **genss** and **orb**; **not** `forms`, **not** `recog` |
 | orb | 5.1.0, `sha256=73911bab4b31ae0f1771e76c1e3b9389100c6ede4ad27f27724cd4dc1239cb28` | pinned in the Dockerfile today |
 | forms | 1.3.0, `sha256=a5c823b0fc4d68f2bfbf9e30d4792ea501b413c7636596aae1be6407140f7e54` | same |
 | recog | 1.5.1, `sha256=eae7deaecb263242ee378f5728e4d7a717d6d1903d9d04e099d74ba1b7c53931` | same |
@@ -77,8 +77,10 @@ Concretely, in `docker/research-environment.Dockerfile`:
    `$SAGE_LOCAL/bin/gap`, `$SAGE_LOCAL/lib/libgap.*` and the root
    `$SAGE_LOCAL/lib/gap`.
 3. Extract the optional packages from the same pinned tarball into
-   `$SAGE_LOCAL/lib/gap/pkg`, and add `orb`, `forms`, `recog` there from their pinned
-   tarballs; build `orb`'s module with the `gac` that step 2 installed.
+   `$SAGE_LOCAL/lib/gap/pkg` — that source supplies `genss` *and* `orb`
+   (`spkg-install.in:95`: `for pkg in cohomolo crypting grape orb datastructures`),
+   so only **`forms` and `recog`** need their own pinned tarballs. `orb`'s module is
+   built with the `gac` that step 2 installed.
 4. Rebuild sagelib so it links the Sage-built `libgap` rather than Debian's.
 5. Then `kernel_info()` reports `$SAGE_LOCAL/lib/gap` because that is the `gap` the
    venv ships, and `gap_packages`' documented location is a real root — the defect in
@@ -110,3 +112,58 @@ relink) and cannot be validated on this host: the image has never built a spkg, 
 this is the first. It needs a producer build run to validate, and then a maintenance
 boundary to adopt into the shared rootfs — neither of which is available while four
 consumers are active. No part of it is applied.
+
+## Reconciliation with the independent audit (2026-11-04)
+
+Four corrections to the sketch above, three of them against my own first draft.
+
+**1. Meson finds libgap on its own, and `--with-system-gap=no` does not reach it.**
+`src/meson.build:233-243`:
+
+```meson
+gap = dependency('libgap', version: '>=4.13.0', required: false)
+if not gap.found()
+  gap = cc.find_library('gap', has_headers: ['gap/common.h'], required: not is_windows, disabler: true)
+endif
+```
+
+Sage's `sage.libs.gap` links this object (`src/sage/libs/gap/meson.build:38`:
+`dependencies: [py_dep, gap, gmp]`). So the linkage is decided by **pkg-config's
+`libgap`** and, failing that, by `cc.find_library('gap')` — not by
+`build/pkgs/gap/spkg-configure.m4`. Removing the Debian package alone would either
+break the configure or silently re-find another libgap; the Sage-built one has to be
+what this probe resolves (own `PKG_CONFIG_PATH` into `$SAGE_LOCAL/lib/pkgconfig`, and
+no system `libgap.pc` visible), and the headers found with it must be the same build's.
+
+**2. The version is not the same, so "add the packages" cannot be the whole story.**
+Sage's pin is GAP **4.16.1** (`build/pkgs/gap/package-version.txt`, tarball
+`sha256=df7d116f…`); the image's Debian GAP is **4.14.0**. An executable and a libgap
+from different versions, with headers from a third place, is precisely the failure
+class the bliss defect already taught here (headers built with a different ABI than
+the library — `results/sage-image-bliss-fix.md`). The five things must come from one
+build: **executable, headers, libgap, package root, and the native `orb` module**.
+
+**3. `gap_packages` supplies `orb`; only `forms` and `recog` are extra.** My first
+draft listed `orb` as needing its own tarball. `spkg-install.in:95` installs it:
+`for pkg in cohomolo crypting grape orb datastructures`. It ships neither `forms` nor
+`recog`.
+
+**4. `build/pkgs/gap/spkg-install.in` targets `$SAGE_LOCAL`** (`GAP_ROOT="$SAGE_LOCAL/lib/gap"`,
+`sdh_configure … --prefix=$SAGE_LOCAL`), which is what makes the package root and the
+executable agree — and is why the `$SAGE_LOCAL` build above is the right target rather
+than a distro prefix.
+
+## Where the isolated test actually ran
+
+The claim "the system tree now holds none of the four" refers to
+**`repo/.scratch/gapfix/syspkg`** — a copy of the live `/usr/share/gap/pkg` with the
+four directories removed, bind-mounted **over** `/usr/share/gap/pkg` inside a
+`bwrap` sandbox whose `/` was the live rootfs mounted **read-only**. The stand-in for
+`$SAGE_LOCAL/lib/gap` was `repo/.scratch/gapfix/home/gap`, and the `gap` shim was
+`repo/.scratch/gapfix/shim/gap`, bound over `/usr/local/bin` for that invocation only.
+
+The shared rootfs was never written in that test, and the first attempt was discarded
+because a GAP workspace cached from the previous run still pointed at the old path —
+the clean run is the one reported. **The live rootfs still has the interim layout**
+(four packages in `/usr/share/gap/pkg`); replacing it is the pinned build above, which
+must wait for a boundary.
