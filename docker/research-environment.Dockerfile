@@ -148,27 +148,24 @@ RUN set -eu; \
     make -j"$(nproc)"; \
     make install; \
     test -x "$SAGE_LOCAL/bin/gap" && test -f "$SAGE_LOCAL/lib/gap/sysinfo.gap"; \
-    # Package parity with Sage's own recipes, not a hand-picked subset:
-    # build/pkgs/gap/spkg-install.in installs GAP's core packages,
-    # build/pkgs/gap_packages/spkg-install.in installs its pure list and compiles
-    # cohomolo crypting grape orb datastructures, guava, and nq io digraphs, and
-    # atlasrep/factint are what recog requires. forms and recog are the two
-    # matrix-group packages neither list carries.
-    # GAP's own `make install` does not install any of them, so they are copied
-    # from the same pinned source into the root GAP now searches.
+    # Every package the pinned GAP distribution ships, not a curated subset: a
+    # hand-picked list keeps turning out to be missing a member of some package's
+    # NeededOtherPackages closure -- `polenta` wants `alnuth`, `atlasrep` wants
+    # `primgrp`+`gapdoc`, `guava` wants `sonata`, `orb` wants `io` -- and GAP then
+    # refuses to load the package that needed it. A normal GAP installation has
+    # all of them, so this one does too.
+    #
+    # GAP's `make install` does not install pkg/ at all, so it is copied, whole,
+    # from the same pinned source into the root GAP searches. `/.` copies the
+    # contents; without it a second run would nest pkg/pkg.
     GAP_ROOT_PKG="$SAGE_LOCAL/lib/gap/pkg"; \
-    core_pkgs="gapdoc primgrp smallgrp transgrp packagemanager"; \
-    pure_pkgs="aclib autodoc corelg crime cryst crystcat design gbnp genss hap hapcryst hecke images liealgdb liepring liering lins loops mapclass polymaking qpa quagroup radiroot repsn singular sla sonata toric utils"; \
-    extra_pkgs="atlasrep factint tomlib forms recog alnuth"; \
+    mkdir -p "$GAP_ROOT_PKG"; \
+    cp -a /tmp/gap/pkg/. "$GAP_ROOT_PKG/"; \
+    echo "installed $(ls "$GAP_ROOT_PKG" | wc -l) GAP packages"; \
+    # The packages Sage's own gap_packages spkg compiles; the pinned source ships
+    # their C, so they are built here against this GAP and its gac.
     compiled_old="cohomolo crypting grape orb datastructures"; \
     compiled_new="nq io digraphs"; \
-    for pkg in $core_pkgs $pure_pkgs $extra_pkgs $compiled_old $compiled_new guava; do \
-        test -d "/tmp/gap/pkg/$pkg" || { echo "FATAL: $pkg not in the pinned GAP source" >&2; exit 1; }; \
-        cp -a "/tmp/gap/pkg/$pkg" "$GAP_ROOT_PKG/"; \
-    done; \
-    # The old-style configures take the GAP root positionally and predate C99
-    # prototypes; Sage passes the same flag for them.
-    export CFLAGS="-Wno-implicit-function-declaration ${CFLAGS:-}"; \
     for pkg in $compiled_old; do \
         echo "building GAP package $pkg"; \
         cd "$GAP_ROOT_PKG/$pkg" && ./configure "$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
