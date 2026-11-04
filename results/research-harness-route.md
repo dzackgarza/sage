@@ -166,3 +166,64 @@ same pin discrepancy recorded above — research's recipe references `441519c5`,
 runtime ships `7b222e86` — and it now has a concrete symptom. Resolving it belongs to
 research's recipe and to `sage-extensions` (provider API), not to the shared runtime;
 no consumer pin is changed here and nothing is installed into the venv.
+
+## The fraction-field failure is a harness-contract defect, not a test defect
+
+Reported: `qc_sage_session` raises a raw-Sage Integer conversion at
+`ring_foundation.py:6384`, while `FractionFieldQuotients(ZZ)(2)` and `(ZZ(2))` succeed
+outside pytest in the same runtime and binding.
+
+### The contract, read from the plugin
+
+`ai-review-ci/tool-artifacts/pytest_plugins/qc_sage_session.py` lowers a `.sage` file
+with `sage.repl.preparse.preparse_file` and then executes it with
+
+```python
+module.__dict__["__builtins__"] = _sage_scope()      # = vars(builtins) + vars(sage.all_cmdline)
+```
+
+Two consequences, both measured:
+
+1. **Literals are preparsed.** Inside the harness a literal `2` is a Sage `Integer`
+   whose parent is `Integer Ring`:
+
+   ```
+   LITERAL type: Integer | parent: Integer Ring
+   ZZ(2) type: Integer
+   ```
+
+2. **The names injected are `sage.all_cmdline`'s**, i.e. global Sage's, *not* the
+   project's own session names. That is the defect. The provider distinguishes rings
+   "of this session", and global Sage's `ZZ` is not one of them:
+
+   ```
+   K = FractionFieldQuotients(ZZ)
+   TypeError: expected a ring of this session, but Integer Ring is not one
+     se-provider-6ad7a5ea/src/sage_extensions/categories/rings/ring_foundation.py:7480
+   ```
+
+`FractionFieldQuotients` is not even in the injected scope (`NameError` until imported
+explicitly), which is the same fact from the other side: the scope is Sage's, not the
+project's.
+
+### What this means for the report's symptoms
+
+The `6384` frame is the `__contains__` fall-back `return value in self._engine`; the
+Integer it cannot convert is the preparsed literal, and the ring it was called on came
+from a session that the provider does not consider its own. Outside pytest the same
+expression uses the project's own preamble bindings, so both `2` and `ZZ(2)` are owned
+rings' elements and it passes.
+
+### Conclusion
+
+* The **test is correct** and should stay unchanged; it is entitled to the project's
+  session bindings.
+* The **harness is at fault**: `qc_sage_session` binds `sage.all_cmdline`, which
+  substitutes global Sage names for the project's owned ones. A `.sage` test run under
+  it is not the same session the project's own runner creates.
+* This is **not** a runtime defect and nothing in the shared runtime was changed.
+
+The fix belongs to `ai-review-ci`'s plugin: execute the lowered module in the project's
+own session namespace (whatever the project's preamble/runner installs) rather than
+`vars(sage.all_cmdline)`, or make that scope overridable per project. Reported, not
+worked around: no alternate path, no plugin copy, no test edit.
