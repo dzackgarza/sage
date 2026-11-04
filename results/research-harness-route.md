@@ -227,3 +227,60 @@ The fix belongs to `ai-review-ci`'s plugin: execute the lowered module in the pr
 own session namespace (whatever the project's preamble/runner installs) rather than
 `vars(sage.all_cmdline)`, or make that scope overridable per project. Reported, not
 worked around: no alternate path, no plugin copy, no test edit.
+
+## ad436ca5 under the harness: measured cause
+
+Reproduced against research's own binding at
+`.scratch/se-provider-ad436ca5/src` (first on `PYTHONPATH`, consumer pin untouched):
+
+```
+/sage/.venv/bin/python -m pytest -o addopts= -p qc_sage_session ... tests/constructions/test_forms_construct.sage -k fraction
+-> 6 failed, 349 deselected in 2.36s
+```
+
+### What the harness hands the test
+
+```
+ZZ repr: Integer Ring
+ZZ is global Sage ZZ: True          (sage.rings.integer_ring.ZZ)
+```
+
+`qc_sage_session` sets `__builtins__` to `vars(builtins) + vars(sage.all_cmdline)`.
+So inside a `.sage` test, unqualified names are **global Sage's**, whatever the project
+wants them to be.
+
+### What the provider requires
+
+```
+K = FractionFieldQuotients(ZZ)      # sage.all's ZZ, in a plain script
+TypeError: expected a ring of this session, but Integer Ring is not one
+  ring_foundation.py:7594 (_owned_ring)
+```
+
+The provider only accepts rings it issued for the session. Global Sage's `ZZ` is not
+one of them. The same rejection is what surfaces inside the harness as the reported
+`6384` coercion path, and (in the run reproduced here) as
+
+```
+AssertionError: cannot compute the cardinality of Fraction Field of Integer Ring / (2)Integer Ring:
+its construction supplies no exact value or decided finite enumeration
+```
+
+— the same foreign ring, failing at the next guard instead of the first.
+
+### Conclusion: no Sage-owned harness defect verified
+
+* The **preparser is Sage's own and is behaving correctly**: it turns a literal `2`
+  into `Integer(2)`, and that is the documented contract of a `.sage` file.
+* The **plugin is `ai-review-ci`'s**, not Sage's, and it is the layer that substitutes
+  `sage.all_cmdline` for the project's session bindings. That is a defect in that
+  plugin's contract, not in Sage and not in the research test.
+* **Nothing Sage-owned is repaired here**, because nothing Sage-owned was shown to be
+  at fault. The test stays unchanged, the consumer pin stays unchanged, and no plugin
+  copy or workaround was introduced.
+
+What would settle it is a single decision by the two owners: either `qc_sage_session`
+executes the lowered module in the project's own session namespace (making a `.sage`
+test see what the project's runner shows it), or the provider accepts a global ring
+when no session ring of that name exists. Both are theirs to make; neither is a
+runtime change.
