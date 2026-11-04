@@ -116,5 +116,5 @@ git am docker/gap-consumer-workflow.patch    # or: git apply
 
 The workflow as published asserted only a `QQ` determinant, so a consumer run would pass on
 an image missing every GAP package; the patch adds a step making the same assertions from a
-fresh runner. This app's push is refused for that path (`without workflows permission`), so
-it travels as a patch and needs a credential that has `workflows` write.
+fresh runner. Applying it needs a credential that has `workflows` write; the work unit is
+[issue #7](https://github.com/dzackgarza/sage/issues/7).

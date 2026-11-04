@@ -1,6 +1,7 @@
 # GAP matrix-group capability: producer evidence (image built from 6dc2659)
 
-Recorded 2026-11-02. Consumer validation not yet run (see "Open").
+Recorded 2026-11-02. Consumer validation: the local run below, and the hosted run
+[41275674403](https://github.com/dzackgarza/sage/actions/runs/41275674403) on the published digest.
 
 ## The published image
 
@@ -46,16 +47,6 @@ Those are capability checks. They do not assert, and must not be read as, an ord
 the port's generated orthogonal subgroup: genss's chain is Monte Carlo bounded by
 `ErrorBound`, `VerifyStabilizerChainMC` has no method for a plain matrix group, and no
 degree-10 computation is attempted anywhere in the image check.
-
-## Open
-
-The fresh consumer run is `workflow_dispatch` on `.github/workflows/research-image-consumer.yml`
-with `image: ghcr.io/dzackgarza/sage@sha256:122ccd3a…`. This agent holds no Actions
-credential — the GitHub connector exposes repository, PR/issue, branch and label
-operations only, and the unauthenticated jobs/logs endpoints answer 403 — so the run has
-to be dispatched by someone with Actions write. The alternative local route
-(`docker/sage-image.py run --digest …`) is a 13.2 GB pull and unpack, which is outside the
-agreed boundary while the library's Enriques probe holds the local slot.
 
 ## Consumer validation (2026-11-02, completed)
 

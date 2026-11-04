@@ -1,6 +1,6 @@
 # Runtime adoption runbook — owner: this project
 
-**Status: prepared, not executed.** The shared runtime changes below wait for the
+**Status: prepared, not executed; tracked as [issue #6](https://github.com/dzackgarza/sage/issues/6).** The shared runtime changes below wait for the
 explicit all-project maintenance boundary. A single empty process snapshot is not
 evidence: consumers launch between checks.
 
@@ -26,15 +26,7 @@ whatever it built itself.
 | `sage-extensions` | `/repos` already at the published pin `7b222e86…` |
 | `research` | `ec1333e…`, unchanged by the published lock |
 
-## Remains to adopt
-
-| item | from | to |
-| --- | --- | --- |
-| `/sage` source | `b0cd7d8` + two patched files | `b1997dd` — exactly the commit the published image was built from |
-| `uv.lock` | port `86d860a`, ext `441519c5` | port `4f0ee50c`, ext `7b222e86` |
-| `/repos/sage-indefinite-port` | `86d860a` | `4f0ee50c` |
-| venv | old lock | reconciled by `uv sync` under the new lock |
-| `/usr/local/bin/julia` | symlink to `/opt/julia/bin/julia` | the launcher from `docker/julia-launcher.sh` |
+The remaining delta between the live rootfs and the published pins, and the acceptance of its adoption, are [issue #6](https://github.com/dzackgarza/sage/issues/6).
 
 ## The script
 
@@ -160,13 +152,3 @@ that is already present.
   moved or edited;
 * no project downloads or provisions a second copy of the image;
 * nothing runs concurrently with a consumer job.
-
-## Blockers to report rather than work around
-
-* A digest-faithful **pull** of the published image is 13.11 GB compressed;
-  registry throughput measured from this VM was ~0.1 MB/s, so it is tens of
-  hours. That is why adoption is in place from the published commit and lock.
-  Disk is not the constraint (158 GB free, rootfs 40 GB).
-* If any project cannot stop for the boundary, adoption waits; there is no safe
-  partial adoption of `/sage`, `/repos`, the venv or the launcher while a
-  consumer runs inside the rootfs.
