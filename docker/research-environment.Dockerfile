@@ -97,6 +97,21 @@ RUN apt-get update \
     cmake libpcre2-dev cargo rustc ccache rsync binutils-gold \
  && rm -rf /var/lib/apt/lists/*
 
+# The venv has to exist before GAP is installed into it. uv refuses to adopt a
+# nonempty .venv that is not a valid Python environment -- "cannot be used
+# because it is not a valid Python environment (no Python executable was found)"
+# -- which is precisely what installing GAP into the directory first produces.
+# So: create the venv, install GAP into it, then let the sync populate it. The
+# files GAP installs are not Python's and survive `uv sync` (verified).
+RUN uv venv /sage/.venv --python 3.14
+
+# src/meson.build:233 asks pkg-config for `libgap >= 4.13` before falling back to
+# cc.find_library('gap'). An ENV, not an export inside one RUN: an incremental
+# build reuses this image and runs its own `research-environment-sync`, and Meson
+# caches dependency discovery in the build directory, so the variable has to be in
+# the environment every such run starts from.
+ENV PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig
+
 # GAP, libgap, its headers and every GAP package come from ONE pinned upstream
 # source: the tarball Sage's own `gap` and `gap_packages` spkgs declare in
 # build/pkgs/gap/checksums.ini. Nothing here comes from the distribution, and no
@@ -133,26 +148,49 @@ RUN set -eu; \
     make -j"$(nproc)"; \
     make install; \
     test -x "$SAGE_LOCAL/bin/gap" && test -f "$SAGE_LOCAL/lib/gap/sysinfo.gap"; \
-    # GAP's own `make install` does not install the packages it ships in pkg/,
-    # so they are copied from the same pinned source into the root GAP now
-    # searches. This is the list gap_packages would install -- the core packages
-    # GAP needs to start at all, the ones Sage's feature checks assert, and the
-    # four the matrix-group work needs.
-    for pkg in gapdoc primgrp smallgrp transgrp atlasrep design factint grape guava \
-               hap polenta polycyclic tomlib utils orb forms genss recog; do \
+    # Package parity with Sage's own recipes, not a hand-picked subset:
+    # build/pkgs/gap/spkg-install.in installs GAP's core packages,
+    # build/pkgs/gap_packages/spkg-install.in installs its pure list and compiles
+    # cohomolo crypting grape orb datastructures, guava, and nq io digraphs, and
+    # atlasrep/factint are what recog requires. forms and recog are the two
+    # matrix-group packages neither list carries.
+    # GAP's own `make install` does not install any of them, so they are copied
+    # from the same pinned source into the root GAP now searches.
+    GAP_ROOT_PKG="$SAGE_LOCAL/lib/gap/pkg"; \
+    core_pkgs="gapdoc primgrp smallgrp transgrp packagemanager"; \
+    pure_pkgs="aclib autodoc corelg crime cryst crystcat design gbnp genss hap hapcryst hecke images liealgdb liepring liering lins loops mapclass polymaking qpa quagroup radiroot repsn singular sla sonata toric utils"; \
+    extra_pkgs="atlasrep factint tomlib forms recog alnuth"; \
+    compiled_old="cohomolo crypting grape orb datastructures"; \
+    compiled_new="nq io digraphs"; \
+    for pkg in $core_pkgs $pure_pkgs $extra_pkgs $compiled_old $compiled_new guava; do \
         test -d "/tmp/gap/pkg/$pkg" || { echo "FATAL: $pkg not in the pinned GAP source" >&2; exit 1; }; \
-        cp -a "/tmp/gap/pkg/$pkg" "$SAGE_LOCAL/lib/gap/pkg/"; \
+        cp -a "/tmp/gap/pkg/$pkg" "$GAP_ROOT_PKG/"; \
+    done; \
+    # The old-style configures take the GAP root positionally and predate C99
+    # prototypes; Sage passes the same flag for them.
+    export CFLAGS="-Wno-implicit-function-declaration ${CFLAGS:-}"; \
+    for pkg in $compiled_old; do \
+        echo "building GAP package $pkg"; \
+        cd "$GAP_ROOT_PKG/$pkg" && ./configure "$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
+    done; \
+    echo "building GAP package guava"; \
+    export CFLAGS="-std=gnu17 -Wno-implicit-function-declaration ${CFLAGS:-}"; \
+    cd "$GAP_ROOT_PKG/guava" && ./configure "$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
+    for pkg in $compiled_new; do \
+        echo "building GAP package $pkg"; \
+        cd "$GAP_ROOT_PKG/$pkg" && ./configure --with-gaproot="$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
     done; \
     cd /; rm -rf /tmp/gap /tmp/gap.tar.gz; \
-    # orb is the only one with C code; its README says the package does not work
-    # without the module, and gac came from this same build.
-    cd "$SAGE_LOCAL/lib/gap/pkg/orb" && ./configure --with-gaproot="$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
-    "$SAGE_LOCAL/bin/gap" -q --nointeract -c 'for n in ["orb", "forms", "genss", "recog"] do if LoadPackage(n) <> true then Print("FATAL: GAP package ", n, " does not load\n"); QUIT_GAP(1); fi; od;'
-
-# libgap is linked from $SAGE_LOCAL/lib and the gap binary carries no rpath to it,
-# so the loader has to be told where it is; a distribution GAP used to provide
-# that implicitly from /usr/lib/x86_64-linux-gnu.
-RUN echo /sage/.venv/lib > /etc/ld.so.conf.d/sage-local.conf && ldconfig
+    # The binary carries no rpath to $SAGE_LOCAL/lib, so the loader must be told
+    # where libgap.so.11 is before this build runs it -- and before anything else
+    # in the image runs it.
+    printf '%s\n' "$SAGE_LOCAL/lib" > /etc/ld.so.conf.d/sage-local.conf; \
+    ldconfig; \
+    # Load, not just list: LoadPackage fails when a NeededOtherPackages entry is
+    # missing from the root, so this is the closure check. hap needs polycyclic,
+    # guava needs sonata, orb needs io, grape needs GAPDoc, polenta needs alnuth
+    # and polycyclic, recog needs atlasrep, genss needs orb -- all pinned source.
+    "$SAGE_LOCAL/bin/gap" -q --nointeract -c 'for n in ["atlasrep", "design", "grape", "guava", "hap", "polenta", "polycyclic", "sonata", "io", "alnuth", "orb", "forms", "genss", "recog"] do if LoadPackage(n) <> true then Print("FATAL: GAP package ", n, " does not load\n"); QUIT_GAP(1); fi; od;'
 
 # The GAP packages Sage's feature checks and the matrix-group work need are all
 # inside that same tarball (the spkg installs them from its pkg/ directory), so
@@ -257,11 +295,6 @@ ENV CCACHE_DIR=/ccache
 ARG RELOCK=false
 RUN --mount=type=cache,target=/ccache \
     if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
- # src/meson.build:233 asks pkg-config for `libgap >= 4.13` before falling back to
- # cc.find_library('gap'). The distro packages are excluded above, so this is what
- # makes sagelib link the GAP built here rather than wherever a linker finds one;
- # the header and the library then come from the same build.
- && export PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig \
  && just research-environment-sync && ccache --show-stats
 
 FROM scratch AS lock

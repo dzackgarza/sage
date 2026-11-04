@@ -14,6 +14,9 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE} AS environment
 
 ENV JULIA_CPU_TARGET=generic
+# Same reason as the full Dockerfile: Meson resolves `libgap` through pkg-config,
+# and this file rebuilds the venv on top of an existing image.
+ENV PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig
 
 COPY . /tmp/sage-source
 RUN rsync --recursive --links --checksum \

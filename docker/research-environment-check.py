@@ -67,6 +67,17 @@ for name in ("orb", "forms", "genss", "recog"):
     assert any(installed_in.startswith(root) for root in gap_root_list), (
         name, installed_in, gap_root_list,
     )
+# kernel_info runs the `gap` *binary*; it says nothing about which libgap this
+# process actually loaded. Assert the linkage itself: a libgap mapped from
+# $SAGE_LOCAL, not one from /usr/lib.
+loaded_libgap = [
+    line.split()[-1]
+    for line in Path("/proc/self/maps").read_text().splitlines()
+    if "libgap.so" in line and line.split()[-1].startswith("/")
+]
+assert loaded_libgap, "no libgap mapped into this process"
+assert all(path.startswith("/sage/.venv/lib/") for path in loaded_libgap), loaded_libgap
+
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 
 # A generated matrix subgroup over F_5, ordered by genss's stabilizer chain in
