@@ -280,3 +280,40 @@ Still mutable and outside this change, so no claim of full reproducibility:
 * Mathlib and the Lean toolchain, provisioned from the projects' own manifests.
 
 Each would need its own pinning decision; none of them is made here.
+
+## Producer acceptance: run 117 succeeded (2026-11-04)
+
+The image built from `9f1680d2a7bcf001e50714768e6066e6652d1708` published, and its
+own build-time check is the Dockerfile's last step — a failing assertion fails the
+build, so a published image *is* a passing check.
+
+| | |
+| --- | --- |
+| run | **117**, `completed / success` |
+| index (OCI) | `sha256:59568577510bd76fc9c405c81e6cb185656a193a24ee08b33e1b8b7fa6ae9d2b` |
+| linux/amd64 manifest | `sha256:caacdd4b7ff8b322e5a43bf23b93e45b473e08667ed9121518fa5845b3867cb0` |
+| config | `sha256:dfdadb84096d9ea01ad295c05b184aaecb5e2ad18b8cda88bdc781e5f505390b` |
+| `org.opencontainers.image.revision` | `9f1680d2a7bcf001e50714768e6066e6652d1708` |
+| created | `2026-11-04T17:17:22Z` |
+| size | 20 layers, 13,593,422,554 bytes |
+
+### Read back from the published layer, not inferred
+
+The GAP layer (`sha256:ca61bed72627…`, 606,688,828 B) contains:
+
+```
+sage/.venv/bin/gap
+sage/.venv/bin/gac
+sage/.venv/lib/libgap.so.11
+sage/.venv/lib/gap/sysinfo.gap
+sage/.venv/lib/gap/pkg/**/PackageInfo.g          -> 173 packages
+sage/.venv/lib/gap/pkg/{atlasrep,forms,genss,guava,hap,orb,primgrp,recog}/PackageInfo.g
+sage/.venv/lib/gap/pkg/orb/bin/x86_64-pc-linux-gnu-default64-kv11/orb.so
+```
+
+`primgrp` and `atlasrep` are both present at the depth GAP expects — the pair whose
+absent closure failed run 116 — and the native module is built for `kv11`, the ABI of
+this GAP rather than the distribution's `kv9`.
+
+This supersedes the interim state described above: the runtime now has a Sage-owned,
+pinned GAP in its image. The live shared rootfs has **not** been adopted to it.
