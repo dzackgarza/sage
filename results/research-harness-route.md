@@ -109,3 +109,60 @@ plugins load from `PYTHONPATH`. If research wants the pyproject `addopts` honour
 written, that *would* require `pytest-timeout` and `pytest-reportlog` in the venv —
 a runtime change at a maintenance boundary, and the only thing in this report that
 is not already satisfiable per-process.
+
+## `ModuleNotFoundError: hypothesis` — per-process route, verified
+
+`hypothesis` is **declared** by research (`pyproject.toml:78`, `"hypothesis>=6.167.1"`)
+and **absent** from the deployed venv. It needs no shared installation. Install into a
+directory the consumer owns, then put it on `PYTHONPATH`:
+
+```
+UV_CACHE_DIR=/tmp/uvcache XDG_CACHE_HOME=/tmp \
+UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_PYTHON_BIN_DIR=/usr/local/bin \
+  uv pip install --python /sage/.venv/bin/python --target <consumer-owned dir> hypothesis
+```
+
+Measured:
+
+```
+landed: 4.3 MB in the target directory
+hypothesis 6.170.14 from <target>/hypothesis/__init__.py    (>= 6.167.1, satisfied)
+```
+
+Two environment variables are required for `uv` to work against this image at all:
+without `UV_CACHE_DIR`/`XDG_CACHE_HOME` it fails with
+`Failed to initialize cache at /workspace/.../home/.cache/uv: Permission denied`, and
+without `UV_PYTHON_INSTALL_DIR` it fails with
+`Failed to discover managed Python installations`. Inside a container the image's own
+`ENV` supplies these; a `bwrap` launch must pass them explicitly.
+
+### Combined route, run against the real test
+
+```
+PYTHONPATH="<research>/.scratch/se-provider-6ad7a5ea/src:<ai-review-ci>/tool-artifacts/pytest_plugins:<hypothesis target>" \
+  /sage/.venv/bin/python -m pytest -o addopts= \
+    -p qc_sage_session -p qc_xfail_issues -p qc_test_history -p qc_unique_inventory \
+    --qc-history-dir <writable dir> \
+    tests/constructions/test_properties_construct.sage
+```
+
+```
+15 failed in 310.44s (0:05:10)
+```
+
+The import error is gone — all fifteen tests collected and ran. That is the dependency
+question answered, and it is **not** an acceptance: they fail, and the cause is a
+provider API mismatch, not a missing package:
+
+```
+E   KeyError: 'order'                     sage/structure/category_object.pyx:858
+    assert left.Aut().order() == factorial(n)
+E   AttributeError: 'FixedIsoCategory_with_category' object has no attribute 'order'
+```
+
+The research snapshot (`se-provider-6ad7a5ea`) calls `order` on the automorphism
+category; the deployed `sage-extensions` (`7b222e86`) does not provide it. This is the
+same pin discrepancy recorded above — research's recipe references `441519c5`, the
+runtime ships `7b222e86` — and it now has a concrete symptom. Resolving it belongs to
+research's recipe and to `sage-extensions` (provider API), not to the shared runtime;
+no consumer pin is changed here and nothing is installed into the venv.
