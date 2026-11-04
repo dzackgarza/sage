@@ -13,7 +13,7 @@ set -euo pipefail
 rootfs="${SAGE_IMAGE_ROOTFS:-$HOME/sage-image/rootfs}"
 sage="$rootfs/sage"
 snapshot="${SNAPSHOT:-$(cd "$(dirname "$0")" && pwd)/runtime-rollback-snapshot}"
-published=ec386a5b9b51c88c349c0a8c33e74e53f96c7745
+published=9f1680d2a7bcf001e50714768e6066e6652d1708
 base=b0cd7d86e21eb450ed90e4c83707920e1d5d429a
 
 # Expected at the published commit.
@@ -21,11 +21,13 @@ expected_uv_lock=f070d20194761a12d2a42218d1416e983a966a51ee7511447f7095e9560d9f9
 expected_launcher=d1df681a03f2fe847fff4d668fe5b3cb3b3d658b270b5f26d196e881c7aabb4b
 expected_provisioner=5af7c91b2b9eb9944b4d33c09529261cd660b0a56a82530dbc0f44a2936d3338
 expected_installer=a46fb9a7024d80bc1f922a4753f2a8624659bb59736bb1c93186f9005ab8e816
-expected_check=57427990eaaf1d108056dc6d65a12bc182bdd7810a7daa5ae5da8729dbcf3994
+expected_check=ee249af72d358cfd1d9188496ab9eda55475329c62aef689edfdcab3c9df7be4
 expected_meson=d8119d97dfa923a7887894458895930fa7348e1cf316ae62b3fb313ba2707201
 # The Maxima share prefix (a20baff): the file whose absence made a reconfigure
 # regenerate config.py with an empty MAXIMA_PREFIX.
 expected_maxima_meson=a25ab4a58e5a788d6bd5a1bbae93b48a3b5075609afa6077dc70fc9f2a2e6eb7
+# The Sage-owned GAP the published image builds: binary, libgap, root, package set.
+expected_gap_packages=173
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'runtime-adoption: %s\n' "$*" >&2; exit 1; }
@@ -65,6 +67,13 @@ verify)
     check src/.../meson.build "$sage/src/sage/graphs/meson.build" "$expected_meson"
     check src/.../libs/meson.build "$sage/src/sage/libs/meson.build" "$expected_maxima_meson"
     say ""
+    # The published image builds GAP into $SAGE_LOCAL; a rootfs that predates it runs
+    # the distribution GAP. Report that delta rather than only the source pin.
+    if [ -x "$sage/.venv/bin/gap" ]; then
+        say "GAP in \$SAGE_LOCAL  $(sha "$sage/.venv/bin/gap" | cut -c1-16)        packages $(ls "$sage/.venv/lib/gap/pkg" 2>/dev/null | wc -l)   expected $expected_gap_packages"
+    else
+        say "GAP in \$SAGE_LOCAL  absent                          packages $(ls "$rootfs/usr/share/gap/pkg" 2>/dev/null | wc -l) (distribution tree)   expected $expected_gap_packages"
+    fi
     say "sage HEAD $(git -C "$sage" rev-parse HEAD) (published $published, pre-adoption $base)"
     for repo in sage-indefinite-port sage-extensions research; do
         say "$repo: $(git -C "$rootfs/repos/$repo" rev-parse HEAD 2>/dev/null | cut -c1-12)"
