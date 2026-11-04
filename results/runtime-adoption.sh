@@ -13,7 +13,7 @@ set -euo pipefail
 rootfs="${SAGE_IMAGE_ROOTFS:-$HOME/sage-image/rootfs}"
 sage="$rootfs/sage"
 snapshot="${SNAPSHOT:-$(cd "$(dirname "$0")" && pwd)/runtime-rollback-snapshot}"
-published=b1997dd9f1ba33ca3861786973cf177bfd1d9aa6
+published=ec386a5b9b51c88c349c0a8c33e74e53f96c7745
 base=b0cd7d86e21eb450ed90e4c83707920e1d5d429a
 
 # Expected at the published commit.
@@ -21,8 +21,11 @@ expected_uv_lock=f070d20194761a12d2a42218d1416e983a966a51ee7511447f7095e9560d9f9
 expected_launcher=d1df681a03f2fe847fff4d668fe5b3cb3b3d658b270b5f26d196e881c7aabb4b
 expected_provisioner=5af7c91b2b9eb9944b4d33c09529261cd660b0a56a82530dbc0f44a2936d3338
 expected_installer=a46fb9a7024d80bc1f922a4753f2a8624659bb59736bb1c93186f9005ab8e816
-expected_check=53776377007c5a88f50f31c9a840f4011985b23897450a07a2c2b53cf622189f
+expected_check=57427990eaaf1d108056dc6d65a12bc182bdd7810a7daa5ae5da8729dbcf3994
 expected_meson=d8119d97dfa923a7887894458895930fa7348e1cf316ae62b3fb313ba2707201
+# The Maxima share prefix (a20baff): the file whose absence made a reconfigure
+# regenerate config.py with an empty MAXIMA_PREFIX.
+expected_maxima_meson=a25ab4a58e5a788d6bd5a1bbae93b48a3b5075609afa6077dc70fc9f2a2e6eb7
 
 say() { printf '%s\n' "$*"; }
 fail() { printf 'runtime-adoption: %s\n' "$*" >&2; exit 1; }
@@ -42,7 +45,9 @@ preflight)
     say "sage diff: $(git -C "$sage" diff | sha256sum | cut -d' ' -f1)"
     say "uv.lock  : $(sha "$sage/uv.lock")"
     say "module   : $(sha "$sage/.venv/lib/python3.14/site-packages/sage/graphs/bliss.cpython-314-x86_64-linux-gnu.so")"
-    say "launcher : $(readlink "$rootfs/usr/local/bin/julia" 2>/dev/null || echo none)"
+    # The launcher is a regular file (docker/julia-launcher.sh), not a symlink:
+    # readlink printed "none" for a correct installation.
+    say "launcher : $(sha "$rootfs/usr/local/bin/julia")"
     say "free     : $(df -h "$rootfs" | awk 'NR==2 {print $4}')"
     ;;
 verify)
@@ -58,6 +63,7 @@ verify)
     check provision-lean-packages.sh "$sage/docker/provision-lean-packages.sh" "$expected_provisioner"
     check julia-launcher.sh "$sage/docker/julia-launcher.sh" "$expected_launcher"
     check src/.../meson.build "$sage/src/sage/graphs/meson.build" "$expected_meson"
+    check src/.../libs/meson.build "$sage/src/sage/libs/meson.build" "$expected_maxima_meson"
     say ""
     say "sage HEAD $(git -C "$sage" rev-parse HEAD) (published $published, pre-adoption $base)"
     for repo in sage-indefinite-port sage-extensions research; do

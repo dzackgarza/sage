@@ -1,6 +1,6 @@
 # Runtime adoption runbook — owner: this project
 
-**Status: prepared, not executed; tracked as [issue #6](https://github.com/dzackgarza/sage/issues/6).** The shared runtime changes below wait for the
+**Status: executed 2026-11-04** at `ec386a5b`; see `results/runtime-adoption-run-2026-11-04.md`.
 explicit all-project maintenance boundary. A single empty process snapshot is not
 evidence: consumers launch between checks.
 
