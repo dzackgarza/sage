@@ -1,7 +1,27 @@
 # GAP matrix-group capability: producer evidence (image built from 6dc2659)
 
-Recorded 2026-11-02. Consumer validation: the local run below, and the hosted run
-[41275674403](https://github.com/dzackgarza/sage/actions/runs/41275674403) on the published digest.
+Recorded 2026-11-02; producer citation corrected 2026-11-04.
+
+Producer: [run 41494813045](https://github.com/dzackgarza/sage/actions/runs/41494813045)
+(run_number 113, `Research environment image`), head `6dc2659dd4aa`, **completed /
+success** 2026-11-02T19:05:32Z.
+
+Consumer: the digest-pinned **local** run recorded below, against index
+`sha256:122ccd3a…`. There is no hosted consumer run for this digest: the consumer
+workflow asserted only a `QQ` determinant until the patch in issue #7 is applied,
+and dispatching it needs Actions write this session does not hold.
+
+**Correction.** An earlier version of this record cited
+[run 41275674403](https://github.com/dzackgarza/sage/actions/runs/41275674403) as
+this image's consumer evidence. That is wrong: it is run_number 3 of
+`Research image consumer`, head `b1997dd9f1ba`, created 2026-11-01T05:07:19Z — a
+run on the *previous* image, one day before `6dc2659` existed, so it could not
+have exercised the GAP packages at all. The API returns, for the two runs:
+
+```
+41275674403  Research image consumer   #3    b1997dd9f1ba  completed/success  2026-11-01T05:07:19Z
+41494813045  Research environment image #113 6dc2659dd4aa  completed/success  2026-11-02T17:49:47Z -> 19:05:32Z
+```
 
 ## The published image
 

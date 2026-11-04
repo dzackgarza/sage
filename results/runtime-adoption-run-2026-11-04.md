@@ -66,29 +66,31 @@ apply `docker/gap-consumer-workflow.patch` and Actions write to dispatch, neithe
 which this session holds. The producer/consumer image path is validated
 (`sha256:122ccd3a`, revision `6dc2659`) but the *workflow step* is not applied.
 
-## Bounded acceptance run at the adopted pin (2026-11-04, second pass)
+## The acceptance gate, and the runs around it
 
-Re-checked with `preflight` immediately before: `no process inside the rootfs`,
-`sage HEAD ec386a5b9b51`, `sage diff` clean (empty-tree sha).
+Three shell invocations wrapped the same published check. Only two of them ran it,
+and both passed; recording which is which so no later reader counts a pass twice or
+reads a harness artifact as a gate failure.
 
-Published check, bounded — `PEAKRSS_LIMIT_MIB=10240`, `timeout 1800`:
+| # | job | what happened |
+| --- | --- | --- |
+| 1 | `jmw254m3g` | **the authoritative gate.** `child waited=0 shell_code=0`, 73 samples, peak tree RSS 7,862 MiB, exit 0, ~2.5 min. Run unbounded (`timeout 1800` only). |
+| 2 | `jmw25ewxy` | exit **141** after 0.04 s. A `\| head -3` in the same pipeline closed the pipe while `preflight` was still printing, so the shell died of SIGPIPE **before the check started**. No check ran; this is a harness artifact, not a regression of run 1 and not a gate result. |
+| 3 | `jmw25m9g1` | the same check again, this time under `PEAKRSS_LIMIT_MIB=10240`: `child waited=0 shell_code=0`, 21 samples, peak 8,050 MiB, `CHECK_EXIT=0`. |
 
-```
-SageMath version 11.0.beta5, Release Date: 2026-10-28
-[peakrss] envcheck: child waited=0 shell_code=0 samples=21
-[peakrss] peak tree RSS      : 8050 MiB
-CHECK_EXIT=0
-```
+Run 3 was not needed for the release decision — run 1 already settled it — and it was
+requested as a bounded-guard record. It completed with exit 0 before this was
+written; nothing is running now and there is nothing to cancel.
 
-The 10,240 MiB bound is above the check's measured peak (7,862 MiB in the earlier
-unbounded run, 8,050 MiB here) so it is a real guard and not a relaxed acceptance.
+The 10,240 MiB bound in run 3 sits above the check's measured peak (7,862-8,050 MiB),
+so it is a real guard and not a relaxed acceptance.
 
-GAP consumer check through Sage's libgap in the live rootfs:
+GAP consumer check through Sage's libgap in the live rootfs, same session:
 
 ```
 kernel: GAP 4.14.0 arch x86_64-pc-linux-gnu-default64-kv9
 LoadPackage(orb|forms|genss|recog) = true   (5.1.0 / 1.3.0 / 1.6.10 / 1.5.1)
-genss chain order of the deg-4 GF(5) Borel: 62500 in 0.034s (expect 62500)
+genss chain order of the deg-4 GF(5) Borel: 62500 (expect 62500)
 CONSUMER CAPABILITY CHECK PASSED
 ```
 

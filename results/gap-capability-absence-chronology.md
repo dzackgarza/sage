@@ -96,3 +96,40 @@ the **unpacked shared runtime**, and nothing in that runtime's update path could
 have propagated it: the two share no mechanism for system-level files. The gap
 became visible only when a consumer needed the capability and reported it absent,
 which is exactly the failure mode the image-versus-rootfs split creates.
+
+## Scope of the capability evidence (stated where the chronology is read)
+
+The check that now guards this capability asserts a **deg-4 `GF(5)` Borel subgroup**
+ordered through genss's stabilizer chain as 62,500, plus the four `LoadPackage`
+calls, `RecognizeGroup` and the libgap root path. That chain is **Monte Carlo,
+bounded by `ErrorBound`**, and `VerifyStabilizerChainMC` has no method for a plain
+matrix group, so nothing in it certifies an exact order.
+
+In particular it does **not** certify any degree-10 order. The module the port's
+Lorentz nodes need is $F_p^{10}$ — 9,765,625 points at $p=5$, 282,475,249 at $p=7$
+— and no degree-10 computation is attempted anywhere in the image check, the
+consumer check, or this chronology. What is established is that the capability is
+present and runs in the instance libgap drives; the exact orders remain the port's
+to compute and accept.
+
+## Provenance chain, compressed
+
+```
+6dc2659 (2026-11-02 17:48)   adds the four packages + gac to the Dockerfile
+  -> producer run 41494813045 (#113, head 6dc2659) completed/success 19:05:32
+    -> image index sha256:122ccd3a, config 20fe067d, revision 6dc2659
+      -> unpacked locally, every layer sha256-verified, and validated by the
+         digest-pinned local consumer run (results/consumer-check.py)
+
+b1997dd (2026-11-01 03:45)   the shared rootfs's source pin before repair
+  -> its image predates 6dc2659 (merge-base --is-ancestor: true)
+    -> no GAP packages in /usr/share/gap/pkg, no /usr/bin/gac
+      -> sync (uv sync + meson) cannot add them: wrong owner, wrong location
+        -> repaired 2026-11-04 by copying the *published image's* bytes in
+```
+
+The earlier draft of `results/gap-producer-evidence.md` cited consumer run
+`41275674403` for this image. It is a `b1997dd`-era run from 2026-11-01 and is not
+evidence for the GAP capability; the record now cites producer run `41494813045`
+and the local digest-pinned consumer run. Issue #7 stays open for the missing
+hosted consumer step.
