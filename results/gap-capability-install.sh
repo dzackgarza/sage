@@ -2,11 +2,12 @@
 # Put the published image's GAP matrix-group capability into an existing unpacked
 # rootfs, without rebuilding it.
 #
-# The published image installs orb, genss, forms and recog into /usr/share/gap/pkg
-# at build time (docker/research-environment.Dockerfile). An unpacked rootfs that
-# predates that commit does not have them, and Sage's libgap cannot see any other
-# location: sage.libs.gap.util.kernel_info runs the system `gap` binary and adopts
-# the root paths the Debian wrapper reports, of which /usr/share/gap is one.
+# The published image now builds GAP from the pinned source into $SAGE_LOCAL and
+# installs its packages into $SAGE_LOCAL/lib/gap/pkg (docker/research-environment.Dockerfile),
+# which is the root Sage's own gap binary reports. An unpacked rootfs that predates
+# that build has neither, and this script therefore copies the four packages plus
+# gac from a digest-verified unpack of the current image rather than from the
+# distribution GAP tree the earlier version of this script used.
 #
 #   gap-capability-install.sh preflight   no writes: is the boundary held, is the
 #                                         source tree present, what is missing
@@ -43,41 +44,41 @@ preflight)
         exit 1
     fi
     say "no process inside the rootfs"
-    [ -d "$rootfs/usr/share/gap/pkg" ] || fail "no GAP package directory in $rootfs"
-    [ -d "$source_rootfs/usr/share/gap/pkg" ] || fail "no published rootfs at $source_rootfs"
+    [ -d "$rootfs/sage/.venv/lib/gap/pkg" ] || fail "no GAP package directory in $rootfs"
+    [ -d "$source_rootfs/sage/.venv/lib/gap/pkg" ] || fail "no published rootfs at $source_rootfs"
     for pkg in "${packages[@]}"; do
-        if [ -e "$rootfs/usr/share/gap/pkg/$pkg" ]; then
+        if [ -e "$rootfs/sage/.venv/lib/gap/pkg/$pkg" ]; then
             say "  $pkg: already present"
         else
             say "  $pkg: MISSING"
         fi
     done
-    [ -e "$rootfs/usr/bin/gac" ] && say "  gac: already present" || say "  gac: MISSING"
+    [ -e "$rootfs/sage/.venv/bin/gac" ] && say "  gac: already present" || say "  gac: MISSING"
     ;;
 apply)
     running="$(users)"
     [ -z "$running" ] || fail "the boundary is not held; run preflight"
     : > "$manifest"
     for pkg in "${packages[@]}"; do
-        if [ -e "$rootfs/usr/share/gap/pkg/$pkg" ]; then
+        if [ -e "$rootfs/sage/.venv/lib/gap/pkg/$pkg" ]; then
             say "$pkg: already present, left alone"
             continue
         fi
-        cp -a "$source_rootfs/usr/share/gap/pkg/$pkg" "$rootfs/usr/share/gap/pkg/$pkg"
-        say "/usr/share/gap/pkg/$pkg" >> "$manifest"
+        cp -a "$source_rootfs/sage/.venv/lib/gap/pkg/$pkg" "$rootfs/sage/.venv/lib/gap/pkg/$pkg"
+        say "/sage/.venv/lib/gap/pkg/$pkg" >> "$manifest"
         say "$pkg: installed from the published image"
     done
-    if [ ! -e "$rootfs/usr/bin/gac" ]; then
+    if [ ! -e "$rootfs/sage/.venv/bin/gac" ]; then
         # gac ships in gap-dev; it is what makes orb's compiled module buildable
         # and is present in the published image at this path.
-        cp -a "$source_rootfs/usr/bin/gac" "$rootfs/usr/bin/gac"
-        say "/usr/bin/gac" >> "$manifest"
+        cp -a "$source_rootfs/sage/.venv/bin/gac" "$rootfs/sage/.venv/bin/gac"
+        say "/sage/.venv/bin/gac" >> "$manifest"
         say "gac: installed"
     fi
     say "recorded $(wc -l < "$manifest") added path(s) in $manifest"
     ;;
 verify)
-    [ -d "$rootfs/usr/share/gap/pkg" ] || fail "no rootfs at $rootfs"
+    [ -d "$rootfs/sage/.venv/lib/gap/pkg" ] || fail "no rootfs at $rootfs"
     command -v bwrap >/dev/null || fail "bwrap is required to run the gate"
     bwrap --ro-bind "$rootfs" / --dev /dev --proc /proc --tmpfs /tmp \
         -- /bin/bash -c 'gap -q --nointeract -c "

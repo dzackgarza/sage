@@ -67,7 +67,7 @@ WORKDIR /sage
 # distribution still packages BRiAl.
 RUN set -eu; \
     packages="$(build/bin/sage-get-system-packages debian $(build/bin/sage-package list :standard:) \
-        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev|gap-polenta' | tr '\n' ' ')"; \
+        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev|gap|libgap.*|gap-.*' | tr '\n' ' ')"; \
     if [ -z "$packages" ]; then \
         echo "FATAL: Sage's package metadata produced no Debian packages" >&2; exit 1; \
     fi; \
@@ -91,63 +91,73 @@ RUN apt-get update \
     macaulay2 \
     4ti2 latte-int lrslib topcom msolve normaliz-bin libnormaliz-dev \
     polymake libpolymake-dev libgiac-dev xcas fricas kissat cliquer \
-    gap-atlasrep gap-design gap-grape gap-guava gap-guava-bin gap-hap gap-radiroot \
-    gap-polycyclic gap-alnuth gap-autpgrp gap-cryst gap-crystcat gap-io gap-nq \
-    gap-character-tables gap-table-of-marks gap-transgrp gap-primgrp gap-smallgrp-extra \
-    gap-utils gap-float gap-toric gap-laguna gap-sonata gap-factint gap-congruence \
     sagemath-database-graphs sagemath-database-polytopes \
     pari-galdata pari-elldata pari-seadata pari-galpol \
     pandoc graphviz dvipng imagemagick texlive-latex-extra \
     cmake libpcre2-dev cargo rustc ccache rsync binutils-gold \
  && rm -rf /var/lib/apt/lists/*
 
-# Polenta (polycyclic presentations of matrix groups) is a standard GAP package
-# for Sage, but Debian trixie does not package it; its release is pure GAP.
-RUN set -eu; \
-    curl -fsSL -o /tmp/polenta.tar.gz https://github.com/gap-packages/polenta/releases/download/v1.3.11/polenta-1.3.11.tar.gz; \
-    echo "aabf20981e438c2b361f416527163ae299a27a0a95ff3eb908a1aeae07b21bc1  /tmp/polenta.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/polenta.tar.gz -C /usr/share/gap/pkg; \
-    rm /tmp/polenta.tar.gz
-
-# GAP's matrix-group recognition and order machinery: four packages that Debian
-# trixie does not have at all (packages.debian.org serves an error page for
-# gap-genss, gap-recog, gap-forms and gap-orb; sources.debian.org/api/src/ is 404
-# and madison has no row).
+# GAP, libgap, its headers and every GAP package come from ONE pinned upstream
+# source: the tarball Sage's own `gap` and `gap_packages` spkgs declare in
+# build/pkgs/gap/checksums.ini. Nothing here comes from the distribution, and no
+# path outside $SAGE_LOCAL is involved.
 #
-# Where they go is the whole question. Sage's libgap does not run a GAP of its
-# own here: sage.libs.gap.util.kernel_info runs the system `gap` binary and hands
-# libgap the root paths that binary reports, which are the Debian wrapper's --
-# /usr/share/gap among them. Sage's optional gap_packages spkg installs genss
-# into $SAGE_LOCAL/lib/gap/pkg, which is on none of those roots, so
-# `sage -i gap_packages` in this image would install files that never load.
+# Why this replaces the Debian GAP the image used to install:
 #
-# recog recognises a matrix group over a finite field, forms supplies the
-# sesquilinear and quadratic forms it works against, genss builds the
-# error-bounded Schreier-Sims chain in the matrix action, and orb is the orbit
-# engine both call. orb is the only one with C code and its README says the
-# package does not work without the compiled module, so gap-dev supplies gac and
-# the module is built against this image's GAP 4.14 headers.
-RUN apt-get update \
- && apt-get install -y --no-install-recommends gap-dev \
- && rm -rf /var/lib/apt/lists/*
-
+#  * Reproducibility. A distro GAP is whatever trixie ships (4.14.0 here) while
+#    Sage pins 4.16.1. An executable, a libgap, headers and package roots from
+#    different builds is the failure class this repository already recorded once
+#    for bliss: headers and library disagreeing about ABI.
+#  * Reachability. Sage's documented home for optional GAP packages is
+#    $SAGE_LOCAL/lib/gap/pkg (build/pkgs/gap_packages/spkg-install.in:31), but
+#    that is only a GAP root when GAP itself was built into $SAGE_LOCAL
+#    (build/pkgs/gap/spkg-install.in:11). With a distro GAP, `sage -i
+#    gap_packages` installs files no GAP searches.
+#  * Linkage. src/meson.build:233 resolves `libgap` through pkg-config and falls
+#    back to cc.find_library('gap') -- independently of spkg-configure -- so
+#    building GAP here is only half the job: PKG_CONFIG_PATH must point at this
+#    prefix and no system libgap.pc may be visible, which is why the distro
+#    packages are excluded above.
+#
+# src/sage/libs/gap/util.pyx:284 hands libgap `-l <roots of the gap on PATH>`, so
+# once $SAGE_LOCAL/bin/gap is the one PATH resolves, the root list follows.
 RUN set -eu; \
-    install_gap_package() { \
-        name="$1"; url="$2"; sha256="$3"; \
-        curl -fsSL -o "/tmp/$name.tar.gz" "$url"; \
-        echo "$sha256  /tmp/$name.tar.gz" | sha256sum -c -; \
-        tar -xzf "/tmp/$name.tar.gz" -C /usr/share/gap/pkg; \
-        rm "/tmp/$name.tar.gz"; \
-    }; \
-    install_gap_package orb https://github.com/gap-packages/orb/releases/download/v5.1.0/orb-5.1.0.tar.gz 73911bab4b31ae0f1771e76c1e3b9389100c6ede4ad27f27724cd4dc1239cb28; \
-    install_gap_package genss https://github.com/gap-packages/genss/releases/download/v1.6.10/genss-1.6.10.tar.gz 5cefe73cf61521e9cc8786aac2001fc686cd5f513585c163cf1bf426fc5c4893; \
-    install_gap_package forms https://github.com/gap-packages/forms/releases/download/v1.3.0/forms-1.3.0.tar.gz a5c823b0fc4d68f2bfbf9e30d4792ea501b413c7636596aae1be6407140f7e54; \
-    install_gap_package recog https://github.com/gap-packages/recog/releases/download/v1.5.1/recog-1.5.1.tar.gz eae7deaecb263242ee378f5728e4d7a717d6d1903d9d04e099d74ba1b7c53931; \
-    cd /usr/share/gap/pkg/orb-5.1.0; \
-    ./configure --with-gaproot=/usr/share/gap; \
+    SAGE_LOCAL=/sage/.venv; \
+    version="$(cat build/pkgs/gap/package-version.txt)"; \
+    sha256="$(sed -n 's/^sha256=//p' build/pkgs/gap/checksums.ini)"; \
+    curl -fsSL -o /tmp/gap.tar.gz "https://github.com/gap-system/gap/releases/download/v${version}/gap-${version}.tar.gz"; \
+    echo "${sha256}  /tmp/gap.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/gap; tar -xzf /tmp/gap.tar.gz -C /tmp/gap --strip-components=1; \
+    cd /tmp/gap; \
+    ./configure --prefix="$SAGE_LOCAL"; \
     make -j"$(nproc)"; \
-    cd /; \
-    gap -q --nointeract -c 'for n in ["orb", "forms", "genss", "recog"] do if LoadPackage(n) <> true then Print("FATAL: GAP package ", n, " does not load\n"); QUIT_GAP(1); fi; od;'
+    make install; \
+    test -x "$SAGE_LOCAL/bin/gap" && test -f "$SAGE_LOCAL/lib/gap/sysinfo.gap"; \
+    # GAP's own `make install` does not install the packages it ships in pkg/,
+    # so they are copied from the same pinned source into the root GAP now
+    # searches. This is the list gap_packages would install -- the core packages
+    # GAP needs to start at all, the ones Sage's feature checks assert, and the
+    # four the matrix-group work needs.
+    for pkg in gapdoc primgrp smallgrp transgrp atlasrep design factint grape guava \
+               hap polenta polycyclic tomlib utils orb forms genss recog; do \
+        test -d "/tmp/gap/pkg/$pkg" || { echo "FATAL: $pkg not in the pinned GAP source" >&2; exit 1; }; \
+        cp -a "/tmp/gap/pkg/$pkg" "$SAGE_LOCAL/lib/gap/pkg/"; \
+    done; \
+    cd /; rm -rf /tmp/gap /tmp/gap.tar.gz; \
+    # orb is the only one with C code; its README says the package does not work
+    # without the module, and gac came from this same build.
+    cd "$SAGE_LOCAL/lib/gap/pkg/orb" && ./configure --with-gaproot="$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
+    "$SAGE_LOCAL/bin/gap" -q --nointeract -c 'for n in ["orb", "forms", "genss", "recog"] do if LoadPackage(n) <> true then Print("FATAL: GAP package ", n, " does not load\n"); QUIT_GAP(1); fi; od;'
+
+# libgap is linked from $SAGE_LOCAL/lib and the gap binary carries no rpath to it,
+# so the loader has to be told where it is; a distribution GAP used to provide
+# that implicitly from /usr/lib/x86_64-linux-gnu.
+RUN echo /sage/.venv/lib > /etc/ld.so.conf.d/sage-local.conf && ldconfig
+
+# The GAP packages Sage's feature checks and the matrix-group work need are all
+# inside that same tarball (the spkg installs them from its pkg/ directory), so
+# there is nothing else to fetch: atlasrep, design, grape, guava, hap, polenta,
+# polycyclic, factint, tomlib, genss, orb, forms and recog are bundled.
 
 # Debian installs these programs under package prefixes (4ti2-hilbert,
 # latte-count, topcom-points2allfinetriangs); Sage's features look for the
@@ -247,6 +257,11 @@ ENV CCACHE_DIR=/ccache
 ARG RELOCK=false
 RUN --mount=type=cache,target=/ccache \
     if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
+ # src/meson.build:233 asks pkg-config for `libgap >= 4.13` before falling back to
+ # cc.find_library('gap'). The distro packages are excluded above, so this is what
+ # makes sagelib link the GAP built here rather than wherever a linker finds one;
+ # the header and the library then come from the same build.
+ && export PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig \
  && just research-environment-sync && ccache --show-stats
 
 FROM scratch AS lock

@@ -167,3 +167,72 @@ because a GAP workspace cached from the previous run still pointed at the old pa
 the clean run is the one reported. **The live rootfs still has the interim layout**
 (four packages in `/usr/share/gap/pkg`); replacing it is the pinned build above, which
 must wait for a boundary.
+
+## Implementation (2026-11-04) and what was validated before pushing
+
+The change is in `docker/research-environment.Dockerfile` and
+`docker/research-environment-check.py`; `results/gap-capability-install.sh` was
+retargeted for adoption of the same layout.
+
+**Declared input verified.** `gap-4.16.1.tar.gz` fetched from the URL that
+`build/pkgs/gap/checksums.ini` declares: 606,052,748 bytes,
+`sha256=df7d116f03c426dac24bf7c76ea11416b29c5a48eac12f97811d80ec215f7f69` — matches.
+The Dockerfile reads the version and the digest out of those two files rather than
+repeating them, so the pin has one home.
+
+**The tarball carries every package needed** — `atlasrep`, `design`, `forms`,
+`genss`, `grape`, `guava`, `hap`, `orb`, `polenta`, `polycyclic`, `recog` are all in
+its `pkg/`. No extra tarballs, no distribution GAP packages.
+
+**A real build in a scratch prefix, mirroring the Dockerfile step**, produced:
+
+```
+configure / make -j4 / make install   -> exit 0
+$prefix/bin/{gap,gac}                 -> present
+$prefix/lib/libgap.so.11              -> SONAME libgap.so.11
+$prefix/lib/pkgconfig/libgap.pc       -> Version: 4.16.1, Libs: -lgap, Cflags: -I${includedir}
+$prefix/lib/gap/sysinfo.gap           -> present
+```
+
+`libgap.pc` at version 4.16.1 is what makes `src/meson.build:233` resolve the
+Sage-built library instead of a distribution one.
+
+**A defect found by building, not by reading:** GAP's own `make install` does *not*
+install the packages it ships in `pkg/` — `$prefix/lib/gap/pkg` came out empty. The
+Dockerfile therefore copies an explicit list of 18 packages from the same pinned
+source.
+
+**The native module builds against this GAP and nothing else:** `orb` compiled with
+the `gac` from that build produced
+`bin/x86_64-pc-linux-gnu-default64-kv11/orb.so`. The kernel ABI is **kv11** here
+against the distribution GAP's **kv9**, so a module built for one could not be loaded
+by the other — the concrete cost of having had two GAPs.
+
+**The gate passes in the scratch tree:**
+
+```
+orb=true forms=true genss=true recog=true
+RecognizeGroup bound: true
+```
+
+**One more thing the build exposed:** the `gap` binary carries no rpath to
+`$SAGE_LOCAL/lib`, so the loader cannot find `libgap.so.11` on its own; the image now
+writes `/etc/ld.so.conf.d/sage-local.conf` and runs `ldconfig`.
+
+## What the check asserts now
+
+Not a distribution layout: `gap` resolves under `/sage/.venv`, its reported version
+equals `build/pkgs/gap/package-version.txt` (the declared pin), its root list
+contains `/sage/.venv/lib/gap/`, and each GAP package resolves inside a directory
+that instance actually searches.
+
+## Remaining requirements
+
+* **Producer run** to build and publish the image from this commit. Pushing the
+  Dockerfile is what triggers it; nothing here was built or published from this host.
+* **Adoption boundary** before the shared rootfs takes it: the live runtime still has
+  the interim layout (four packages under `/usr/share/gap/pkg`, Debian GAP 4.14,
+  `orb.so` for kv9). `results/gap-capability-install.sh` is retargeted for the new
+  layout but must run only at a boundary, with consumers stopped.
+* Consumers are unaffected until then: the interim capability still loads, because
+  the checks no longer name either tree.

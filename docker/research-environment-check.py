@@ -42,7 +42,19 @@ assert not missing, missing
 from sage.libs.gap.libgap import libgap
 from sage.libs.gap.util import kernel_info
 
+# GAP is now built from the pinned source into SAGE_LOCAL (Dockerfile), so the
+# executable libgap drives, the root it searches and the version it reports are
+# all declared inputs rather than whatever the distribution shipped.
+import shutil
+
+declared_gap = Path("build/pkgs/gap/package-version.txt").read_text().strip()
+gap_binary = shutil.which("gap")
+assert gap_binary is not None, "no gap on PATH"
+assert Path(gap_binary).resolve().is_relative_to(Path("/sage/.venv")), gap_binary
+
 gap_version, gap_arch, gap_roots = kernel_info()
+assert gap_version == declared_gap, (gap_version, declared_gap)
+assert "/sage/.venv/lib/gap/" in gap_roots, gap_roots
 # Do not pin the packages to one owner's tree. They may sit in the system GAP's
 # /usr/share/gap/pkg or in Sage's own $SAGE_LOCAL/lib/gap/pkg; what has to hold is
 # that the directory GAP resolves each package from is one GAP actually searches.
