@@ -1,0 +1,117 @@
+From c73d349666858fb93fa522a029a217e56de9f9dc Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sat, 31 Oct 2026 21:10:37 +0000
+Subject: [PATCH 05/16] ci: run the no-runtime check only where namespaces are
+ already permitted
+
+The no-runtime job relaxed a host security control to make itself work: it set
+kernel.apparmor_restrict_unprivileged_userns=0 on the runner. Changing a host's
+AppArmor or user-namespace policy is not this workflow's to do.
+
+The job now installs bubblewrap, probes one bwrap run, and either uses the
+runner as it is or records the configuration as unsupported -- as a warning and
+a step summary that names the restriction -- and skips the fetch and check. The
+image build's own check and the container consumer job remain the required
+gate, so a runner that forbids unprivileged user namespaces cannot turn the
+pipeline red or go unnoticed.
+
+docker/sage-image.py and SAGE-ENVIRONMENT.md say the same: they name the
+restriction and stop, and point at a CI runner or a container runtime. Neither
+changes a sysctl or an AppArmor profile.
+---
+ .../workflows/research-environment-image.yml  | 28 ++++++++++++++++---
+ docker/SAGE-ENVIRONMENT.md                    |  8 ++++--
+ docker/sage-image.py                          |  9 +++---
+ 3 files changed, 34 insertions(+), 11 deletions(-)
+
+diff --git a/.github/workflows/research-environment-image.yml b/.github/workflows/research-environment-image.yml
+index 5f31781..82ac700 100644
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -305,16 +305,36 @@ jobs:
+           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+           df -h /
+ 
+-      - name: Install bubblewrap and permit unprivileged user namespaces
++      - name: Install bubblewrap
+         run: |
+           sudo apt-get update
+           sudo apt-get install -y bubblewrap
+-          if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = "1" ]; then
+-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
++
++      # Host security policy belongs to the administrator of the host. This job
++      # does not change a sysctl or an AppArmor profile to make itself work: it
++      # runs where unprivileged user namespaces are already permitted, and
++      # reports the configuration as unsupported where they are not. The image
++      # build's own check and the container consumer job remain the gate.
++      - name: Probe unprivileged user namespaces
++        id: runtime
++        run: |
++          if bwrap --ro-bind / / --proc /proc --dev /dev --unshare-user --unshare-pid -- /bin/true; then
++            echo "supported=true" >> "$GITHUB_OUTPUT"
++            exit 0
+           fi
+-          bwrap --ro-bind / / --proc /proc --dev /dev --unshare-user --unshare-pid -- /bin/true
++          echo "supported=false" >> "$GITHUB_OUTPUT"
++          {
++            echo "### No-runtime check skipped"
++            echo ""
++            echo "This runner does not permit unprivileged user namespaces, so the image"
++            echo "cannot be run here without a container runtime. The job does not change"
++            echo "host policy. The image build's own check and the container consumer job"
++            echo "remain the gate."
++          } >> "$GITHUB_STEP_SUMMARY"
++          echo "::warning::runner does not permit unprivileged user namespaces; no-runtime check skipped"
+ 
+       - name: Fetch and check the image with no container runtime
++        if: steps.runtime.outputs.supported == 'true'
+         env:
+           IMAGE: ${{ github.repository_owner }}/sage
+           IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
+diff --git a/docker/SAGE-ENVIRONMENT.md b/docker/SAGE-ENVIRONMENT.md
+index 3298a9e..e158f84 100644
+--- a/docker/SAGE-ENVIRONMENT.md
++++ b/docker/SAGE-ENVIRONMENT.md
+@@ -83,9 +83,11 @@ Requirements, both checked before anything runs:
+ * unprivileged user namespaces permitted by the kernel
+   (`/proc/sys/kernel/unprivileged_userns_clone` is `1`, or the distribution's
+   equivalent). On Ubuntu 24.04 and later AppArmor restricts them: the packaged
+-  `bwrap-userns-restrict` profile permits bubblewrap, and on a host without
+-  that profile `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`
+-  permits them.
++  `bwrap-userns-restrict` profile permits bubblewrap, and where that profile is
++  not loaded the restriction is the host administrator's to change. This
++  script and the image workflow never change a sysctl or an AppArmor profile;
++  such a host is reported as unsupported, and the image runs there through
++  Docker or as a CI job container instead.
+ 
+ `run` stops with the missing piece named.  The cache lives in
+ `$XDG_CACHE_HOME/sage-image` and is reused only when its recorded manifest
+diff --git a/docker/sage-image.py b/docker/sage-image.py
+index c1437b0..c2a8558 100755
+--- a/docker/sage-image.py
++++ b/docker/sage-image.py
+@@ -207,8 +207,8 @@ def user_namespaces() -> str | None:
+         apparmor = Path("/proc/sys/kernel/apparmor_restrict_unprivileged_userns")
+         if apparmor.exists() and apparmor.read_text().strip() == "1":
+             reason += (
+-                "; kernel.apparmor_restrict_unprivileged_userns is 1, so load the distribution's"
+-                " AppArmor profile for bwrap or set that to 0"
++                "; kernel.apparmor_restrict_unprivileged_userns is 1, and it is the distribution's"
++                " AppArmor profile for bwrap, where it is loaded, that permits it"
+             )
+         return reason
+     return None
+@@ -225,8 +225,9 @@ def runtime() -> None:
+     if reason:
+         raise SystemExit(
+             f"unprivileged user namespaces are not permitted here ({reason}).\n"
+-            "Ask the host administrator for kernel.unprivileged_userns_clone=1, or run this\n"
+-            "job in the image on a CI runner. Do not substitute a distribution Sage."
++            "This host is unsupported for the no-runtime path, and this script does not\n"
++            "change host policy. Run the job in the image on a CI runner or another host\n"
++            "that permits them; do not substitute a distribution Sage."
+         )
+ 
+ 

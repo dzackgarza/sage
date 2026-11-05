@@ -1,0 +1,9 @@
+/sage/.venv/bin/gap
+/sage/.venv/bin/gac
+/sage/.venv/lib/libgap.so
+/sage/.venv/lib/libgap.so.11
+/sage/.venv/lib/pkgconfig/libgap.pc
+/sage/.venv/include/gap
+/sage/.venv/lib/gap
+/etc/ld.so.conf.d/sage-local.conf
+/sage/.venv/share/gap

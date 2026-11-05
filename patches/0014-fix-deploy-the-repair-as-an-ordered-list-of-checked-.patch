@@ -1,0 +1,253 @@
+From ff75f2db1de0f0f0d6d0aa1facb640d4b4630fb8 Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sun, 1 Nov 2026 01:32:43 +0000
+Subject: [PATCH 14/16] fix: deploy the repair as an ordered list of checked
+ patches
+
+A second patch corrects the Meson fallback chain, and a copy already carrying
+the first must not have its recorded provenance overwritten by new bytes under
+the same name. apply-bliss-repair.sh now takes the patches in order, applies only
+the ones a copy does not already carry, explains every locally modified file by
+a patch it already carries, and records each patch's digest in the stamp
+alongside the module digest. A rebuild happens only when a patch was applied or
+the installed module is not the one the stamp records; a failure reverts the
+patches that run applied.
+
+Verified on the published unpacked copy: the first patch was recognised as
+already present and skipped, the correction applied, the module rebuilt and
+installed (4518 unchanged files), the smoke tests passed, and the stamp now
+lists both digests -- baf4b826... for the original repair and ff86f4a9... for the
+correction -- with the same module digest as before, since the correction
+changes only which library the configure accepts, not the code compiled here.
+
+SAGE-ENVIRONMENT.md says the same, and that a copy carrying the first patch
+alone is correct for this image but is not evidence that the fallback works.
+---
+ docker/SAGE-ENVIRONMENT.md   |  25 +++++--
+ docker/apply-bliss-repair.sh | 137 ++++++++++++++++++++++-------------
+ 2 files changed, 104 insertions(+), 58 deletions(-)
+
+diff --git a/docker/SAGE-ENVIRONMENT.md b/docker/SAGE-ENVIRONMENT.md
+index 726cba8..1870f64 100644
+--- a/docker/SAGE-ENVIRONMENT.md
++++ b/docker/SAGE-ENVIRONMENT.md
+@@ -194,14 +194,23 @@ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+   -- /bin/bash /opt/apply-bliss-repair.sh /opt/bliss-repair.patch
+ ```
+ 
+-It checks that the copy is the published revision with the two files untouched,
+-applies the patch, runs Ninja and Meson install in `/sage/builddir` (the image's
+-own build system, so the build files are regenerated from the patched Meson),
+-runs the graph and automorphism smoke tests, and records the base revision,
+-patch and module digests in `/opt/bliss-repair.json`. A copy that fails the
+-smoke tests gets its previous module and source back. Nothing is published and
+-the image is unchanged: the copy is repaired, not a new image. Re-running it is
+-a no-op once the stamp matches.
++It checks that the copy is the published revision, that every file the patches
++touch is either untouched or modified exactly by patches this copy already
++carries, applies the ones it does not carry in the order given, runs Ninja and
++Meson install in `/sage/builddir` (the image's own build system, so the build
++files are regenerated from the patched Meson), runs the graph and automorphism
++smoke tests, and records the base revision, every patch digest and the module
++digest in `/opt/bliss-repair.json`. A copy that fails the smoke tests gets its
++previous module and source back. Nothing is published and the image is
++unchanged: the copy is repaired, not a new image. Re-running it is a no-op once
++the stamp matches.
++
++Two patches exist because the first one's Meson fallback chain was wrong: under
++`-Dbliss=enabled` (or `auto_features=enabled`) a missing `libbliss-cxx` aborted
++the configure instead of falling through. The second patch fixes that and keeps
++`disabled`/`auto`/`enabled` semantics; a copy deployed with the first alone is
++correct for this image, which has `libbliss-cxx`, but is not evidence that the
++fallback works elsewhere.
+ 
+ ## Checking a change to the image
+ 
+diff --git a/docker/apply-bliss-repair.sh b/docker/apply-bliss-repair.sh
+index 0dd0e3d..82d2c3e 100755
+--- a/docker/apply-bliss-repair.sh
++++ b/docker/apply-bliss-repair.sh
+@@ -4,20 +4,25 @@
+ # The published image links its system libbliss without the ABI its headers
+ # describe, so sage.graphs.bliss corrupts the heap and canonical_label()
+ # segfaults. The image is fixed by the checked commits, which cannot ship while
+-# publication is held. This applies the same checked patch to an existing copy,
+-# rebuilds only the module it touches with that copy's own Meson/Ninja build,
+-# installs it through Meson, runs the graph and automorphism smoke tests, and
+-# records what it did. It changes this copy only: the image is not fixed, not
++# publication is held. This applies those commits' own patches, in the order
++# given, to an existing copy; rebuilds only the module they touch with that
++# copy's own Meson/Ninja build; installs it through Meson; runs the graph and
++# automorphism smoke tests; and records which patches, at which digests, this
++# copy carries. It changes this copy only: the image is not fixed, not
+ # republished, and no branch is created.
+ #
+-#   docker/apply-bliss-repair.sh PATCH
++#   docker/apply-bliss-repair.sh PATCH [PATCH...]
+ #
+-# PATCH is the checked commit's own patch (docker/../patches/0001-*.patch, see
+-# the note shipped with it). Environment: SAGE_ROOT (default /sage), BUILD_DIR
+-# (default $SAGE_ROOT/builddir), EXPECTED_REVISION (default the published one).
++# The patches are the checked commits' own patches, oldest first. Environment:
++# SAGE_ROOT (default /sage), BUILD_DIR (default $SAGE_ROOT/builddir),
++# EXPECTED_REVISION (default the published one).
+ set -euo pipefail
+ 
+-patch_file="${1:?usage: apply-bliss-repair.sh PATCH}"
++[ "$#" -ge 1 ] || {
++    printf 'usage: apply-bliss-repair.sh PATCH [PATCH...]\n' >&2
++    exit 2
++}
++patches=("$@")
+ sage_root="${SAGE_ROOT:-/sage}"
+ build_dir="${BUILD_DIR:-${sage_root}/builddir}"
+ expected_revision="${EXPECTED_REVISION:-b0cd7d86e21eb450ed90e4c83707920e1d5d429a}"
+@@ -31,53 +36,75 @@ die() {
+     exit 1
+ }
+ 
+-[ -f "${patch_file}" ] || die "${patch_file} is not readable"
++for patch_file in "${patches[@]}"; do
++    [ -f "${patch_file}" ] || die "${patch_file} is not readable"
++done
+ [ -d "${sage_root}/.git" ] || die "${sage_root} is not the image's git checkout"
+ [ -d "${build_dir}" ] || die "${build_dir} is not the image's build directory"
+ 
+-# The copy must be the image this patch was checked against, and the two files
+-# it touches must be exactly as that image left them.
++# The copy must be the image these patches were checked against.
+ revision="$(git -C "${sage_root}" rev-parse HEAD)"
+ [ "${revision}" = "${expected_revision}" ] || \
+-    die "${sage_root} is at ${revision}, but this patch is checked against ${expected_revision}"
+-patch_sha256="$(sha256sum "${patch_file}" | cut -d' ' -f1)"
++    die "${sage_root} is at ${revision}, but these patches are checked against ${expected_revision}"
++
+ site_packages="$("${venv}/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
+ installed="${site_packages}/sage/graphs/${module}"
+ [ -f "${installed}" ] || die "${installed} is not the module this image installed"
+ 
+-# A copy that already carries the patched source does not need the patch again;
+-# whether it needs a rebuild depends on the module it installed.
+-applied=0
+-patched_here=0
+-if git -C "${sage_root}" apply --reverse --check "${patch_file}" 2>/dev/null; then
+-    applied=1
+-fi
+-if [ "${applied}" -eq 0 ]; then
+-    for file in src/sage/graphs/meson.build src/sage/graphs/bliss_cpp/bliss_find_automorphisms.h; do
+-        git -C "${sage_root}" diff --quiet -- "${file}" || \
+-            die "${file} has local changes; this copy is not the published image"
++# Every file the patches touch is either untouched by this copy or modified
++# exactly by patches this copy already carries; anything else is someone's edit.
++touched="$(grep -h '^diff --git ' "${patches[@]}" | awk '{ print $3 }' | sed 's|^a/||' | sort -u)"
++for file in ${touched}; do
++    git -C "${sage_root}" diff --quiet -- "${file}" && continue
++    explained=0
++    for patch_file in "${patches[@]}"; do
++        grep -q "^diff --git a/${file} " "${patch_file}" || continue
++        if git -C "${sage_root}" apply --reverse --check "${patch_file}" 2>/dev/null; then
++            explained=1
++        fi
+     done
++    [ "${explained}" -eq 1 ] || \
++        die "${file} has local changes this repair does not explain; this copy is not the published image"
++done
++
++# Apply whatever this copy does not already carry, oldest patch first.
++patched_here=0
++records=()
++for patch_file in "${patches[@]}"; do
++    patch_sha256="$(sha256sum "${patch_file}" | cut -d' ' -f1)"
++    records+=("$(basename "${patch_file}"):${patch_sha256}")
++    if git -C "${sage_root}" apply --reverse --check "${patch_file}" 2>/dev/null; then
++        continue
++    fi
+     git -C "${sage_root}" apply --check "${patch_file}" || \
+-        die "the patch does not apply to this source tree"
++        die "$(basename "${patch_file}") does not apply to this source tree"
+     git -C "${sage_root}" apply "${patch_file}"
+     patched_here=1
+-fi
++done
+ 
++# Rebuild only when the source changed or the installed module is not the one
++# the stamp records.
+ module_sha256="$(sha256sum "${installed}" | cut -d' ' -f1)"
+-if [ "${applied}" -eq 1 ] && [ -f "${stamp}" ] && \
+-    grep -q "\"patch_sha256\": \"${patch_sha256}\"" "${stamp}" && \
+-    grep -q "\"module_sha256\": \"${module_sha256}\"" "${stamp}"; then
+-    printf 'bliss-repair: already applied to this copy (%s)\n' "${stamp}"
++up_to_date=0
++if [ "${patched_here}" -eq 0 ] && [ -f "${stamp}" ]; then
++    up_to_date=1
++    for record in "${records[@]}"; do
++        grep -q "\"${record}\"" "${stamp}" || up_to_date=0
++    done
++    grep -q "\"module_sha256\": \"${module_sha256}\"" "${stamp}" || up_to_date=0
++fi
++if [ "${up_to_date}" -eq 1 ]; then
++    printf 'bliss-repair: this copy already carries %s\n' "${records[*]}"
+     exit 0
+ fi
+ 
+-# Apply the checked patch, then rebuild only the affected target with the
+-# image's own build system: Ninja regenerates the build files from the patched
+-# Meson, compiles the patched C++, and Meson installs the newer module.
+ if ! "${venv}/bin/ninja" -C "${build_dir}" "${target}"; then
+-    [ "${patched_here}" -eq 0 ] || \
+-        git -C "${sage_root}" checkout -- src/sage/graphs/meson.build src/sage/graphs/bliss_cpp/bliss_find_automorphisms.h
+-    die "the rebuild failed; the source tree was restored where this run changed it"
++    if [ "${patched_here}" -eq 1 ]; then
++        for patch_file in "${patches[@]}"; do
++            git -C "${sage_root}" apply --reverse "${patch_file}" 2>/dev/null || true
++        done
++    fi
++    die "the rebuild failed; patches this run applied were reverted"
+ fi
+ cp -a "${installed}" "${installed}.orig"
+ "${venv}/bin/meson" install -C "${build_dir}" --only-changed --no-rebuild
+@@ -101,21 +128,31 @@ assert graphs.PetersenGraph().automorphism_group().order() == 120
+ PY
+ then
+     cp -a "${installed}.orig" "${installed}"
+-    [ "${patched_here}" -eq 0 ] || \
+-        git -C "${sage_root}" checkout -- src/sage/graphs/meson.build src/sage/graphs/bliss_cpp/bliss_find_automorphisms.h
++    if [ "${patched_here}" -eq 1 ]; then
++        for patch_file in "${patches[@]}"; do
++            git -C "${sage_root}" apply --reverse "${patch_file}" 2>/dev/null || true
++        done
++    fi
+     die "the rebuilt module failed its smoke tests; the previous module was restored"
+ fi
+ 
+ module_sha256="$(sha256sum "${installed}" | cut -d' ' -f1)"
+-cat > "${stamp}" <<JSON
+ {
+-  "base_revision": "${revision}",
+-  "patch": "$(basename "${patch_file}")",
+-  "patch_sha256": "${patch_sha256}",
+-  "module": "${installed}",
+-  "module_sha256": "${module_sha256}",
+-  "note": "Incremental deployment of the checked Bliss repair into this unpacked copy. The published image is unchanged and the repair ships in it only when a rebuilt image is published."
+-}
+-JSON
+-printf 'bliss-repair: applied %s to %s\n' "$(basename "${patch_file}")" "${installed}"
+-printf 'bliss-repair: %s\n' "${stamp} records the base revision, patch and module digests"
++    printf '{\n'
++    printf '  "base_revision": "%s",\n' "${revision}"
++    printf '  "patches": [\n'
++    last=$(( ${#records[@]} - 1 ))
++    for i in "${!records[@]}"; do
++        record="${records[${i}]}"
++        printf '    {"patch": "%s", "sha256": "%s"}' \
++            "${record%%:*}" "${record##*:}"
++        [ "${i}" -eq "${last}" ] && printf '\n' || printf ',\n'
++    done
++    printf '  ],\n'
++    printf '  "module": "%s",\n' "${installed}"
++    printf '  "module_sha256": "%s",\n' "${module_sha256}"
++    printf '  "note": "Incremental deployment of the checked Bliss repair into this unpacked copy. The published image is unchanged and the repair ships in it only when a rebuilt image is published."\n'
++    printf '}\n'
++} > "${stamp}"
++printf 'bliss-repair: applied %s to %s\n' "${records[*]}" "${installed}"
++printf 'bliss-repair: %s records the base revision, patch digests and module digest\n' "${stamp}"

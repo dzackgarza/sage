@@ -1,0 +1,162 @@
+From 1950bf40f9a333bd4e3a31ee8389e1c40cf0bdcb Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sun, 1 Nov 2026 01:45:33 +0000
+Subject: [PATCH 15/16] fix: verify a checkout's whole Lean manifest before an
+ explicit view runs
+
+Mounting the recorded overrides left one gap: a checkout whose index was stale,
+or a shared package present at another revision, would start and resolve
+whatever the shared directory happened to hold. `--lean-view` now reads the
+checkout's manifest, resolves every pinned package to the path it will actually
+see -- its override, or the declared packages directory -- re-rooting the
+image's absolute links, and refuses to launch when a package is missing or sits
+at another revision. The message names the pin, what was found and the
+provisioner to re-run.
+
+Both DSL checkouts are now launched explicitly in the documentation, including
+`lean-cas-dsl`, whose revision the shared directory happens to hold: the shared
+copy of `lean_categories` is the published image's own, provisioning neither
+links nor deletes it, and neither checkout is expected to resolve through it.
+
+Verified concurrently with the two explicit invocations: lean-cas-dsl resolved
+lean_categories eea5c7f3... and lean-cas-dsl-leaf-contracts 82d1370d..., each its
+own pin, both importing Mathlib ("Nat.add_comm : forall (n m : Nat), n + m =
+m + n"), exit 0. Pointing lean-cas-dsl's index entry at the other revision makes
+the launch stop with "pins lean_categories at eea5c7f3... but resolves
+82d1370d... from .../lean_categories@82d1370d..." instead of running.
+---
+ docker/SAGE-ENVIRONMENT.md | 40 ++++++++++++++++++++-------
+ docker/sage-image.py       | 55 ++++++++++++++++++++++++++++++++++----
+ 2 files changed, 81 insertions(+), 14 deletions(-)
+
+diff --git a/docker/SAGE-ENVIRONMENT.md b/docker/SAGE-ENVIRONMENT.md
+index 1870f64..545a00a 100644
+--- a/docker/SAGE-ENVIRONMENT.md
++++ b/docker/SAGE-ENVIRONMENT.md
+@@ -151,21 +151,43 @@ Lake fixes a project's packages directory in its lakefile and records it in the
+ manifest — `-K packagesDir=` is ignored, and a lakefile whose `packagesDir`
+ disagrees with its manifest is rejected as out of date — so two checkouts that
+ pin one package at different revisions cannot both be served by that directory.
+-The checkouts keep their pins. The shared packages directory carries the
+-packages they agree on; `/opt/lake-views/index.json` records, per checkout,
+-which packages its manifest pins at a revision the shared directory does not
+-hold, each naming the content-addressed checkout under `/opt/lake-packages`.
+-A run mounts exactly those over the packages directory for that invocation:
++
++The layout that resolves them:
++
++* `/opt/lake-packages/<name>@<revision>` holds one checkout per package revision;
++  every view links into it, so no revision is cloned twice.
++* The packages directory the checkouts declare
++  (`/.local/share/lean/v4.33.0/packages`) holds the packages they agree on, as
++  links to those checkouts. For a name they disagree on — here `lean_categories`,
++  pinned at `eea5c7f3…` by `lean-cas-dsl` and `82d1370d…` by
++  `lean-cas-dsl-leaf-contracts` — provisioning links nothing and deletes nothing:
++  the directory the published image shipped stays on disk, and no checkout is
++  expected to resolve through it.
++* `/opt/lake-views/index.json` records, per checkout, the override for each
++  package its manifest pins at a revision that directory does not hold, naming
++  the content-addressed checkout. Both checkouts carry an override for
++  `lean_categories`; `lean-categories` carries none.
++
++A run mounts a checkout's overrides over the packages directory for that
++invocation only, and before mounting it verifies the checkout's **whole
++manifest**: every pinned package must be present at exactly its revision — in
++its override or, for a shared package, in the directory the lakefile declares.
++A package that resolves to another revision refuses the launch, naming the
++pin and what was found, rather than running against it. Both projects are
++launched explicitly:
+ 
+ ```sh
+ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+-  --lean-view /repos/lean-cas-dsl-leaf-contracts \
++  --env ELAN_HOME=/opt/elan --lean-view /repos/lean-cas-dsl \
++  -- /bin/sh -c 'cd /repos/lean-cas-dsl && lake env lean /tmp/file.lean'
++
++python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
++  --env ELAN_HOME=/opt/elan --lean-view /repos/lean-cas-dsl-leaf-contracts \
+   -- /bin/sh -c 'cd /repos/lean-cas-dsl-leaf-contracts && lake env lean /tmp/file.lean'
+ ```
+ 
+-Nothing global is rewritten, so two checkouts resolve different revisions of one
+-package at the same time in separate mount namespaces. A checkout the shared
+-directory fully carries needs no flag.
++Nothing global is rewritten, so the two resolve different revisions of one
++package at the same time in separate mount namespaces.
+ Under PRoot the same mount is one `-b` per override, both paths taken from the
+ index: `-b <rootfs>/opt/lake-packages/<name>@<revision>:<packagesDir>/<name>`.
+ 
+diff --git a/docker/sage-image.py b/docker/sage-image.py
+index 8791f0d..19acfaa 100755
+--- a/docker/sage-image.py
++++ b/docker/sage-image.py
+@@ -231,8 +231,31 @@ def runtime() -> None:
+         )
+ 
+ 
++def resolve_in(rootfs: Path, path: Path) -> Path:
++    """Resolve a link that may point into the image, not at the host."""
++    for _ in range(40):
++        if not path.is_symlink():
++            break
++        target = Path(os.readlink(path))
++        path = (rootfs / str(target).lstrip("/")) if target.is_absolute() else (path.parent / target)
++    return path
++
++
++def git_head(path: Path) -> str | None:
++    result = subprocess.run(
++        ["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True
++    )
++    return result.stdout.strip() if result.returncode == 0 else None
++
++
+ def lean_view_mounts(rootfs: Path, checkout: str) -> list[tuple[Path, str]]:
+-    """The package overrides provisioning recorded for a checkout."""
++    """The mounts a checkout needs, after checking its whole manifest resolves.
++
++    Every package the manifest pins must already be present at that revision --
++    in the checkout's override or, for a package it shares with the others, in
++    the packages directory its lakefile declares. A package that resolves to
++    another revision stops the launch instead of running against it.
++    """
+     index = json.loads((rootfs / "opt" / "lake-views" / "index.json").read_text())
+     entry = index.get(checkout)
+     if entry is None:
+@@ -240,10 +263,32 @@ def lean_view_mounts(rootfs: Path, checkout: str) -> list[tuple[Path, str]]:
+             f"{checkout} has no Lean package view; run docker/provision-lean-packages.sh "
+             "in this image first"
+         )
+-    return [
+-        (rootfs / override["checkout"].lstrip("/"), f"{entry['packages_dir']}/{override['name']}")
+-        for override in entry["overrides"]
+-    ]
++    packages_dir = entry["packages_dir"]
++    overrides = {override["name"]: override for override in entry["overrides"]}
++    manifest = json.loads((rootfs / checkout.lstrip("/") / "lake-manifest.json").read_text())
++    mounts: list[tuple[Path, str]] = []
++    for package in manifest["packages"]:
++        if package.get("type") != "git":
++            continue
++        name, revision = package["name"], package["rev"]
++        override = overrides.get(name)
++        source = rootfs / (override["checkout"] if override else f"{packages_dir}/{name}").lstrip("/")
++        source = resolve_in(rootfs, source)
++        destination = f"{packages_dir}/{name}" if override else None
++        if not source.is_dir():
++            raise SystemExit(
++                f"{checkout} pins {name} at {revision} and it is not present at {source}; "
++                "run docker/provision-lean-packages.sh in this image"
++            )
++        resolved = git_head(source)
++        if resolved != revision:
++            raise SystemExit(
++                f"{checkout} pins {name} at {revision} but resolves {resolved or 'no revision'} "
++                f"from {source}; run docker/provision-lean-packages.sh in this image"
++            )
++        if destination:
++            mounts.append((source, destination))
++    return mounts
+ 
+ 
+ def command(

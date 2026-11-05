@@ -1,0 +1,152 @@
+From 938d4738c11924229ddd72d3dcb5328c8da11a0b Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sat, 31 Oct 2026 23:23:23 +0000
+Subject: [PATCH 06/16] fix: keep the image's Julia depot on the bridge's path
+
+sage-julia-bridge launches julia with --project=<checkout>/julia_env, whose
+Project.toml requires JSON and Oscar, and imports JSON in its first statement.
+Those packages are installed in /opt/julia-depot, declared by the image's own
+JULIA_DEPOT_PATH. A container runtime applies that declaration to every
+process; a host that runs the unpacked filesystem instead -- PRoot, a bare
+exec, an entrypoint that rebuilds the environment -- starts the bridge without
+it, Julia falls back to ~/.julia, and the bridge aborts at julia_bridge.jl:2
+with "Package JSON [682c06a0-de6a-54ab-a142-c8b1cf79cde6] is required but does
+not seem installed: Run Pkg.instantiate()". That ArgumentError is reproducible
+in this image by removing JULIA_DEPOT_PATH and starting the bridge.
+
+/usr/local/bin/julia becomes the image's launcher rather than a symlink to
+/opt/julia/bin/julia: it adds /opt/julia-depot to whatever depot path the
+caller has, once, and execs the real binary. Every consumer reaches Julia
+through PATH, so none of them installs JSON, Oscar or anything else for itself.
+
+The image check now starts the bridge with JULIA_DEPOT_PATH removed and
+asserts a JSON call through it, and asserts the same call on the session it
+already holds: the first fails on the image as published, the second pins the
+worker project's own dependency rather than the default environment's.
+
+Not touched: the research repository pins in docker/research-repositories.txt.
+The embedded port revision and the post-move research revision are not a
+verified pair, and the port project is moving to canonical sage_extensions.
+---
+ docker/SAGE-ENVIRONMENT.md             | 15 +++++++++++++++
+ docker/julia-launcher.sh               | 24 ++++++++++++++++++++++++
+ docker/research-environment-check.py   | 19 +++++++++++++++++++
+ docker/research-environment.Dockerfile |  9 +++++++--
+ 4 files changed, 65 insertions(+), 2 deletions(-)
+ create mode 100755 docker/julia-launcher.sh
+
+diff --git a/docker/SAGE-ENVIRONMENT.md b/docker/SAGE-ENVIRONMENT.md
+index e158f84..01b6a6c 100644
+--- a/docker/SAGE-ENVIRONMENT.md
++++ b/docker/SAGE-ENVIRONMENT.md
+@@ -113,6 +113,21 @@ Provisioning is owned here, once: consumers call `docker/sage-image.py` or use
+ the image as their job container, and do not carry their own copy of a fetch,
+ unpack or launcher script.
+ 
++## Julia and the bridge
++
++`/usr/local/bin/julia` is a launcher, not a symlink: it adds `/opt/julia-depot`
++to whatever `JULIA_DEPOT_PATH` the caller has. The image declares that depot in
++its own environment and a container runtime applies it; a host that runs the
++unpacked filesystem — PRoot, a bare exec, an entrypoint that rebuilds the
++environment — does not, and `sage_julia_bridge` then stops at
++`julia_bridge.jl:2` with `Package JSON ... is required but does not seem
++installed`. The image instantiates the bridge's worker project
++(`/repos/sage-julia-bridge/src/sage_julia_bridge/julia_env`) into that depot, so
++JSON and Oscar come from the image and no consumer installs them for itself.
++A bridge checkout changed inside the persistent volume brings its own
++`Project.toml`/`Manifest.toml`; its `just julia-deps` instantiates that revision
++into the writable depot.
++
+ ## Checking a change to the image
+ 
+ ```sh
+diff --git a/docker/julia-launcher.sh b/docker/julia-launcher.sh
+new file mode 100755
+index 0000000..1c3861d
+--- /dev/null
++++ b/docker/julia-launcher.sh
+@@ -0,0 +1,24 @@
++#!/bin/sh
++# Keep the image's Julia depot on the path however this filesystem is run.
++#
++# Oscar, JSON and the packages sage-julia-bridge's worker project pins live in
++# /opt/julia-depot, which the image declares in JULIA_DEPOT_PATH. A container
++# runtime applies that declaration to every process; a host that runs the
++# unpacked filesystem instead -- PRoot, a bare exec, an entrypoint that rebuilds
++# the environment -- does not, and the bridge then stops at julia_bridge.jl:2
++# with "Package JSON ... is required but does not seem installed". The depot is
++# added to whatever path the caller already has, once.
++depot=/opt/julia-depot
++case ":${JULIA_DEPOT_PATH-}:" in
++  *":$depot:"*) ;;
++  *)
++    JULIA_DEPOT_PATH="${JULIA_DEPOT_PATH-}"
++    case $JULIA_DEPOT_PATH in
++      '') JULIA_DEPOT_PATH="$depot:" ;;
++      *:) JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH$depot:" ;;
++      *) JULIA_DEPOT_PATH="$JULIA_DEPOT_PATH:$depot:" ;;
++    esac
++    export JULIA_DEPOT_PATH
++    ;;
++esac
++exec /opt/julia/bin/julia "$@"
+diff --git a/docker/research-environment-check.py b/docker/research-environment-check.py
+index aba266e..e44062a 100644
+--- a/docker/research-environment-check.py
++++ b/docker/research-environment-check.py
+@@ -1,6 +1,7 @@
+ # Fails the image build if any system the research image exists to provide is
+ # absent. Run with the image's sage: `sage docker/research-environment-check.py`.
+ import importlib
++import os
+ import subprocess
+ from pathlib import Path
+ 
+@@ -59,8 +60,26 @@ importlib.import_module("sage_categories_homotopy")
+ assert julia.sage("1 // 2") == QQ(1) / 2
+ julia.eval("using Oscar")
+ assert julia.sage("ZZ(2)^10") == 1024
++assert julia.eval("JSON.json((a=1,))") == '{"a":1}'
+ julia.quit()
+ 
++# The bridge's worker project pins JSON and imports it in its first statement
++# (julia_bridge.jl:2). That package lives in /opt/julia-depot, so a host that
++# runs this filesystem without a container runtime -- and so without the
++# image's JULIA_DEPOT_PATH -- reaches it through /usr/local/bin/julia. This is
++# that host: the bridge, with the variable removed from the environment.
++without_depot = {name: value for name, value in os.environ.items() if name != "JULIA_DEPOT_PATH"}
++subprocess.run(
++    [
++        "python",
++        "-c",
++        "from sage_julia_bridge import Julia; j = Julia();"
++        " assert j.eval('JSON.json((a=1,))') == '{\"a\":1}'; j.quit()",
++    ],
++    env=without_depot,
++    check=True,
++)
++
+ # Each Lean checkout runs Lake on the toolchain it pins.
+ for toolchain in Path("/repos").glob("*/lean-toolchain"):
+     subprocess.run(["lake", "--version"], cwd=toolchain.parent, check=True)
+diff --git a/docker/research-environment.Dockerfile b/docker/research-environment.Dockerfile
+index 54dbae7..6a9af65 100644
+--- a/docker/research-environment.Dockerfile
++++ b/docker/research-environment.Dockerfile
+@@ -165,8 +165,13 @@ RUN set -eu; \
+     echo "41b84d727e4e96fbf3ed9e92fa195d773d247b9097f73fad688f8b699758bae7  /tmp/julia.tar.gz" | sha256sum -c -; \
+     mkdir /opt/julia; \
+     tar -xzf /tmp/julia.tar.gz -C /opt/julia --strip-components=1; \
+-    rm /tmp/julia.tar.gz; \
+-    ln -s /opt/julia/bin/julia /usr/local/bin/julia
++    rm /tmp/julia.tar.gz
++
++# /usr/local/bin/julia is the image's entry point rather than a symlink: it
++# adds /opt/julia-depot to whatever JULIA_DEPOT_PATH the caller has, so a
++# process whose environment did not come from this image (PRoot over the
++# unpacked filesystem, a bare exec) still resolves the bridge's packages.
++COPY --chmod=0755 docker/julia-launcher.sh /usr/local/bin/julia
+ 
+ # Package caches must load on both the CI CPU and the host CPU.
+ # https://docs.julialang.org/en/v1.12/manual/environment-variables/#JULIA_CPU_TARGET

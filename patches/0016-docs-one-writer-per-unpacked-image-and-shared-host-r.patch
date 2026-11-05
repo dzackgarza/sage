@@ -1,0 +1,58 @@
+From da6639c473bc3418645be66c878c49b2e9fcfdbf Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sun, 1 Nov 2026 02:26:27 +0000
+Subject: [PATCH 16/16] docs: one writer per unpacked image, and shared host
+ resources
+
+On a host where several projects run as the same user, $HOME and therefore
+$HOME/sage-image/rootfs is one physical tree. Say so, name the project that owns
+writes to it, and give the read-only stamps a consumer reads instead of running
+its own build into the same tree; two projects building there would race on one
+.lake/build and one site-packages. Note that cgroups are per project while the
+memory and CPUs are the host's, and that there is no swap, so parallel long
+builds across projects compete rather than queue.
+---
+ docker/SAGE-ENVIRONMENT.md | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)
+
+diff --git a/docker/SAGE-ENVIRONMENT.md b/docker/SAGE-ENVIRONMENT.md
+index 545a00a..8866cd6 100644
+--- a/docker/SAGE-ENVIRONMENT.md
++++ b/docker/SAGE-ENVIRONMENT.md
+@@ -234,6 +234,36 @@ the configure instead of falling through. The second patch fixes that and keeps
+ correct for this image, which has `libbliss-cxx`, but is not evidence that the
+ fallback works elsewhere.
+ 
++## Shared hosts: one writer per unpacked copy
++
++On a host where several projects run as the same user, `$HOME` — and therefore
++`$HOME/sage-image/rootfs` — is one physical tree, not one per project. Only one
++project should write to it: the one that provisioned it. Everyone else reads the
++stamps and runs readback, and takes the artifacts (`provision-lean-packages.sh`,
++`apply-bliss-repair.sh` with its patches) if they need to deploy into a copy of
++their own; two projects running builds into one tree race on the same
++`.lake/build` and site-packages, and produce duplicate builds.
++
++Readback, without writing:
++
++```sh
++cat ~/sage-image/rootfs/opt/bliss-repair.json          # base revision, patch and module digests
++cat ~/sage-image/rootfs/opt/lake-views/index.json      # per checkout, its Lean package overrides
++```
++
++What can be observed of the host: one RAM figure and no swap (`free`), one set
++of CPUs (`nproc`), and a cgroup path per project and session — this project's is
++`/system.slice/nucleus.service/project-<id>/p<pid>`. What cannot: whether an
++ancestor of those cgroups imposes a memory limit. `memory.max` and
++`memory.events` are not readable from inside the namespace, so neither the
++effective limit nor whether an earlier kill was an OOM is known here. Distinct
++per-project paths are not evidence that no shared ancestor limit exists.
++
++Because the limit is unknown, treat long builds as competing for one machine:
++run them one at a time across projects, bound them, and keep a copy of their
++logs. That guidance is about scheduling, not about a limit that has been
++measured.
++
+ ## Checking a change to the image
+ 
+ ```sh
