@@ -105,23 +105,3 @@ acceptance nodes are untouched by it, and no degree-10 computation was attempted
 single 2 MiB samples and did not capture the child's peak; the earlier aborted run over the
 same tree peaked at 341 MiB. Treat the guard as a bound that was in place, not as a
 measured peak for this run.
-
-## Applying the consumer workflow change
-
-`docker/gap-consumer-workflow.patch` applies to `.github/workflows/research-image-consumer.yml`:
-
-```
-git apply docker/gap-consumer-workflow.patch
-```
-
-It is a plain diff, not a mailbox patch, so `git apply` rather than `git am`. The
-step it adds mirrors `results/consumer-check.py`: the libgap root path, all four
-`LoadPackage` calls with their versions, `RecognizeGroup`/`StabilizerChain`/`SizeMC`
-bound, the absent-package `fail` contract compared inside GAP, and the deg-4
-`GF(5)` Borel order. Regenerated 2026-11-04 so the hosted step asserts what the local
-check asserts; the earlier version carried only the four loads and the order.
-
-The workflow as published asserted only a `QQ` determinant, so a consumer run would pass on
-an image missing every GAP package; the patch adds a step making the same assertions from a
-fresh runner. Applying it needs a credential that has `workflows` write; the work unit is
-[issue #7](https://github.com/dzackgarza/sage/issues/7).
