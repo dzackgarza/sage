@@ -1,3 +1,13 @@
+# What the GAP capability installed into $SAGE_LOCAL on 9f1680d2, and the whole of
+# what a rollback removes.
+#
+# The apt-owned distribution GAP is NOT part of this manifest. /usr/bin/gap,
+# /usr/lib/gap, /usr/share/gap and /usr/lib/x86_64-linux-gnu/libgap.so.9 were
+# installed by an older layer of this image, no step here added or changed them, and
+# this runtime carries them beside the Sage-owned 4.16.1 (sage#11). Removing them is
+# the image's job, not a rollback's; a rollback restores the pre-adoption runtime,
+# which had them too.
+#
 /sage/.venv/bin/gap
 /sage/.venv/bin/gac
 /sage/.venv/lib/libgap.so

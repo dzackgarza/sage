@@ -3,6 +3,7 @@
 import importlib
 import os
 import subprocess
+import sys
 import tempfile
 from importlib.metadata import requires as distribution_requires
 from pathlib import Path
@@ -77,6 +78,67 @@ loaded_libgap = [
 ]
 assert loaded_libgap, "no libgap mapped into this process"
 assert all(path.startswith("/sage/.venv/lib/") for path in loaded_libgap), loaded_libgap
+
+# Exactly one GAP: the one built from the pinned source. No Debian package the
+# image installs depends on Debian's GAP, so a build from debian:trixie has none,
+# and research-environment-incremental.Dockerfile purges what a published base
+# carries. It has to be gone rather than merely unused: kernel_info() runs the bare
+# command `gap` through PATH, so a second copy turns any PATH that does not resolve
+# $SAGE_LOCAL/bin/gap first into GAP 4.14's library read by libgap.so.11 -- which is
+# a segfault in DoOperation1Args, not an exception (sage#11).
+distribution_gap = [
+    path for path in (
+        "/usr/bin/gap",
+        "/usr/lib/gap",
+        "/usr/share/gap",
+        "/usr/lib/x86_64-linux-gnu/libgap.so.9",
+    ) if Path(path).exists()
+]
+assert not distribution_gap, f"a distribution GAP is still installed: {distribution_gap}"
+apt_gap = sorted(
+    line.split()[0]
+    for line in subprocess.run(
+        ["dpkg-query", "-W", "-f=${Package} ${Status}\n", "gap*", "libgap*"],
+        capture_output=True, text=True, check=False,
+    ).stdout.splitlines()
+    if line.endswith(" install ok installed")
+)
+assert not apt_gap, f"apt still carries GAP packages: {apt_gap}"
+
+# The probe that found sage#11: an emptied environment leaves PATH unset, so a bare
+# `gap` resolves through Python's own /bin:/usr/bin, and libgap is then initialised
+# on whatever library that GAP reports. Either the Sage-owned roots are the ones
+# found and the session works, or the probe fails as a Python error; dying on a
+# signal is the crash this asserts against.
+probe = subprocess.run(
+    [
+        sys.executable, "-c",
+        "from sage.libs.gap.util import kernel_info\n"
+        "version, arch, roots = kernel_info()\n"
+        "print(version)\n"
+        "print(roots)\n"
+        "from sage.libs.gap.libgap import libgap\n"
+        "print(libgap.eval('1+1'))\n",
+    ],
+    env={"HOME": os.environ.get("HOME", "/root")},
+    capture_output=True,
+    text=True,
+    check=False,
+)
+assert probe.returncode >= 0, (
+    f"the empty-environment GAP probe died on signal {-probe.returncode}: "
+    f"{probe.stdout}{probe.stderr}"
+)
+if probe.returncode:
+    assert "Traceback" in probe.stderr, (probe.returncode, probe.stdout, probe.stderr)
+    print(f"kernel_info() under env -i raised: {probe.stderr.strip().splitlines()[-1]}")
+else:
+    probed_version, probed_roots, probed_sum = probe.stdout.splitlines()[:3]
+    assert probed_version == declared_gap, (probed_version, declared_gap)
+    assert "/sage/.venv/lib/gap/" in probed_roots, probed_roots
+    assert "/sage/.venv/share/gap/" in probed_roots, probed_roots
+    assert probed_sum == "2", probed_sum
+    print(f"kernel_info() under env -i: {probed_version} {probed_roots}; libgap.eval('1+1') = {probed_sum}")
 
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 

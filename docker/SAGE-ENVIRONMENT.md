@@ -142,6 +142,16 @@ rather than whatever the image's GAP ships. The check asserts the directory and
 loads each pinned release through the library's own loader, so a missing or
 substituted installation fails the image build.
 
+Exactly one GAP exists in the image: the Sage-owned 4.16.1. `kernel_info()` runs
+the bare command `gap` through `PATH`, so a second copy — Debian's 4.14 beside
+`/usr/bin/gap` — is what a process with no `$SAGE_LOCAL/bin` on its `PATH` would
+initialise `libgap.so.11` against, and that segfaults in `DoOperation1Args`
+instead of raising (sage#11). The package lists name no GAP; a list cannot remove
+one, so `docker/research-environment-incremental.Dockerfile` purges what a
+published base carries, and the check asserts the paths and the package list are
+clear and that an emptied environment either reports 4.16.1 or fails as a Python
+error.
+
 ## Provisioning an image that is already unpacked
 
 An image unpacked before a provisioning change reaches the same state without
