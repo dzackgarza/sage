@@ -5,7 +5,7 @@
 #   runtime-adoption.sh preflight   read-only: is the runtime quiet, does the
 #                                   recorded pre-state still hold?
 #   runtime-adoption.sh verify      read-only: what still differs from b1997dd
-#   runtime-adoption.sh adopt       bounded: the four reconciliation steps
+#   runtime-adoption.sh adopt       bounded: the reconciliation steps
 #   runtime-adoption.sh check       read-only: the image's own environment check
 #   runtime-adoption.sh rollback    restore the snapshotted working state
 set -euo pipefail
@@ -13,15 +13,19 @@ set -euo pipefail
 rootfs="${SAGE_IMAGE_ROOTFS:-$HOME/sage-image/rootfs}"
 sage="$rootfs/sage"
 snapshot="${SNAPSHOT:-$(cd "$(dirname "$0")" && pwd)/runtime-rollback-snapshot}"
-published=9f1680d2a7bcf001e50714768e6066e6652d1708
-base=b0cd7d86e21eb450ed90e4c83707920e1d5d429a
+published=2fc3f10ab7f80ed8641b979f5522ab6293a2c4ca
+# The runtime's source now, and what a rollback returns to: #6 moved it to 9f1680d2.
+base=9f1680d2a7bcf001e50714768e6066e6652d1708
 
 # Expected at the published commit.
 expected_uv_lock=f070d20194761a12d2a42218d1416e983a966a51ee7511447f7095e9560d9f98
 expected_launcher=d1df681a03f2fe847fff4d668fe5b3cb3b3d658b270b5f26d196e881c7aabb4b
 expected_provisioner=5af7c91b2b9eb9944b4d33c09529261cd660b0a56a82530dbc0f44a2936d3338
-expected_installer=a46fb9a7024d80bc1f922a4753f2a8624659bb59736bb1c93186f9005ab8e816
-expected_check=ee249af72d358cfd1d9188496ab9eda55475329c62aef689edfdcab3c9df7be4
+expected_installer=8cb222c15b65742ab0354575202aa4967da0cad3fe127f695a34be6f5d00f0b9
+expected_check=29e60809b3345d5a39160e72c3177ed6c68e7fa56741ed99b1ac1057cf12fe91
+# The file whose purge makes the image's GAP single (sage#11). It is load-bearing for
+# the environment now, so the live copy is held to the published bytes like the rest.
+expected_incremental_dockerfile=7806e89fa4e2c106a4d6e8329537ed1893ffb29f586c2cbed8f2e588ff9e16e0
 expected_meson=d8119d97dfa923a7887894458895930fa7348e1cf316ae62b3fb313ba2707201
 # The Maxima share prefix (a20baff): the file whose absence made a reconfigure
 # regenerate config.py with an empty MAXIMA_PREFIX.
@@ -53,15 +57,17 @@ preflight)
     say "free     : $(df -h "$rootfs" | awk 'NR==2 {print $4}')"
     ;;
 verify)
-    printf '%-34s %-18s %-18s %s\n' item live expected status
+    printf '%-44s %-18s %-18s %s\n' item live expected status
     check() { # name path expected
         live="$(sha "$2")"
         if [ "$live" = "$3" ]; then status=ok; elif [ "$live" = absent ]; then status=absent; else status=differs; fi
-        printf '%-34s %-18s %-18s %s\n' "$1" "${live:0:16}" "${3:0:16}" "$status"
+        printf '%-44s %-18s %-18s %s\n' "$1" "${live:0:16}" "${3:0:16}" "$status"
     }
     check uv.lock "$sage/uv.lock" "$expected_uv_lock"
     check install-research-repositories.sh "$sage/docker/install-research-repositories.sh" "$expected_installer"
     check research-environment-check.py "$sage/docker/research-environment-check.py" "$expected_check"
+    check research-environment-incremental.Dockerfile \
+        "$sage/docker/research-environment-incremental.Dockerfile" "$expected_incremental_dockerfile"
     check provision-lean-packages.sh "$sage/docker/provision-lean-packages.sh" "$expected_provisioner"
     check julia-launcher.sh "$sage/docker/julia-launcher.sh" "$expected_launcher"
     check src/.../meson.build "$sage/src/sage/graphs/meson.build" "$expected_meson"
@@ -74,7 +80,17 @@ verify)
     else
         say "GAP in \$SAGE_LOCAL  absent                          packages $(ls "$rootfs/usr/share/gap/pkg" 2>/dev/null | wc -l) (distribution tree)   expected $expected_gap_packages"
     fi
-    say "sage HEAD $(git -C "$sage" rev-parse HEAD) (published $published, pre-adoption $base)"
+    say "sage HEAD $(git -C "$sage" rev-parse HEAD) (published $published, rollback target $base)"
+    # sage#11: a rootfs reconciled from an image built before the purge still carries
+    # Debian's GAP, and the check refuses it, so the delta is reported here as well.
+    distribution=""
+    for path in /usr/bin/gap /usr/lib/gap /usr/share/gap /usr/lib/x86_64-linux-gnu/libgap.so.9; do
+        if [ -e "$rootfs$path" ]; then distribution="$distribution $path"; fi
+    done
+    say "distribution GAP :${distribution:- absent}"
+    # sage#10: sage-categories' own GAP allocation, installed by the sync into its
+    # checkout rather than into either GAP.
+    say "sage-categories .gap/pkg: $(ls "$rootfs/repos/sage-categories/.gap/pkg" 2>/dev/null | wc -l) (26 after the sync that installs them)"
     for repo in sage-indefinite-port sage-extensions research; do
         say "$repo: $(git -C "$rootfs/repos/$repo" rev-parse HEAD 2>/dev/null | cut -c1-12)"
     done
@@ -89,8 +105,34 @@ adopt)
     # a forced switch discards nothing that is not in the target commit.
     timeout 120 git -C "$sage" checkout -f "$published" || fail "checkout timed out (2 min)"
     say "source at $published"
-    ( cd "$sage" && timeout 1200 just research-environment-sync ) \
-        || fail "research-environment-sync exceeded 20 min; revert the lock and sync again"
+    # sage#11: Debian's GAP arrived in an old image layer, so a source checkout cannot
+    # remove it, and the Dockerfile's purge only reaches a build. Do here what that
+    # layer does in an image. Inside the rootfs uid 0 is this uid mapped by bwrap, so
+    # dpkg runs normally and nothing outside the rootfs is touched.
+    command -v bwrap >/dev/null || fail "bubblewrap is required to purge inside the rootfs"
+    bwrap --bind "$rootfs" / --proc /proc --dev /dev --tmpfs /tmp \
+        --unshare-user --uid 0 --gid 0 --clearenv \
+        --setenv PATH /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+        --setenv DEBIAN_FRONTEND noninteractive \
+        -- /bin/bash -s <<'PURGE' || fail "the distribution GAP purge failed"
+set -eu
+purged="$(dpkg-query -W -f='${Package} ${Status}\n' 'gap*' 'libgap*' 2>/dev/null \
+    | awk '$2 == "install" && $3 == "ok" && $4 == "installed" {print $1}')"
+if [ -n "$purged" ]; then
+    printf 'purging the distribution GAP: %s\n' "$purged"
+    apt-get purge -y $purged
+fi
+# libgap.pc.disabled is what an earlier repair renamed; it is dpkg's file no longer.
+rm -rf /usr/share/gap /usr/lib/gap \
+    /usr/lib/x86_64-linux-gnu/libgap.so.9 /usr/lib/x86_64-linux-gnu/libgap.so \
+    /usr/lib/x86_64-linux-gnu/pkgconfig/libgap.pc \
+    /usr/lib/x86_64-linux-gnu/pkgconfig/libgap.pc.disabled
+test ! -e /usr/bin/gap
+test ! -d /usr/share/gap
+PURGE
+    say "distribution GAP purged; the Sage-owned GAP is the only one left"
+    ( cd "$sage" && timeout 1800 just research-environment-sync ) \
+        || fail "research-environment-sync exceeded 30 min; revert the lock and sync again"
     timeout 60 install -m 0755 "$sage/docker/julia-launcher.sh" "$rootfs/usr/local/bin/julia" \
         || fail "launcher install failed"
     say "launcher installed"
@@ -108,8 +150,16 @@ rollback)
     cp -a "$snapshot/lake-views-index.json" "$rootfs/opt/lake-views/index.json"
     ln -sfn "$(cat "$snapshot/julia-launcher-target.txt")" "$rootfs/usr/local/bin/julia"
     git -C "$sage" checkout "$base" 2>/dev/null || git -C "$sage" checkout -f "$base"
-    git -C "$sage" apply "$(dirname "$0")/bliss-repair.patch" "$(dirname "$0")/bliss-repair-v2.patch"
-    say "restored source $base with both patches, module, stamps and launcher"
+    # The patches are in $base already when a rollback returns to a commit that
+    # carries them; applying them again would fail, so it is tried, not required.
+    if git -C "$sage" apply "$(dirname "$0")/bliss-repair.patch" "$(dirname "$0")/bliss-repair-v2.patch" 2>/dev/null; then
+        say "restored source $base with both patches, module, stamps and launcher"
+    else
+        say "restored source $base, module, stamps and launcher; its bliss patches are already in the commit"
+    fi
+    # The distribution GAP the adoption purged is not restored: it came from an image
+    # layer, and the Sage-owned GAP the runtime keeps is the one its modules link.
+    say "note: the purged distribution GAP is not restored by this rollback"
     say "to revert the lock too: git -C $sage checkout $base -- uv.lock && (cd $sage && just research-environment-sync)"
     ;;
 *)
