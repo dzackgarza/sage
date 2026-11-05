@@ -142,6 +142,35 @@ for module in (
     assert origin.startswith("/repos/"), (module, origin)
 importlib.import_module("sage_categories_homotopy")
 
+# sage-categories runs its finite-category engine on GAP releases allocated to its
+# own checkout: every consumer of a presented module fixes each package's path to
+# .gap/pkg before the first LoadPackage, so the image's GAP cannot substitute for
+# them. docker/install-research-repositories.sh runs the repository's own
+# .gap-packages.g, and the library's loader is the assertion -- one installation of
+# each exact version, loaded from that path.
+import ast
+import re
+
+from sage_categories.engines.gap import GapPackage, load_packages
+
+categories_root = Path("/repos/sage-categories")
+allocation = categories_root / ".gap" / "pkg"
+assert allocation.is_dir(), allocation
+declared = re.search(
+    r"^packages := \[(.*?)^\];",
+    (categories_root / ".gap-packages.g").read_text(encoding="utf-8"),
+    re.DOTALL | re.MULTILINE,
+)
+assert declared is not None, "no `packages := [ ... ];` in .gap-packages.g"
+# That list is GAP syntax whose elements are plain string triples -- name, version,
+# release URL -- so it reads as a Python literal.
+pinned = tuple(
+    GapPackage(name, version)
+    for name, version, _url in ast.literal_eval(f"[{declared.group(1)}]")
+)
+assert len(pinned) == len({package.name for package in pinned}), pinned
+assert len(load_packages(pinned)) == len(pinned), len(pinned)
+
 # The canonical pair: the port reads sage-extensions, and nothing revives the
 # predecessor research library it used to read. A stale pair still loads, so
 # the requirement the port installs and the category it composes are both

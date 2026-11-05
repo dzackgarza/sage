@@ -128,6 +128,20 @@ A bridge checkout changed inside the persistent volume brings its own
 `Project.toml`/`Manifest.toml`; its `just julia-deps` instantiates that revision
 into the writable depot.
 
+## GAP packages that belong to a checkout
+
+Sage's GAP carries the packages the image was built with
+(`$SAGE_LOCAL/lib/gap/pkg`), and the check loads its matrix-group set from there.
+A research checkout can allocate its own exact releases instead: `sage-categories`
+pins 26 homalg/CAP releases in `.gap-packages.g`, resolves them into the checkout
+with GAP's `PackageManager`, and forces every `LoadPackage` to that copy.
+`docker/install-research-repositories.sh` runs that step after the bridge's
+`julia-deps`, so an installed checkout has `.gap/pkg` and its finite-category
+engine — and every presented module built on it — finds the versions it declares
+rather than whatever the image's GAP ships. The check asserts the directory and
+loads each pinned release through the library's own loader, so a missing or
+substituted installation fails the image build.
+
 ## Provisioning an image that is already unpacked
 
 An image unpacked before a provisioning change reaches the same state without

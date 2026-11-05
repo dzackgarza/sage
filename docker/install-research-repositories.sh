@@ -7,6 +7,10 @@ set -euo pipefail
 sage_root="$(cd "$(dirname "$0")/.." && pwd)"
 repositories_root=/repos
 sage_python="${sage_root}/.venv/bin/python"
+# The GAP that libgap drives is the one the image builds from the pinned source
+# into $SAGE_LOCAL, and it stays a declared path rather than whatever PATH
+# resolves when this script runs outside the sync recipe.
+sage_gap="${sage_root}/.venv/bin/gap"
 
 # url -> "commit subdirectory..." for every git source of the lock.
 locked="$("${sage_python}" - "${sage_root}/uv.lock" <<'EOF'
@@ -59,6 +63,17 @@ cd "${sage_root}"
 uv pip install --python "${sage_python}" --no-deps "${editable[@]}"
 
 just -f "${repositories_root}/sage-julia-bridge/justfile" julia-deps
+
+# GAP packages are a per-checkout allocation, not an image-wide one: sage-categories
+# resolves the exact releases listed in its own .gap-packages.g with GAP's
+# PackageManager, and every consumer of its finite-category engine loads them from
+# the checkout (its justfile runs the same command with --packagedirs). GAP scans
+# the directories --packagedirs names when it starts, so a fresh checkout needs the
+# directory to exist before the step runs.
+categories_root="${repositories_root}/sage-categories"
+mkdir -p "${categories_root}/.gap/pkg"
+(cd "${categories_root}" && "${sage_gap}" -q -r \
+    --packagedirs "${categories_root}/.gap/pkg" "${categories_root}/.gap-packages.g")
 
 # Lean: the toolchain each checkout pins and the packages its manifest
 # resolves. The same script provisions an image that was unpacked earlier,
