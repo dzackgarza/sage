@@ -261,7 +261,17 @@ RUN set -eu; \
     echo "4e7e9e776634d24835250de67cde39b0d4af15bc432eb20697e6be6c28ea69e8  /tmp/julia.tar.gz" | sha256sum -c -; \
     mkdir /opt/julia; \
     tar -xzf /tmp/julia.tar.gz -C /opt/julia --strip-components=1; \
-    rm /tmp/julia.tar.gz
+    rm /tmp/julia.tar.gz; \
+    # Julia finds its system image relative to the binary it was started from, and
+    # the entry point this image publishes is the wrapper at /usr/local/bin/julia.
+    # Assert the layout here, where it is created, so a tree that cannot be loaded
+    # fails the build with a named error instead of surfacing as a Pkg failure
+    # hours later: measured in run 42227833648 as
+    # `could not load library "/usr/local/bin/../lib/julia/sys.so"`.
+    test -x /opt/julia/bin/julia; \
+    test -f /opt/julia/lib/julia/sys.so; \
+    test "$(/opt/julia/bin/julia --startup-file=no -e 'print(Sys.BINDIR)')" = /opt/julia/bin; \
+    echo "julia $(/opt/julia/bin/julia --version) with its sysimage at /opt/julia/lib/julia/sys.so"
 
 # /usr/local/bin/julia is the image's entry point rather than a symlink: it
 # adds /opt/julia-depot to whatever JULIA_DEPOT_PATH the caller has, so a

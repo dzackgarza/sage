@@ -25,6 +25,29 @@ RUN rsync --recursive --links --checksum \
  && rm -rf /tmp/sage-source
 
 ENV CCACHE_DIR=/ccache
+
+# An incremental build inherits /opt/julia from the image it is based on, and the
+# Sage environment's juliapkg requirements name an exact Julia
+# (sage_categories/juliapkg.json pins =1.12.7). An inherited tree of another release
+# sends juliapkg looking for a Julia at import time, which is the layout that could
+# not load its system image in run 42227833648. Installing the pinned release here
+# keeps the tree, its sysimage and the wrapper's target together in this image
+# instead of inherited by assumption. Keep these two values in step with
+# research-environment.Dockerfile, which installs the same tarball.
+RUN set -eu; \
+    version=1.12.7; \
+    sha256=4e7e9e776634d24835250de67cde39b0d4af15bc432eb20697e6be6c28ea69e8; \
+    if [ "$(/opt/julia/bin/julia --version 2>/dev/null)" = "julia version $version" ] && [ -f /opt/julia/lib/julia/sys.so ]; then \
+        echo "julia $version already present with its sysimage"; \
+    else \
+        curl -fsSL -o /tmp/julia.tar.gz "https://julialang-s3.julialang.org/bin/linux/x64/1.12/julia-${version}-linux-x86_64.tar.gz"; \
+        echo "$sha256  /tmp/julia.tar.gz" | sha256sum -c -; \
+        rm -rf /opt/julia; mkdir /opt/julia; \
+        tar -xzf /tmp/julia.tar.gz -C /opt/julia --strip-components=1; \
+        rm -f /tmp/julia.tar.gz; \
+        test -f /opt/julia/lib/julia/sys.so; \
+        echo "installed $(/opt/julia/bin/julia --version) with its sysimage"; \
+    fi
 # Debian's GAP does not belong in this environment and is not in the full
 # Dockerfile's package lists: Sage's `gap` spkg is excluded by name and no other
 # package depends on it, so a build from debian:trixie has none. A package list can
