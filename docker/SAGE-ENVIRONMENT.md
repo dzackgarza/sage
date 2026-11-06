@@ -330,7 +330,13 @@ Scope of what these runs establish, and what they do not:
   every hosted runner so far has skipped because it does not permit
   unprivileged user namespaces — the probe runs, the step is skipped by policy,
   and the job reports success without executing it. `consumer-acceptance` is
-  skipped on `develop` by its own condition. No port or spinor acceptance suite
+  skipped on `develop` by its own condition. When it runs, its two steps are the
+  statement a consumer makes: it constructs T_Co and computes its O(T_Co) generators
+  through `sage_extensions` and fails unless that returns, printing the installed
+  revisions of `sage-indefinite-port` and `sage-extensions` (sage#14); and it runs
+  sage-extensions' `test_isotropic_line_orbits_of_small_indefinite_lattices.sage`
+  from the installed checkout, which is the observation that the published counts
+  reproduce inside the published image rather than on a PYTHONPATH binding. No port or spinor acceptance suite
   was run against this digest.
 
 The Maxima regression is exercised by the reconfigure path in these runs, not

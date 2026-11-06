@@ -1,0 +1,25 @@
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -298,8 +298,22 @@
+           assert L.discriminant_representation_is_surjective() is True
+           print(f"discriminant_representation_is_surjective(): True in {time.time() - started:.1f}s")
+           PY
+ 
++      # Stage-1 acceptance is that the published counts reproduce inside the published
++      # image, not on a PYTHONPATH binding to a working tree. The module is run from the
++      # installed sage-extensions checkout, which is what the environment check asserts
++      # is installed from /repos/sage-extensions.
++      - name: Run sage-extensions' isotropic-line-orbit suite from the installed checkout
++        run: |
++          set -eu
++          checkout=/repos/sage-extensions
++          test -d "${checkout}/tests/lattices"
++          git -C "${checkout}" rev-parse HEAD
++          /sage/.venv/bin/python -m pytest -o addopts= \
++            "${checkout}/tests/lattices/test_isotropic_line_orbits_of_small_indefinite_lattices.sage" \
++            -q -p qc_sage_session
++
+   # The image is also the environment for hosts that cannot run Docker, chroot
+   # or PRoot, which docker/sage-image.py provides by unpacking the image and
+   # running it under bubblewrap. This job is the only place that path runs on a
+   # host it was not developed on; a regression there is invisible to every
