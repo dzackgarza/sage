@@ -197,10 +197,13 @@ def user_namespaces() -> str | None:
     knob = Path("/proc/sys/kernel/unprivileged_userns_clone")
     if knob.exists() and knob.read_text().strip() == "0":
         return "/proc/sys/kernel/unprivileged_userns_clone is 0"
+    # A failure here is the answer, not an error: the caller reports why the
+    # namespace is unavailable.
     probe = subprocess.run(
         ["bwrap", "--unshare-user-try", "--ro-bind", "/", "/", "--", "true"],
         capture_output=True,
         text=True,
+        check=False,
     )
     if probe.returncode != 0:
         reason = (probe.stderr or "bwrap cannot create a user namespace").strip().splitlines()[-1]
@@ -242,8 +245,10 @@ def resolve_in(rootfs: Path, path: Path) -> Path:
 
 
 def git_head(path: Path) -> str | None:
+    # A directory that is not a repository is "no revision", which the caller
+    # reports as such rather than as a crash.
     result = subprocess.run(
-        ["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True
+        ["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True, check=False
     )
     return result.stdout.strip() if result.returncode == 0 else None
 
@@ -341,7 +346,9 @@ def command(
     for key, value in variables.items():
         argv += ["--setenv", key, value]
     argv += ["--", *arguments]
-    return subprocess.run(argv).returncode
+    # The command's own failure is this tool's exit status, which the caller
+    # propagates; raising here would replace it with a traceback.
+    return subprocess.run(argv, check=False).returncode
 
 
 def main(argv: list[str]) -> int:
