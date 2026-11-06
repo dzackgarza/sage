@@ -128,71 +128,24 @@ A bridge checkout changed inside the persistent volume brings its own
 `Project.toml`/`Manifest.toml`; its `just julia-deps` instantiates that revision
 into the writable depot.
 
-## Which tag a consumer pulls
+## One image, every component
 
-Two tags come out of `docker/research-environment.Dockerfile`, and the difference is
-what a consumer job pays for before its first step runs:
-
-| tag | contains | pull | for |
-| --- | --- | --- | --- |
-| `ghcr.io/dzackgarza/sage:runtime-<sha>` (immutable), `:runtime` (moving) | Sage and its checkout, GAP 4.16.1 as the only GAP, the Sage venv, sage-categories' pinned GAP allocation, Julia 1.12.7 with its build-time-resolved depot, uv and just — no Lean, no research checkouts beyond that one | **≈ 5.3 GB** | Sage, GAP and Julia consumers: README examples, `sage.all` and libgap work, `sage_categories` and `sage_extensions` |
-| `ghcr.io/dzackgarza/sage:develop` | the runtime plus elan, the Lean packages and every research checkout under `/repos` | ≈ 17 GB | Lean consumers (the `--lean-view` checkouts) and anything importing the pinned checkouts |
-
-Julia is in the runtime image because the consumers it exists for need it: importing
+There is one tag, `ghcr.io/dzackgarza/sage:develop`, and it carries every component
+the environment is: Sage and its checkout, GAP with its packages, Julia with its
+resolved depot, the Lean toolchains and the research checkouts. A published tag with
+fewer components is not a smaller environment, it is a different one, and consumers
+written against this environment cannot be relied on to say which they need — the
+reason `#9` was first answered with a reduced tag and then corrected: importing
 `sage_categories` constructs functor object images through Catlab, which imports
-`juliacall`, so every `sage_categories` consumer — `sage_extensions` included —
-loads Julia. Its depot is resolved at build time for the same reason: at import
-`juliapkg` resolves the Julia and package requirements of every installed
-distribution, and against an unresolved depot that is a network fetch.
-`sage_categories/juliapkg.json` pins Julia `=1.12.7`, which is the release the image
-installs.
+`juliacall`, so even a Sage-and-GAP consumer loads Julia.
 
-The 5.3 GB is computed from the published layer sizes and the measured compression of
-each group (venv 2.92, Julia depot 3.05, lake-packages 3.24, checkouts 3.86): base
-layers 1.96 GB, Julia 0.29 GB, depot 1.39 GB, venv-only sync with the GAP allocation
-and the resolved depot ≈ 1.45 GB, plus the check layer. The published manifest size is
-the authority and replaces this number once the tag exists.
-
-The runtime's layers are a byte-identical prefix of the full image's, so the registry
-stores the difference and a runner that pulls both downloads only what it lacks.
-Both are built by the same job; the runtime tag is `--target runtime`.
-
-The split exists because every consumer job begins by pulling the image: on a fresh
-GitHub runner the full image is ~17 GB and "Initialize containers" measured 9.5
-minutes, while a README example's own work is under 10 seconds (sage#9).
-
-Each tag is checked for what it ships: `docker/research-environment-check.py` on
-`develop` (the full check, unchanged), and `docker/runtime-environment-check.py` on
-the runtime tag — Sage's version and checkout, GAP with its matrix-group packages,
-sage-categories' 26 pinned releases, and the documented consumer commands, including
-`import sage_categories`, run with the network unreachable against the image's own
-Julia depot. That last one is the property that matters: `juliacall` resolves Julia
-and its packages through `juliapkg` at import, so an image whose depot is not
-resolved fetches at import and an image whose Julia does not satisfy
-`sage_categories/juliapkg.json` fetches a Julia instead.
-
-
-Sage's GAP carries the packages the image was built with
-(`$SAGE_LOCAL/lib/gap/pkg`), and the check loads its matrix-group set from there.
-A research checkout can allocate its own exact releases instead: `sage-categories`
-pins 26 homalg/CAP releases in `.gap-packages.g`, resolves them into the checkout
-with GAP's `PackageManager`, and forces every `LoadPackage` to that copy.
-`docker/install-research-repositories.sh` runs that step after the bridge's
-`julia-deps`, so an installed checkout has `.gap/pkg` and its finite-category
-engine — and every presented module built on it — finds the versions it declares
-rather than whatever the image's GAP ships. The check asserts the directory and
-loads each pinned release through the library's own loader, so a missing or
-substituted installation fails the image build.
-
-Exactly one GAP exists in the image: the Sage-owned 4.16.1. `kernel_info()` runs
-the bare command `gap` through `PATH`, so a second copy — Debian's 4.14 beside
-`/usr/bin/gap` — is what a process with no `$SAGE_LOCAL/bin` on its `PATH` would
-initialise `libgap.so.11` against, and that segfaults in `DoOperation1Args`
-instead of raising (sage#11). The package lists name no GAP; a list cannot remove
-one, so `docker/research-environment-incremental.Dockerfile` purges what a
-published base carries, and the check asserts the paths and the package list are
-clear and that an emptied environment either reports 4.16.1 or fails as a Python
-error.
+A consumer job's pull is therefore the whole image, and `#9` is about making that
+pull cheap without removing anything: layer compression (zstd, which decompresses
+several times faster than gzip), a layer layout in which a source push changes only
+small layers (which is what `docker/research-environment-incremental.Dockerfile`
+does), and the runner's pull concurrency. Each is measured on the research README
+example job's "Initialize containers" time, against a `:develop` of identical
+content; the numbers belong in `results/`, not here.
 
 ## Provisioning an image that is already unpacked
 

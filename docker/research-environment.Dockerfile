@@ -240,50 +240,7 @@ RUN set -eu; \
     rm -rf /tmp/pcre /tmp/pcre.tar.bz2 /tmp/coxiter; \
     command -v coxiter
 
-# Two images come out of this file, and the order of the layers is what keeps the
-# smaller one small. A consumer job pays for the whole image before its first step
-# runs, so the layers a Sage-and-GAP consumer needs are built FIRST and the tag it
-# pulls stops there:
-#
-#   runtime    base + Sage's system packages + GAP + /sage + the Sage venv +
-#              sage-categories' pinned GAP allocation + Julia and its resolved
-#              depot. No Lean, no research checkouts beyond that one. Julia is here
-#              because importing sage_categories loads it: the engine builds functor
-#              object images through Catlab, which imports juliacall.
-#   develop    the runtime plus elan, the Lean packages and every research checkout
-#              under /repos (what "full" below adds).
-#
-# The runtime's layers are a byte-identical prefix of the full image's, so the
-# registry stores the difference rather than a second image, and Dockerfile edits
-# beyond the split point cannot invalidate the runtime tag.
-
-# ---------------------------------------------------------------------------
-# The runtime image: everything above, the source, the Sage virtual environment
-# and sage-categories' own GAP allocation. Nothing here needs Julia, Lean or the
-# research checkouts, so the tag a Sage-and-GAP consumer pulls stops at this point.
-# ---------------------------------------------------------------------------
-FROM base AS runtime
-
-# The source, once, here: everything above it depends only on Sage's package
-# metadata, so a source change reuses every system layer and rebuilds from this
-# point. ccache keeps compiler output across image builds; Meson uses it whenever
-# it is on PATH, and the cache mount is not part of the image.
-COPY . /sage
-ENV CCACHE_DIR=/ccache
-
-# RESEARCH_REPOSITORIES=0 runs the virtual-environment half of the recipe only:
-# `uv sync`, Sage compiled and installed. The other research checkouts and the Lean
-# packages are what the full image adds below.
-ARG RELOCK=false
-RUN --mount=type=cache,target=/ccache \
-    if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
- && RESEARCH_REPOSITORIES=0 just research-environment-sync && ccache --show-stats
-
-# The one research checkout the runtime image carries: its finite-category engine
-# loads homalg/CAP from the checkout itself rather than from the image's GAP
-# (sage#10), so a Sage consumer that builds a presented module needs this
-# allocation present. The other 23 checkouts stay in the full image.
-RUN docker/install-sage-categories-gap-packages.sh /repos
+FROM base AS environment
 
 # Julia, because the consumers this image exists for need it: importing
 # sage_categories constructs functor object images through Catlab, which imports
@@ -340,17 +297,13 @@ RUN set -eu; \
 ENV SAGE_BIN=/sage/.venv/bin/sage
 ENV PATH=/sage/.venv/bin:$PATH
 
-# What the runtime tag ships, asserted at build time: Sage and its checkout, GAP as
-# the only GAP with its matrix-group packages, sage-categories' 26 pinned releases,
-# and the documented consumer commands with the network unreachable.
-RUN "$SAGE_BIN" docker/runtime-environment-check.py
 
-# ---------------------------------------------------------------------------
-# The full image: the runtime plus elan, the Lean packages and every research
-# checkout. This is the `develop` tag.
-# ---------------------------------------------------------------------------
-FROM runtime AS environment
+COPY . /sage
 
+# ccache keeps compiler output across image builds; Meson uses it whenever it
+# is on PATH. The cache mount is not part of the image, and CI carries it
+# between runs, so a source change recompiles only the modules it touches.
+ENV CCACHE_DIR=/ccache
 
 # Lean 4 through elan; install-research-repositories.sh installs the toolchain
 # each Lean checkout pins.
@@ -360,23 +313,19 @@ RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-ini
     | sh -s -- -y --no-modify-path --default-toolchain none \
  && elan --version
 
-# The whole recipe: the virtual environment (already built) and then every research
-# checkout, the bridge's julia-deps, sage-categories' GAP releases and the Lean
-# packages each checkout pins.
+# The recipe: the Sage virtual environment, then every research checkout, the
+# bridge's julia-deps, sage-categories' GAP releases and the Lean packages each
+# checkout pins.
 RUN --mount=type=cache,target=/ccache \
     just research-environment-sync && ccache --show-stats
 
 FROM scratch AS lock
 COPY --from=environment /sage/uv.lock /uv.lock
 
-# The default (last) stage is the full image: `docker build` with no --target
-# produces the `develop` tag, and --target runtime produces the other one.
 FROM environment
 
 # Fail the build if any system the image exists to provide is absent. The Lean
 # part of the check imports Mathlib from a pinned checkout, which exercises
 # docker/provision-lean-packages.sh against whatever this build left in place: a
 # full build is the only one that runs it with an empty packages directory.
-# This is the full check and it stays on this tag; the runtime tag has its own,
-# which covers only what the runtime image ships.
 RUN "$SAGE_BIN" docker/research-environment-check.py
