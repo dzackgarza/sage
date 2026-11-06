@@ -1,4 +1,4 @@
-bliss = cc.find_library('bliss', required: get_option('bliss'), disabler: true)
+bliss = dependency('libbliss-cxx', required: get_option('bliss'), disabler: true)
 
 mcqd = disabler()
 mcqd = dependency('Mcqd', method: 'cmake', required: false, disabler: true)
