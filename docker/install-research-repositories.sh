@@ -59,17 +59,7 @@ while read -r url; do
     fi
 done < "${sage_root}/docker/research-repositories.txt"
 
-# Run this OUTSIDE the project. From ${sage_root} uv discovers that project's
-# [tool.uv.sources] and [tool.uv] override-dependencies, which name every research
-# package by its git URL so one resolution can carry the lock -- and an override
-# applies to an `-e <path>` requirement as well, so the checkout would be replaced
-# by the URL. Measured in run 42255840314: `-e /repos/research` became
-# `dzack-research @ git+.../research@e46b96a8` and `-e /repos/sage-extensions`
-# became `sage-extensions @ git+...@d4c75e3b`, while the two packages no source
-# names (pandoc-config, sage-categories-homotopy) did install from file:///repos.
-# Measured again as a dry run: from the project directory the same command resolves
-# `dzack-research @ git+...`, from outside it resolves `dzack-research @ file:///repos/research`.
-cd "${repositories_root}"
+cd "${sage_root}"
 uv pip install --python "${sage_python}" --no-deps "${editable[@]}"
 
 # They must be editable installs, not wheels from those URLs: that property is what
