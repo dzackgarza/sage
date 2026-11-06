@@ -979,7 +979,7 @@ wheels = [
 [[package]]
 name = "dzack-research"
 version = "0.1.1"
-source = { git = "https://github.com/dzackgarza/research#3a102c71d89f761d25f6f23d100d5d7f42bce508" }
+source = { git = "https://github.com/dzackgarza/research#dbf178cf30c1d26e5f98753c1d9cdbcc16ee3d25" }
 dependencies = [
     { name = "haystack-ai" },
     { name = "pandoc-config" },
@@ -2105,7 +2105,7 @@ wheels = [
 [[package]]
 name = "latticedb"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/lattice-database#c069bdfb7a2dc170b902dba9b9acf0b4c513986f" }
+source = { git = "https://github.com/dzackgarza/lattice-database#d1711db05f11405a05269315d6b204b56b527e3d" }
 dependencies = [
     { name = "cyclopts" },
     { name = "cypari2", version = "2.2.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
@@ -4007,7 +4007,7 @@ source = { git = "https://github.com/dzackgarza/sage-categories?subdirectory=nat
 [[package]]
 name = "sage-extensions"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-extensions#6e18050953791a03d9ff7e6ee9b136ab99045d46" }
+source = { git = "https://github.com/dzackgarza/sage-extensions#3e4812618ce0d5f67dc88959a161ac6ebeb75da2" }
 dependencies = [
     { name = "networkx" },
     { name = "sage-categories" },
