@@ -8,25 +8,14 @@ resolution-markers = [
     "sys_platform == 'ios'",
 ]
 
-[manifest]
-overrides = [
-    { name = "dzack-research", git = "https://github.com/dzackgarza/research" },
-    { name = "jupyter-mcp-server", git = "https://github.com/dzackgarza/jupyter-mcp-server" },
-    { name = "latticedb", git = "https://github.com/dzackgarza/lattice-database" },
-    { name = "sage-categories", git = "https://github.com/dzackgarza/sage-categories" },
-    { name = "sage-extensions", git = "https://github.com/dzackgarza/sage-extensions" },
-    { name = "sage-indefinite-port", git = "https://github.com/dzackgarza/sage-indefinite-port" },
-    { name = "sage-julia-bridge", git = "https://github.com/dzackgarza/sage-julia-bridge" },
-    { name = "sage-lsp", git = "https://github.com/dzackgarza/sage-lsp-server" },
-    { name = "sage-mypy-category-plugin", git = "https://github.com/dzackgarza/sagemath-mypy-plugin" },
-    { name = "sage-stubs", git = "https://github.com/dzackgarza/sage-stubs.git" },
-    { name = "tree-sitter-sage", git = "https://github.com/dzackgarza/tree-sitter-sage" },
-    { name = "vinal", git = "https://github.com/dzackgarza/vinal.git" },
-]
-
 [[manifest.dependency-metadata]]
 name = "jupymake"
 version = "0.9"
+
+[[manifest.dependency-metadata]]
+name = "sage-indefinite-port"
+version = "0.1.0"
+requires-dist = ["pynormaliz", "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions"]
 
 [[manifest.dependency-metadata]]
 name = "sage-numerical-backends-coin"
@@ -2116,7 +2105,7 @@ wheels = [
 [[package]]
 name = "latticedb"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/lattice-database#72b7a4c4fe82766d4a39054e811e6a9660070bb4" }
+source = { git = "https://github.com/dzackgarza/lattice-database#acb4403fe48831205799ac95d71a24214c6f0852" }
 dependencies = [
     { name = "cyclopts" },
     { name = "cypari2", version = "2.2.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
@@ -4964,7 +4953,7 @@ wheels = [
 [[package]]
 name = "vinal"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/vinal.git#6240a17558672017da15ce27f7891c58b95c1031" }
+source = { git = "https://github.com/dzackgarza/vinal#6240a17558672017da15ce27f7891c58b95c1031" }
 dependencies = [
     { name = "numpy" },
     { name = "scipy" },
