@@ -68,6 +68,17 @@ apt's `_apt` sandbox user in a namespace that maps one uid. Both now run inside 
 runtime through `docker/sage-image.py run`, and the purge passes
 `-o APT::Sandbox::User=root`.
 
+## A property of the in-place adoption: the source stamp
+
+The runtime's `/sage` is at `281da26f` while `/sage/.spinor-base-revision` still reads
+`b0cd7d86`. That stamp is written by the image workflow, not by an adoption, so an
+adopted rootfs keeps the stamp of the image it came from; `git -C /sage rev-parse
+HEAD` is the authority for what the runtime carries. `docker/runtime-environment-check.py`
+asserts the two agree, and that is correct because it runs only inside a build, where
+the workflow writes the fresh revision into the stamp first. The two images this
+record accepts for consumers — the adopted rootfs and the published image — differ in
+exactly this, and only for the adopted one.
+
 ## The check, verbatim
 
 ```

@@ -24,26 +24,23 @@ subprocess.run([
 ], check=True)
 
 # Sage ships what the image declares: the version Sage reports and the commit the
-# checkout sits at are both read from the tree, not assumed. The build records that
-# commit in .spinor-base-revision; a runtime that was adopted in place carries the
-# stamp of the image it came from, so the commit has to exist in this repository
-# rather than be the one this tree is on.
+# checkout sits at are both read from the tree, not assumed. This runs only inside a
+# build, and the publish workflow writes `git rev-parse HEAD` into the stamp before
+# the build starts (research-environment-image.yml, both the ordinary and the spinor
+# revision steps), so the two must agree. A rootfs adopted in place is not a built
+# image and is not what this check sees: its stamp names the image it came from,
+# which results/runtime-adoption-220293469c53-acceptance.md records.
 from sage.version import version as sage_version
 
+declared_source = Path("/sage/.spinor-base-revision")
 sage_root_commit = subprocess.run(
     ["git", "-C", "/sage", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
 ).stdout.strip()
 assert len(sage_root_commit) == 40, sage_root_commit
-declared_source = Path("/sage/.spinor-base-revision")
-if declared_source.is_file():
-    recorded = declared_source.read_text().strip()
-    assert len(recorded) == 40, recorded
-    exists = subprocess.run(
-        ["git", "-C", "/sage", "cat-file", "-e", f"{recorded}^{{commit}}"], check=False
-    )
-    assert exists.returncode == 0, (recorded, "is not a commit in /sage")
-    print(f"image source {recorded}, checkout {sage_root_commit}")
-print(f"Sage {sage_version()} at {sage_root_commit}")
+assert declared_source.is_file(), declared_source
+recorded = declared_source.read_text().strip()
+assert recorded == sage_root_commit, (recorded, sage_root_commit)
+print(f"Sage {sage_version()} at {sage_root_commit} (the image's recorded source)")
 
 # Exactly one GAP, the one built from Sage's pinned source: no Debian copy is
 # shipped, because kernel_info() runs the bare command `gap` and a second copy
