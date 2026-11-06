@@ -284,15 +284,6 @@ RUN set -eu; \
         println("JSON ", pkgversion(JSON), ", Oscar ", Oscar.VERSION_NUMBER, " loaded")'; \
     chmod -R a+rX /opt/julia-depot
 
-# Resolve what those distributions require into the depot, so no later import has
-# anything left to fetch: sage_categories pins Catlab =0.17.6 and GATlab =0.2.4, and
-# a fresh depot resolves them in about four minutes. The runtime check below then
-# asserts the property with the network unreachable.
-RUN set -eu; \
-    jl="$(command -v julia)"; \
-    HOME=/root python -c 'import juliapkg; juliapkg.resolve()'; \
-    chmod -R a+rX /opt/julia-depot; \
-    echo "depot resolved at build time against $("$jl" --version)"
 
 ENV SAGE_BIN=/sage/.venv/bin/sage
 ENV PATH=/sage/.venv/bin:$PATH
@@ -318,6 +309,19 @@ RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-ini
 # checkout pins.
 RUN --mount=type=cache,target=/ccache \
     just research-environment-sync && ccache --show-stats
+
+# Resolve what the installed distributions require into the depot, so no later
+# import has anything left to fetch: sage_categories pins Catlab =0.17.6 and GATlab
+# =0.2.4, and a fresh depot resolves them in about four minutes. This runs HERE, and
+# with the Sage venv's own interpreter, because juliapkg is a dependency of this
+# environment: it arrives with the sync above and is what `import sage_categories`
+# will use. Resolving earlier ran the uv-managed python, which has no juliapkg --
+# measured: `ModuleNotFoundError: No module named 'juliapkg'` in run 42220489790.
+RUN set -eu; \
+    jl="$(command -v julia)"; \
+    HOME=/root /sage/.venv/bin/python -c 'import juliapkg; juliapkg.resolve()'; \
+    chmod -R a+rX /opt/julia-depot; \
+    echo "depot resolved at build time against $("$jl" --version)"
 
 FROM scratch AS lock
 COPY --from=environment /sage/uv.lock /uv.lock
