@@ -281,13 +281,25 @@ COPY --chmod=0755 docker/julia-launcher.sh /usr/local/bin/julia
 
 # Package caches must load on both the CI CPU and the host CPU.
 # https://docs.julialang.org/en/v1.12/manual/environment-variables/#JULIA_CPU_TARGET
-# JULIA_BINDIR states what the launcher states, for processes that reach julia
-# through PATH rather than through the wrapper: a caller that derives the sysimage
-# from the name it invoked otherwise looks for /usr/local/lib/julia/sys.so. Measured
-# in run 42288361749.
+# Two bindirs, because two callers derive Julia's location differently.
+#
+# JULIA_BINDIR is Julia's own: it fixes a julia process started as a child, which is
+# what juliapkg's resolve step runs (juliapkg/deps.py copies the environment it is
+# given) and what the launcher states for itself.
+#
+# PYTHON_JULIACALL_BINDIR is juliacall's, and it is the one that matters for the
+# failure: juliacall loads libjulia INTO the Python process and passes bindir to
+# jl_init_with_image (juliacall/__init__.py:264-270). It takes bindir from
+# PYTHON_JULIACALL_BINDIR when set (…:164, envkey='PYTHON_JULIACALL_BINDIR'), and
+# otherwise from os.path.dirname(exepath) (…:231-232) -- the directory of the name it
+# resolved, which is /usr/local/bin when juliapkg found the launcher script, giving
+# /usr/local/lib/julia/sys.so. dirname of a path is not a symlink resolution, so
+# replacing the launcher with a symlink would not change it; stating the bindir does,
+# and with bindir set juliacall also takes exepath = bindir/julia (…:190-192).
 ENV JULIA_DEPOT_PATH=/opt/julia-depot: \
     JULIA_CPU_TARGET=generic \
-    JULIA_BINDIR=/opt/julia/bin
+    JULIA_BINDIR=/opt/julia/bin \
+    PYTHON_JULIACALL_BINDIR=/opt/julia/bin
 
 RUN set -eu; \
     julia --startup-file=no --color=no -e ' \

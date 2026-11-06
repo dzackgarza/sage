@@ -1,0 +1,65 @@
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -405,8 +405,62 @@
+           COMPARE
+           done
+           exit "${status}"
+ 
++      # The other stage-1 records, compared by the same rule: the provenance block is
++      # dropped and every non-blank line after it, right-trimmed, is held to the
++      # committed run file. A missing run file fails the step and says so -- a record
++      # with no committed run has nothing to reproduce against, and is not skipped.
++      - name: Reproduce the stage-1 known-family records
++        run: |
++          set -uo pipefail
++          checkout=/repos/research
++          git -C "${checkout}" rev-parse HEAD
++          status=0
++          for record in coble_plane-half-index coble_TEn-dictionaries coble_TEn-sandwich coble_TEn-opplus-split; do
++            script="${checkout}/computations/reports/${record}.py"
++            expected="${checkout}/computations/reports/${record}-run.txt"
++            actual="/tmp/${record}.out"
++            if [ ! -f "${script}" ]; then
++              echo "${record}: no script in this checkout"; status=1; continue
++            fi
++            if [ ! -f "${expected}" ]; then
++              echo "${record}: no committed run file beside it; nothing to compare against"
++              status=1; continue
++            fi
++            PYTHONPATH="${checkout}/src" \
++              /sage/.venv/bin/python "${script}" > "${actual}" 2>&1 || {
++                echo "${record}: the script exited non-zero; its output follows"
++                cat "${actual}"; status=1; continue
++              }
++            /sage/.venv/bin/python - "${expected}" "${actual}" "${record}" <<'COMPARE' || status=1
++          import difflib
++          import sys
++
++          expected_path, actual_path, name = sys.argv[1:4]
++
++
++          def results(path):
++              lines = open(path, encoding="utf-8").read().splitlines()
++              if lines and lines[0].strip() == "provenance":
++                  while lines and lines[0].strip():
++                      lines.pop(0)
++                  while lines and not lines[0].strip():
++                      lines.pop(0)
++              return [line.rstrip() for line in lines if line.strip()]
++
++
++          want, got = results(expected_path), results(actual_path)
++          if want == got:
++              print(f"{name}: reproduced, {len(got)} result lines match")
++              raise SystemExit(0)
++          print(f"{name}: differs")
++          print("\n".join(difflib.unified_diff(want, got, "committed", "run here", lineterm="", n=2)))
++          raise SystemExit(1)
++          COMPARE
++          done
++          exit "${status}"
++
+       - name: Upload the reproduced record outputs
+         if: always()
+         uses: actions/upload-artifact@v4
+         with:
