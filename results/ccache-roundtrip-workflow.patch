@@ -1,6 +1,6 @@
 --- a/.github/workflows/research-environment-image.yml
 +++ b/.github/workflows/research-environment-image.yml
-@@ -105,20 +105,28 @@
+@@ -103,20 +103,28 @@
          run: |
            sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
            df -h /
@@ -31,9 +31,9 @@
          with:
            registry: ghcr.io
            username: ${{ github.actor }}
-@@ -213,8 +221,19 @@
-           tags: ${{ steps.image-tag.outputs.runtime_tags }}
-           labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
+@@ -187,8 +195,19 @@
+           # Layers go to the registry: the Actions cache is capped at 10 GB
+           # per repository, which a Sage image's layers exceed.
            cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
            cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache,mode=max
 +      # Back out of the builder into `ccache/`, which actions/cache saves at job end.
