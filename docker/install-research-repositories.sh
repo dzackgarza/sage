@@ -78,7 +78,13 @@ for argument in sys.argv[1:]:
 print("\n".join(sorted(names)))
 EOF
 )"
-installed="$(uv pip list --python "${sage_python}" --editable 2>/dev/null | awk 'NR>2 {print $1}' | sort -u)"
+# PEP 503 normalization on both sides: uv prints a distribution under its
+# normalized name (jupyter-mcp-server), while a project's own pyproject may spell it
+# with the underscore its module uses (jupyter_mcp_server). Run 42274146900 failed
+# the comparison on exactly that pair.
+normalize() { tr '[:upper:]' '[:lower:]' | sed -e 's/[-_.]\{1,\}/-/g' | sort -u; }
+expected="$(printf '%s\n' "${expected}" | normalize)"
+installed="$(uv pip list --python "${sage_python}" --editable 2>/dev/null | awk 'NR>2 {print $1}' | normalize)"
 missing="$(comm -23 <(printf '%s\n' "${expected}") <(printf '%s\n' "${installed}"))"
 if [ -n "${missing}" ]; then
     printf 'FATAL: these were to be installed from their checkouts and are not editable: %s\n' \

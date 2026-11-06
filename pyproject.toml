@@ -810,6 +810,17 @@ no-binary-package = ["cypari2", "pplpy", "primecountpy"]
 # sagemath-objects 10.7, which does not compile on Python 3.14. uv builds it
 # just to read its metadata, so `uv lock` fails; state that metadata here.
 [[tool.uv.dependency-metadata]]
+name = "sage-numerical-backends-coin"
+requires-dist = ["sphinx"]
+version = "10.4"
+
+# jupymake ships only an sdist whose build runs polymake-config; uv builds it
+# just to read its metadata, so state that metadata here.
+[[tool.uv.dependency-metadata]]
+name = "jupymake"
+requires-dist = []
+version = "0.9"
+[[tool.uv.dependency-metadata]] # sage-indefinite-port states its sage-extensions requirement as a commit; the canonical form here is the bare URL, since the lock pins the revision. Removed when the port resumes.
 name = "sage-indefinite-port"
 requires-dist = [
   "PyNormaliz",
