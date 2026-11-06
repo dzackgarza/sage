@@ -1,23 +1,72 @@
 --- a/.github/workflows/research-environment-image.yml
 +++ b/.github/workflows/research-environment-image.yml
-@@ -174,10 +174,16 @@
+@@ -43,8 +43,13 @@
+         description: Lock every git-sourced research package at its head, build the image on that lock, and commit it
+         required: false
+         type: boolean
+         default: false
++      full_rebuild:
++        description: Build the main Dockerfile from scratch instead of incrementally, which also republishes the runtime tag
++        required: false
++        type: boolean
++        default: false
+ concurrency:
+   group: research-environment-image-${{ inputs.sage_source_sha || github.ref }}
+   cancel-in-progress: false
+ jobs:
+@@ -163,22 +168,46 @@
+         if: steps.image-tag.outputs.exists != 'true'
+         env:
+           BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/sage:develop
+           IS_SPINOR: ${{ inputs.sage_source_sha != '' }}
+-        run: |
+-          if [ "$IS_SPINOR" = "true" ]; then
++          FORCE_FULL: ${{ inputs.full_rebuild }}
++        run: |
++          if [ "$IS_SPINOR" = "true" ] || [ "$FORCE_FULL" = "true" ]; then
+             echo "kind=full" >> "$GITHUB_OUTPUT"
++            echo "runtime_base=$BASE_IMAGE" >> "$GITHUB_OUTPUT"
+             exit 0
+           fi
+           base_revision="$(docker buildx imagetools inspect "$BASE_IMAGE" --format '{{ index .Image.Config.Labels "org.opencontainers.image.revision" }}')"
+           git -C sage-source fetch --depth 1 origin "$base_revision"
            changes="$(git -C sage-source diff --name-status "$base_revision" HEAD)"
            printf 'Changes since the base image (%s):\n%s\n' "$base_revision" "$changes"
++          runtime_image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:runtime-$base_revision"
            if grep -qE '^D|docker/research-environment\.Dockerfile$' <<<"$changes"; then
              echo "kind=full" >> "$GITHUB_OUTPUT"
-+            # The runtime tag comes from the main Dockerfile's runtime stage.
+-          else
+-            echo "kind=incremental" >> "$GITHUB_OUTPUT"
+-          fi
 +            echo "runtime_base=$BASE_IMAGE" >> "$GITHUB_OUTPUT"
-           else
-             echo "kind=incremental" >> "$GITHUB_OUTPUT"
-+            # ...and from the previous runtime image on a source-only push, where the
-+            # main Dockerfile's `COPY . /sage` would miss and the Sage compile below
-+            # it would run from scratch on every push (sage#9).
-+            echo "runtime_base=ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:runtime-$base_revision" >> "$GITHUB_OUTPUT"
-           fi
++            exit 0
++          fi
++          # The incremental runtime build derives from the runtime tag of exactly the
++          # image it is rebuilding, so that tag has to exist. A run whose runtime step
++          # failed publishes :develop and no runtime-<sha>; without this the next
++          # source push would derive from a tag that is not there and die inside the
++          # build on a pull. Proven absence names the repair; an unreadable registry
++          # refuses to guess.
++          set +e
++          runtime_output="$(docker manifest inspect "$runtime_image" 2>&1)"
++          runtime_status=$?
++          set -e
++          if [ "$runtime_status" -ne 0 ]; then
++            if grep -qiE 'manifest unknown|no such manifest|not found|404' <<<"$runtime_output"; then
++              echo "FATAL: $runtime_image does not exist, so there is no base for the incremental runtime build; rebuild the runtime tag with a workflow_dispatch of this workflow with full_rebuild=true" >&2
++              exit 1
++            fi
++            printf '%s\n' "$runtime_output" >&2
++            echo "Registry lookup failed; refusing to build the runtime image on an unproven base" >&2
++            exit 1
++          fi
++          echo "kind=incremental" >> "$GITHUB_OUTPUT"
++          echo "runtime_base=$runtime_image" >> "$GITHUB_OUTPUT"
        - name: Build and publish the selected Sage image
          if: steps.image-tag.outputs.exists != 'true'
          uses: docker/build-push-action@v6
-@@ -203,12 +209,12 @@
+         with:
+@@ -203,12 +232,12 @@
          if: steps.image-tag.outputs.exists != 'true'
          uses: docker/build-push-action@v6
          with:

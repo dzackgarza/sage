@@ -35,31 +35,28 @@ fi
 
 categories_root="${repositories_root}/sage-categories"
 
-# The pinned count, read before any work happens.
-pinned="$("${sage_python}" - "${sage_root}/uv.lock" "${categories_root}" <<'EOF'
+# A rebuild on top of a previous runtime image carries the checkout and its whole
+# allocation already: when the lock's commit is what the checkout sits at and every
+# pinned release is installed, the step has nothing to do. This is the common case
+# for a source-only push, where the clone and 26 downloads would otherwise run
+# again. The pinned count comes from that checkout's own .gap-packages.g -- there is
+# no checkout to read it from on a first build, and then there is nothing to skip.
+if [ -d "${categories_root}/.git" ] && [ -f "${categories_root}/.gap-packages.g" ]; then
+    pinned="$("${sage_python}" - "${categories_root}/.gap-packages.g" <<'EOF'
 import ast
 import re
 import sys
 
-manifest = sys.argv[1]
-checkout = sys.argv[2] + "/.gap-packages.g"
-try:
-    text = open(checkout, encoding="utf-8").read()
-except FileNotFoundError:
-    text = open(sys.argv[1], encoding="utf-8").read()  # not cloned yet
-declared = re.search(r"^packages := \[(.*?)^\];", text, re.DOTALL | re.MULTILINE)
+declared = re.search(
+    r"^packages := \[(.*?)^\];", open(sys.argv[1], encoding="utf-8").read(),
+    re.DOTALL | re.MULTILINE,
+)
 print(len(ast.literal_eval(f"[{declared.group(1)}]")) if declared else 0)
 EOF
 )"
-
-# A rebuild on top of a previous runtime image carries the checkout and its whole
-# allocation already: when the lock's commit is what the checkout sits at and every
-# pinned release is installed, the step has nothing to do. This is the common case
-# for a source-only push, where the clone and 26 downloads would otherwise run again.
-if [ -d "${categories_root}/.git" ]; then
     current="$(git -C "${categories_root}" rev-parse HEAD 2>/dev/null || true)"
     installed="$(find "${categories_root}/.gap/pkg" -mindepth 1 -maxdepth 1 -type d ! -name '*.old' 2>/dev/null | wc -l)"
-    if [ "${current}" = "${commit}" ] && [ "${installed}" -ge "${pinned}" ] && [ "${pinned}" -gt 0 ]; then
+    if [ "${current}" = "${commit}" ] && [ "${pinned}" -gt 0 ] && [ "${installed}" -ge "${pinned}" ]; then
         echo "sage-categories at ${commit} with ${installed} of ${pinned} pinned GAP packages: nothing to do"
         exit 0
     fi
