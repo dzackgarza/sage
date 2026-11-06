@@ -13,7 +13,7 @@ set -euo pipefail
 rootfs="${SAGE_IMAGE_ROOTFS:-$HOME/sage-image/rootfs}"
 sage="$rootfs/sage"
 snapshot="${SNAPSHOT:-$(cd "$(dirname "$0")" && pwd)/runtime-rollback-snapshot}"
-published=6a1d6d9f8ebf276a06245f3045b78834219ea09a
+published=281da26ffdce65f72203b75fe7c932684ce8fcff
 # The runtime's source now, and what a rollback returns to: #6 moved it to 9f1680d2.
 base=9f1680d2a7bcf001e50714768e6066e6652d1708
 
@@ -22,7 +22,7 @@ expected_uv_lock=f070d20194761a12d2a42218d1416e983a966a51ee7511447f7095e9560d9f9
 expected_launcher=d1df681a03f2fe847fff4d668fe5b3cb3b3d658b270b5f26d196e881c7aabb4b
 expected_provisioner=3ad79f623b4a2238152b9356a156ce17ea6099052367517b0dca93fc7e3cc973
 expected_installer=8cb222c15b65742ab0354575202aa4967da0cad3fe127f695a34be6f5d00f0b9
-expected_check=46ca46caab41e598f44e17aff565268a608a911b55b2cfac943558124cf5a030
+expected_check=3937c6365071b0fd44000ca962195731f54bb4503b445962a39afeb23231957e
 # The file whose purge makes the image's GAP single (sage#11). It is load-bearing for
 # the environment now, so the live copy is held to the published bytes like the rest.
 expected_incremental_dockerfile=216671b91d5058a035f00f79182274edf2958f6870791dd2283d2d3cf01a8b20
