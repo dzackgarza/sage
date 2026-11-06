@@ -1,8 +1,12 @@
 default:
     @just --list
 
-# Build Sage and compose the locked research projects into Sage's virtual environment.
-research-environment-sync:
+# Build Sage's virtual environment: the locked Python set, Sage compiled and
+# installed into it, and nothing from /repos. This is the whole of what the
+# runtime image needs, and it is separate from the research provisioning below so
+# that a consumer that wants only Sage and GAP does not pull the rest.
+# Sage only, for the runtime image
+research-environment-venv:
     #!/usr/bin/env bash
     set -euo pipefail
     sage_root="{{justfile_directory()}}"
@@ -44,6 +48,22 @@ research-environment-sync:
     meson compile -C "${sage_build_path}"
     meson install -C "${sage_build_path}"
 
+    uv pip check --python "${sage_environment}/bin/python"
+
+# Sage plus every research checkout under /repos, the Julia depot and the Lean
+# packages. RESEARCH_REPOSITORIES=0 stops after the virtual environment, which is
+# what the runtime image builds.
+# Sage, the checkouts, Julia and Lean
+research-environment-sync: research-environment-venv
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sage_root="{{justfile_directory()}}"
+    sage_environment="${sage_root}/.venv"
+
+    if [ "${RESEARCH_REPOSITORIES:-1}" = 0 ]; then
+        echo "RESEARCH_REPOSITORIES=0: stopping at the Sage virtual environment"
+        exit 0
+    fi
     docker/install-research-repositories.sh
 
     uv pip check --python "${sage_environment}/bin/python"

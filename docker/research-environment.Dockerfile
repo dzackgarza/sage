@@ -15,7 +15,7 @@
 # build/pkgs/*/distros/debian.txt names a package Debian ships. Ubuntu 24.04
 # is missing five of them -- maxima-sage and HiGHS among them -- so the same
 # metadata that resolves completely here resolves partially there.
-FROM debian:trixie AS environment
+FROM debian:trixie AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 # /sage is the fork's git checkout. Meson's vcs_tag would stamp its commit into
@@ -240,6 +240,72 @@ RUN set -eu; \
     rm -rf /tmp/pcre /tmp/pcre.tar.bz2 /tmp/coxiter; \
     command -v coxiter
 
+# Two images come out of this file, and the order of the layers is what keeps the
+# smaller one small. A consumer job pays for the whole image before its first step
+# runs, so the layers a Sage-and-GAP consumer needs are built FIRST and the tag it
+# pulls stops there:
+#
+#   runtime    base + Sage's system packages + GAP + /sage + the Sage venv +
+#              sage-categories' pinned GAP allocation. No Julia, no Lean, no
+#              research checkouts beyond that one.
+#   develop    the runtime plus Julia's depot, elan, the Lean packages and every
+#              research checkout under /repos (what "full" below adds).
+#
+# The runtime's layers are a byte-identical prefix of the full image's, so the
+# registry stores the difference rather than a second image, and Dockerfile edits
+# beyond the split point cannot invalidate the runtime tag.
+
+# ---------------------------------------------------------------------------
+# The runtime image: everything above, the source, the Sage virtual environment
+# and sage-categories' own GAP allocation. Nothing here needs Julia, Lean or the
+# research checkouts, so the tag a Sage-and-GAP consumer pulls stops at this point.
+# ---------------------------------------------------------------------------
+FROM base AS runtime
+
+# The source, once, here: everything above it depends only on Sage's package
+# metadata, so a source change reuses every system layer and rebuilds from this
+# point. ccache keeps compiler output across image builds; Meson uses it whenever
+# it is on PATH, and the cache mount is not part of the image.
+COPY . /sage
+ENV CCACHE_DIR=/ccache
+
+# RESEARCH_REPOSITORIES=0 runs the virtual-environment half of the recipe only:
+# `uv sync`, Sage compiled and installed. The research checkouts, the Julia depot
+# and the Lean packages are what the full image adds below.
+ARG RELOCK=false
+RUN --mount=type=cache,target=/ccache \
+    if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
+ && RESEARCH_REPOSITORIES=0 just research-environment-sync && ccache --show-stats
+
+# The one research checkout the runtime image carries: its finite-category engine
+# loads homalg/CAP from the checkout itself rather than from the image's GAP
+# (sage#10), so a Sage consumer that builds a presented module needs this
+# allocation present. The other 23 checkouts stay in the full image.
+RUN docker/install-sage-categories-gap-packages.sh /repos
+
+# juliacall resolves a Julia download through juliapkg at import time -- measured
+# with the network isolated: it queries julialang-s3.julialang.org for versions and
+# fails there with no Julia present. A runtime image has no Julia, so shipping the
+# packages would make any import of them a network fetch; they are removed, and the
+# runtime check asserts they cannot be imported. The full image reinstalls them with
+# its own sync.
+RUN uv pip uninstall --python /sage/.venv/bin/python juliacall juliapkg \
+ && ! /sage/.venv/bin/python -c 'import juliacall' 2>/dev/null
+
+ENV SAGE_BIN=/sage/.venv/bin/sage
+ENV PATH=/sage/.venv/bin:$PATH
+
+# What the runtime tag ships, asserted at build time: Sage and its checkout, GAP as
+# the only GAP with its matrix-group packages, sage-categories' 26 pinned releases,
+# and the documented consumer commands with the network unreachable.
+RUN "$SAGE_BIN" docker/runtime-environment-check.py
+
+# ---------------------------------------------------------------------------
+# The full image: the runtime plus Julia's depot, elan, the Lean packages and every
+# research checkout. This is the `develop` tag.
+# ---------------------------------------------------------------------------
+FROM runtime AS environment
+
 # Julia and Oscar for sage-julia-bridge. Oscar and JSON go into the default
 # environment of the read-only /opt/julia-depot, so no desk keeps its own copy
 # of the Oscar artifacts; the bridge's own --project stacks on top of it. At
@@ -281,29 +347,23 @@ RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-ini
     | sh -s -- -y --no-modify-path --default-toolchain none \
  && elan --version
 
-COPY . /sage
-
-# ccache keeps compiler output across image builds; Meson uses it whenever it
-# is on PATH. The cache mount is not part of the image, and CI carries it
-# between runs, so a source change recompiles only the modules it touches.
-ENV CCACHE_DIR=/ccache
-# RELOCK=true first moves the git-sourced research packages to their heads; the
-# sync then installs that lock, and the `lock` stage below exports it.
-ARG RELOCK=false
+# The whole recipe: the virtual environment (already built) and then every research
+# checkout, the bridge's julia-deps, sage-categories' GAP releases and the Lean
+# packages each checkout pins.
 RUN --mount=type=cache,target=/ccache \
-    if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
- && just research-environment-sync && ccache --show-stats
+    just research-environment-sync && ccache --show-stats
 
 FROM scratch AS lock
 COPY --from=environment /sage/uv.lock /uv.lock
 
+# The default (last) stage is the full image: `docker build` with no --target
+# produces the `develop` tag, and --target runtime produces the other one.
 FROM environment
-
-ENV SAGE_BIN=/sage/.venv/bin/sage
-ENV PATH=/sage/.venv/bin:$PATH
 
 # Fail the build if any system the image exists to provide is absent. The Lean
 # part of the check imports Mathlib from a pinned checkout, which exercises
 # docker/provision-lean-packages.sh against whatever this build left in place: a
 # full build is the only one that runs it with an empty packages directory.
+# This is the full check and it stays on this tag; the runtime tag has its own,
+# which covers only what the runtime image ships.
 RUN "$SAGE_BIN" docker/research-environment-check.py

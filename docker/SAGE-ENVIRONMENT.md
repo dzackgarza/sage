@@ -128,7 +128,32 @@ A bridge checkout changed inside the persistent volume brings its own
 `Project.toml`/`Manifest.toml`; its `just julia-deps` instantiates that revision
 into the writable depot.
 
-## GAP packages that belong to a checkout
+## Which tag a consumer pulls
+
+Two tags come out of `docker/research-environment.Dockerfile`, and the difference is
+what a consumer job pays for before its first step runs:
+
+| tag | contains | pull | for |
+| --- | --- | --- | --- |
+| `ghcr.io/dzackgarza/sage:runtime-<sha>` (immutable), `:runtime` (moving) | Sage and its checkout, GAP 4.16.1 as the only GAP, the Sage venv, sage-categories' pinned GAP allocation, uv and just — no Julia, no Lean, no research checkouts beyond that one | ≈ 4 GB | Sage-and-GAP consumers: README examples, `sage.all` and libgap work, anything that does not call Julia or Lean |
+| `ghcr.io/dzackgarza/sage:develop` | the runtime plus Julia and its depot, elan, the Lean packages and every research checkout under `/repos` | ≈ 17 GB | Julia consumers (the bridge, Oscar), Lean consumers (the `--lean-view` checkouts), and anything importing the pinned checkouts |
+
+The runtime's layers are a byte-identical prefix of the full image's, so the registry
+stores the difference and a runner that pulls both downloads only what it lacks.
+Both are built by the same job; the runtime tag is `--target runtime`.
+
+The split exists because every consumer job begins by pulling the image: on a fresh
+GitHub runner the full image is ~17 GB and "Initialize containers" measured 9.5
+minutes, while a README example's own work is under 10 seconds (sage#9).
+
+Each tag is checked for what it ships: `docker/research-environment-check.py` on
+`develop` (the full check, unchanged), and `docker/runtime-environment-check.py` on
+the runtime tag — Sage's version and checkout, GAP with its matrix-group packages,
+sage-categories' 26 pinned releases, and the documented consumer commands run with
+the network unreachable. That last one matters because `juliacall` resolves a Julia
+download through `juliapkg` at import time; the runtime image does not ship it and
+asserts it cannot be imported, so no import can fetch anything.
+
 
 Sage's GAP carries the packages the image was built with
 (`$SAGE_LOCAL/lib/gap/pkg`), and the check loads its matrix-group set from there.
