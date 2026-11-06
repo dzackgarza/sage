@@ -1,0 +1,50 @@
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -259,8 +259,47 @@
+         env:
+           PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
+         run: >-
+           /sage/.venv/bin/python -m pytest -p qc_sage_session tests/lattices/test_genus.sage -k test_published_four_spinor_genus_is_counted_from_all_generators
++      # sage#14's consumer statement: an image in which sage_indefinite_port imports
++      # and T_Co's O(T_Co) generator computation returns. The construction and the
++      # call are taken verbatim from the research record
++      # computations/reports/coble_tco_surjectivity_specimen.py, which ran it against
++      # port 4f0ee50c (raised) and again at 991b88b0 (returns True); this job fails
++      # unless it returns here too, and prints the revisions it ran on.
++      - name: Construct T_Co and compute its O(T_Co) generators
++        run: |
++          python - <<'PY'
++          import json, time
++          from importlib.metadata import distribution
++          from sage.all import CartanMatrix, ZZ, block_diagonal_matrix, matrix
++          from sage_extensions.all import Lattices
++          import sage_indefinite_port
++
++          for name in ("sage-indefinite-port", "sage-extensions"):
++              commit = json.loads(distribution(name).read_text("direct_url.json")).get("vcs_info", {}).get("commit_id")
++              print(f"{name}: {commit}")
++          print(f"sage_indefinite_port: {sage_indefinite_port.__file__}")
++
++          # T_Co = <2> + U(2) + E8(2): rank 11, determinant -2048, signature (2, 9).
++          U = matrix(ZZ, [[0, 1], [1, 0]])
++          E8 = -CartanMatrix(["E", 8])
++          gram = block_diagonal_matrix(matrix(ZZ, [[2]]), 2 * U, 2 * E8)
++          L = Lattices(ZZ)([list(row) for row in gram.rows()])
++          print(f"T_Co: rank {L.rank()}, determinant {L.determinant()}, signature {L.signature_pair()}")
++
++          started = time.time()
++          generators = L.Aut().group_generators()
++          elapsed = time.time() - started
++          generators = list(generators)
++          assert generators, "the O(T_Co) generator computation returned nothing"
++          print(f"O(T_Co) generators: {len(generators)} in {elapsed:.1f}s")
++
++          started = time.time()
++          assert L.discriminant_representation_is_surjective() is True
++          print(f"discriminant_representation_is_surjective(): True in {time.time() - started:.1f}s")
++          PY
++
+   # The image is also the environment for hosts that cannot run Docker, chroot
+   # or PRoot, which docker/sage-image.py provides by unpacking the image and
+   # running it under bubblewrap. This job is the only place that path runs on a
+   # host it was not developed on; a regression there is invisible to every
