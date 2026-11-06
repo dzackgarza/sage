@@ -321,16 +321,21 @@ try:
             for name in pins
         }
         if "mathlib" in overrides:
-            # A revision the shared directory does not carry: its dependencies are
-            # built inside the Mathlib checkout, by the toolchain that built it, and
-            # the project's pins must agree with the closure there or no view could
-            # serve both.
+            # A revision the shared directory does not carry. Its dependencies live
+            # beside it only if this checkout resolved them itself; a Mathlib built
+            # earlier against the shared directory carries none, and those packages
+            # are still the ones it was built with, so the shared entry is used and
+            # the revision check below holds it to the pin.
             mathlib = Path(overrides["mathlib"]["checkout"])
             _, closure = pinned(mathlib)
-            for name, revision in closure.items():
-                if name in pins:
-                    assert pins[name] == revision, (name, pins[name], revision, str(mathlib))
-                directories[name] = mathlib / ".lake" / "packages" / name
+            for name in pins:
+                if name == "mathlib":
+                    continue
+                bundled = mathlib / ".lake" / "packages" / name
+                if bundled.is_dir():
+                    directories[name] = bundled
+                    if name in closure:
+                        assert pins[name] == closure[name], (name, pins[name], closure[name])
             directories["mathlib"] = mathlib
             where = "from its override checkout"
         else:

@@ -13,19 +13,19 @@ set -euo pipefail
 rootfs="${SAGE_IMAGE_ROOTFS:-$HOME/sage-image/rootfs}"
 sage="$rootfs/sage"
 snapshot="${SNAPSHOT:-$(cd "$(dirname "$0")" && pwd)/runtime-rollback-snapshot}"
-published=2fc3f10ab7f80ed8641b979f5522ab6293a2c4ca
+published=6a1d6d9f8ebf276a06245f3045b78834219ea09a
 # The runtime's source now, and what a rollback returns to: #6 moved it to 9f1680d2.
 base=9f1680d2a7bcf001e50714768e6066e6652d1708
 
 # Expected at the published commit.
 expected_uv_lock=f070d20194761a12d2a42218d1416e983a966a51ee7511447f7095e9560d9f98
 expected_launcher=d1df681a03f2fe847fff4d668fe5b3cb3b3d658b270b5f26d196e881c7aabb4b
-expected_provisioner=5af7c91b2b9eb9944b4d33c09529261cd660b0a56a82530dbc0f44a2936d3338
+expected_provisioner=3ad79f623b4a2238152b9356a156ce17ea6099052367517b0dca93fc7e3cc973
 expected_installer=8cb222c15b65742ab0354575202aa4967da0cad3fe127f695a34be6f5d00f0b9
-expected_check=29e60809b3345d5a39160e72c3177ed6c68e7fa56741ed99b1ac1057cf12fe91
+expected_check=46ca46caab41e598f44e17aff565268a608a911b55b2cfac943558124cf5a030
 # The file whose purge makes the image's GAP single (sage#11). It is load-bearing for
 # the environment now, so the live copy is held to the published bytes like the rest.
-expected_incremental_dockerfile=7806e89fa4e2c106a4d6e8329537ed1893ffb29f586c2cbed8f2e588ff9e16e0
+expected_incremental_dockerfile=216671b91d5058a035f00f79182274edf2958f6870791dd2283d2d3cf01a8b20
 expected_meson=d8119d97dfa923a7887894458895930fa7348e1cf316ae62b3fb313ba2707201
 # The Maxima share prefix (a20baff): the file whose absence made a reconfigure
 # regenerate config.py with an empty MAXIMA_PREFIX.
@@ -120,7 +120,8 @@ purged="$(dpkg-query -W -f='${Package} ${Status}\n' 'gap*' 'libgap*' 2>/dev/null
     | awk '$2 == "install" && $3 == "ok" && $4 == "installed" {print $1}')"
 if [ -n "$purged" ]; then
     printf 'purging the distribution GAP: %s\n' "$purged"
-    apt-get purge -y $purged
+    # The user namespace maps one uid, so apt cannot drop to its _apt sandbox user.
+    apt-get -o APT::Sandbox::User=root purge -y $purged
 fi
 # libgap.pc.disabled is what an earlier repair renamed; it is dpkg's file no longer.
 rm -rf /usr/share/gap /usr/lib/gap \
@@ -131,16 +132,29 @@ test ! -e /usr/bin/gap
 test ! -d /usr/share/gap
 PURGE
     say "distribution GAP purged; the Sage-owned GAP is the only one left"
-    ( cd "$sage" && timeout 1800 just research-environment-sync ) \
-        || fail "research-environment-sync exceeded 30 min; revert the lock and sync again"
+    # The sync runs the runtime's own tools, not the host's: `just`, uv and the venv
+    # are inside the rootfs, and the venv's links are absolute /sage paths. The three
+    # --env values are what the image declares for itself; this rootfs carries no
+    # unpack stamp for the launcher to read them from. The timeout is outside the
+    # sandbox, so it bounds the whole run.
+    timeout 1800 python3 "${sage}/docker/sage-image.py" --rootfs "${rootfs}" run \
+        --env PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig --env ELAN_HOME=/opt/elan \
+        --env JULIA_DEPOT_PATH=/opt/julia-depot --chdir /sage \
+        -- /bin/sh -c 'just research-environment-sync' \
+        || fail "research-environment-sync failed or exceeded 30 min; revert the lock and sync again"
     timeout 60 install -m 0755 "$sage/docker/julia-launcher.sh" "$rootfs/usr/local/bin/julia" \
         || fail "launcher install failed"
     say "launcher installed"
     say "next: runtime-adoption.sh check"
     ;;
 check)
-    timeout 1200 "$sage/.venv/bin/sage" "$sage/docker/research-environment-check.py" \
-        || fail "the environment check failed (20 min limit)"
+    # The check is the image's own, and it runs inside the runtime for the same
+    # reason the sync does: the venv's interpreter is an absolute /sage path.
+    timeout 1500 python3 "${sage}/docker/sage-image.py" --rootfs "${rootfs}" run \
+        --env PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig --env ELAN_HOME=/opt/elan \
+        --env JULIA_DEPOT_PATH=/opt/julia-depot --chdir /sage \
+        -- /sage/.venv/bin/sage docker/research-environment-check.py \
+        || fail "the environment check failed (25 min limit)"
     ;;
 rollback)
     [ -d "$snapshot" ] || fail "no snapshot at $snapshot"
