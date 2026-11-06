@@ -14,7 +14,6 @@
 # image; the configured /sage tree is not relocatable.
 
 name: Research environment image
-
 on:
   push:
     branches: [develop]
@@ -31,6 +30,9 @@ on:
       - 'docker/research-environment-check.py'
       - 'docker/install-research-repositories.sh'
       - 'docker/research-repositories.txt'
+      - .github/workflows/research-environment-image.yml
+      - docker/runtime-environment-check.py
+      - docker/install-sage-categories-gap-packages.sh
   workflow_dispatch:
     inputs:
       sage_source_sha:
@@ -42,11 +44,9 @@ on:
         required: false
         type: boolean
         default: false
-
 concurrency:
   group: research-environment-image-${{ inputs.sage_source_sha || github.ref }}
   cancel-in-progress: false
-
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -69,7 +69,6 @@ jobs:
           filter: blob:none
           # .git goes into the image, so the token stays out of its config.
           persist-credentials: false
-
       - name: Check out the exact maintained Sage PR revision
         if: inputs.sage_source_sha != ''
         uses: actions/checkout@v4
@@ -77,7 +76,6 @@ jobs:
           ref: ${{ inputs.sage_source_sha }}
           path: .spinor-patch
           fetch-depth: 0
-
       - name: Apply only the maintained spinor-generator source change
         if: inputs.sage_source_sha != ''
         env:
@@ -96,22 +94,18 @@ jobs:
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source diff --check
           git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
-
       - name: Record ordinary develop revision
         if: inputs.sage_source_sha == ''
         run: |
           git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
           git -C sage-source rev-parse HEAD > sage-source/.spinor-source-revision
-
       # The image carries Sage's build tree, every research checkout and
       # Mathlib's build; the runner's preinstalled toolchains make room for it.
       - name: Free the runner's disk
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
-
       - uses: docker/setup-buildx-action@v3
-
       # The Dockerfile's ccache mount lives in BuildKit, which each runner
       # starts empty; carry it through the Actions cache between runs.
       - name: Restore the Sage compiler cache
@@ -120,18 +114,15 @@ jobs:
           path: ccache
           key: sage-ccache-${{ github.sha }}
           restore-keys: sage-ccache-
-
       - name: Inject the compiler cache into BuildKit
         uses: reproducible-containers/buildkit-cache-dance@v3.4.0
         with:
           cache-map: '{"ccache": "/ccache"}'
-
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Select the image tag and refuse overwrites
         id: image-tag
         env:
@@ -163,7 +154,6 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "runtime_tags=ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:runtime-$SAGE_SOURCE_SHA" >> "$GITHUB_OUTPUT"
-
       # As upstream's build.yml does, a source change is rebuilt on top of the
       # last published image. The full build runs when the system layers
       # changed, when a file was deleted (the incremental copy deletes
@@ -188,7 +178,6 @@ jobs:
           else
             echo "kind=incremental" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Build and publish the selected Sage image
         if: steps.image-tag.outputs.exists != 'true'
         uses: docker/build-push-action@v6
@@ -205,7 +194,6 @@ jobs:
           # per repository, which a Sage image's layers exceed.
           cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache,mode=max
-
       # The runtime tag: the same Dockerfile's `runtime` stage, which stops before
       # Julia, the Lean packages and the research checkouts. A Sage-and-GAP consumer
       # pulls ~4 GB instead of ~17 GB before its first step (sage#9); the layers are
@@ -226,7 +214,6 @@ jobs:
           labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache,mode=max
-
       # The lock stage reuses the build above from the BuildKit cache.
       - name: Export the lock the image was built on
         if: inputs.relock
@@ -240,7 +227,6 @@ jobs:
             RELOCK=true
           cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
           outputs: type=local,dest=relock
-
       - name: Commit the lock
         if: inputs.relock
         working-directory: sage-source
@@ -254,7 +240,6 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "build: lock the research packages at their heads" -- uv.lock
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:develop
-
   consumer-acceptance:
     if: needs.publish.outputs.image_tag != 'develop'
     needs: publish
@@ -277,33 +262,25 @@ jobs:
           printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
           printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
           "$SAGE_BIN" --version
-
       - name: Check out public consumer assertions
         uses: actions/checkout@v4
         with:
           repository: dzackgarza/sage-extensions
           ref: main
-
       - name: Install the checked-out sage-extensions source
         run: >-
           uv pip install --python /sage/.venv/bin/python --no-deps -e .
-
       - name: Install the Sage pytest collector plugin
         uses: actions/checkout@v4
         with:
           repository: dzackgarza/ai-review-ci
           ref: main
           path: .qc-infra
-
       - name: Run the unchanged published four-spinor-genus assertion
         env:
           PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
         run: >-
-          /sage/.venv/bin/python -m pytest
-          -p qc_sage_session
-          tests/lattices/test_genus.sage
-          -k test_published_four_spinor_genus_is_counted_from_all_generators
-
+          /sage/.venv/bin/python -m pytest -p qc_sage_session tests/lattices/test_genus.sage -k test_published_four_spinor_genus_is_counted_from_all_generators
   # The image is also the environment for hosts that cannot run Docker, chroot
   # or PRoot, which docker/sage-image.py provides by unpacking the image and
   # running it under bubblewrap. This job is the only place that path runs on a
@@ -323,18 +300,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           sparse-checkout: docker
-
       # The image is ~14 GB compressed and larger unpacked.
       - name: Free the runner's disk
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
-
       - name: Install bubblewrap
         run: |
           sudo apt-get update
           sudo apt-get install -y bubblewrap
-
       # Host security policy belongs to the administrator of the host. This job
       # does not change a sysctl or an AppArmor profile to make itself work: it
       # runs where unprivileged user namespaces are already permitted, and
@@ -357,7 +331,6 @@ jobs:
             echo "remain the gate."
           } >> "$GITHUB_STEP_SUMMARY"
           echo "::warning::runner does not permit unprivileged user namespaces; no-runtime check skipped"
-
       - name: Fetch and check the image with no container runtime
         if: steps.runtime.outputs.supported == 'true'
         env:
