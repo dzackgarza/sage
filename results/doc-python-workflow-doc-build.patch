@@ -1,0 +1,15 @@
+--- a/.github/workflows/doc-build.yml
++++ b/.github/workflows/doc-build.yml
+@@ -15,7 +15,11 @@
+   cancel-in-progress: true
+ 
+ env:
+-  PYTHON_VERSION: 3.13
++  # The project requires >=3.14,<3.15 (pyproject.toml requires-python) and
++  # meson-python refuses to build it under an older interpreter -- measured in run
++  # 42242642593 as "meson-python: error: The package requires Python version
++  # <3.15,>=3.14, running on 3.13.16". The other jobs build on 3.14.
++  PYTHON_VERSION: "3.14"
+ 
+ jobs:
+   doc-html:
