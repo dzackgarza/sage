@@ -22,6 +22,7 @@ from sage.libs.gap.util import kernel_info
 subprocess.run([
     "python", "-c", "import sys, sage.all; assert sys.prefix == '/sage/.venv'",
 ], check=True)
+print(f"python prefix /sage/.venv, Sage importable")
 
 # Sage ships what the image declares: the version Sage reports and the commit the
 # checkout sits at are both read from the tree, not assumed. This runs only inside a
@@ -37,10 +38,11 @@ sage_root_commit = subprocess.run(
     ["git", "-C", "/sage", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
 ).stdout.strip()
 assert len(sage_root_commit) == 40, sage_root_commit
+print(f"Sage {sage_version} at {sage_root_commit}")
 assert declared_source.is_file(), declared_source
 recorded = declared_source.read_text().strip()
 assert recorded == sage_root_commit, (recorded, sage_root_commit)
-print(f"Sage {sage_version()} at {sage_root_commit} (the image's recorded source)")
+print(f"the image's recorded source is this checkout: {recorded}")
 
 # Exactly one GAP, the one built from Sage's pinned source: no Debian copy is
 # shipped, because kernel_info() runs the bare command `gap` and a second copy
@@ -137,4 +139,4 @@ with tempfile.TemporaryDirectory() as empty_home:
     assert run.returncode == 0, (run.returncode, run.stdout, run.stderr)
     print(run.stdout.strip())
 
-print(f"SageMath runtime image OK: {sage_version()}")
+print(f"SageMath runtime image OK: {sage_version}")
