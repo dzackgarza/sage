@@ -34,6 +34,37 @@ if [ -z "${commit}" ]; then
 fi
 
 categories_root="${repositories_root}/sage-categories"
+
+# The pinned count, read before any work happens.
+pinned="$("${sage_python}" - "${sage_root}/uv.lock" "${categories_root}" <<'EOF'
+import ast
+import re
+import sys
+
+manifest = sys.argv[1]
+checkout = sys.argv[2] + "/.gap-packages.g"
+try:
+    text = open(checkout, encoding="utf-8").read()
+except FileNotFoundError:
+    text = open(sys.argv[1], encoding="utf-8").read()  # not cloned yet
+declared = re.search(r"^packages := \[(.*?)^\];", text, re.DOTALL | re.MULTILINE)
+print(len(ast.literal_eval(f"[{declared.group(1)}]")) if declared else 0)
+EOF
+)"
+
+# A rebuild on top of a previous runtime image carries the checkout and its whole
+# allocation already: when the lock's commit is what the checkout sits at and every
+# pinned release is installed, the step has nothing to do. This is the common case
+# for a source-only push, where the clone and 26 downloads would otherwise run again.
+if [ -d "${categories_root}/.git" ]; then
+    current="$(git -C "${categories_root}" rev-parse HEAD 2>/dev/null || true)"
+    installed="$(find "${categories_root}/.gap/pkg" -mindepth 1 -maxdepth 1 -type d ! -name '*.old' 2>/dev/null | wc -l)"
+    if [ "${current}" = "${commit}" ] && [ "${installed}" -ge "${pinned}" ] && [ "${pinned}" -gt 0 ]; then
+        echo "sage-categories at ${commit} with ${installed} of ${pinned} pinned GAP packages: nothing to do"
+        exit 0
+    fi
+fi
+
 if [ -d "${categories_root}/.git" ]; then
     git -C "${categories_root}" fetch --quiet origin
 else
