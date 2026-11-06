@@ -1,4 +1,4 @@
-# Fails the runtime image build if anything a Sage-and-GAP consumer needs is
+# Fails the runtime image build if anything the runtime tag's consumers need is
 # absent. Run with the runtime stage's sage:
 # `sage docker/runtime-environment-check.py`.
 #
@@ -6,9 +6,8 @@
 # and stays on the `develop` tag. This one covers exactly what the runtime tag
 # ships: Sage and its checkout, GAP as the only GAP with its matrix-group
 # packages, sage-categories' pinned GAP allocation, and the documented consumer
-# commands run with no network, which is the property a README example depends on.
-import importlib
-import importlib.util
+# commands run with no network against the image's resolved Julia depot -- which is
+# the property that matters, because importing sage_categories imports juliacall.
 import os
 import subprocess
 import sys
@@ -102,29 +101,29 @@ pinned = tuple(
 assert len(load_packages(pinned)) == len(pinned), len(pinned)
 print(f"sage-categories: {len(pinned)} pinned GAP packages load from {allocation}")
 
-# The documented consumer commands, with no network and an empty Julia depot: a
-# README example must not fetch anything at import time. juliacall is the reason
-# this matters -- its import resolves a Julia download through juliapkg -- so the
-# runtime image does not ship it, and that absence is asserted rather than assumed.
-for absent in ("juliacall", "juliapkg"):
-    assert importlib.util.find_spec(absent) is None, (
-        f"{absent} is installed; importing it resolves a Julia download, which a "
-        "runtime image without Julia must never do"
-    )
+# The documented consumer commands, with no network and the image's own Julia depot:
+# a README example must not fetch anything at import time. This is the property
+# `import sage_categories` depends on -- constructing a functor object image goes
+# through Catlab, which imports juliacall, which at import resolves the Julia and
+# package requirements of every installed distribution. The image resolves them at
+# build time; here the dead proxy makes any remaining fetch fail instead of quietly
+# succeeding.
 with tempfile.TemporaryDirectory() as empty_home:
     probe = (
         "import sys\n"
         "from sage.all import QQ, matrix\n"
         "assert sys.prefix == '/sage/.venv', sys.prefix\n"
         "assert matrix(QQ, [[2, 1], [1, 2]]).det() == 3\n"
+        "import sage_categories\n"
         "from sage_extensions.all import Lattices\n"
         "from sage_julia_bridge import julia\n"
         "print('consumer example OK', sys.executable)\n"
     )
     environment = {
-        "PATH": "/sage/.venv/bin:/usr/local/bin:/usr/bin:/bin",
+        "PATH": "/sage/.venv/bin:/opt/julia/bin:/usr/local/bin:/usr/bin:/bin",
         "HOME": empty_home,
-        "JULIA_DEPOT_PATH": os.path.join(empty_home, "depot"),
+        "JULIA_DEPOT_PATH": "/opt/julia-depot",
+        "JULIA_CPU_TARGET": "generic",
     }
     # A dead proxy is the offline assertion available inside a build: any library
     # that tries to fetch fails instead of succeeding quietly.

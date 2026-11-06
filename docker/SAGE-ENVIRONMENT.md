@@ -135,8 +135,23 @@ what a consumer job pays for before its first step runs:
 
 | tag | contains | pull | for |
 | --- | --- | --- | --- |
-| `ghcr.io/dzackgarza/sage:runtime-<sha>` (immutable), `:runtime` (moving) | Sage and its checkout, GAP 4.16.1 as the only GAP, the Sage venv, sage-categories' pinned GAP allocation, uv and just — no Julia, no Lean, no research checkouts beyond that one | ≈ 4 GB | Sage-and-GAP consumers: README examples, `sage.all` and libgap work, anything that does not call Julia or Lean |
-| `ghcr.io/dzackgarza/sage:develop` | the runtime plus Julia and its depot, elan, the Lean packages and every research checkout under `/repos` | ≈ 17 GB | Julia consumers (the bridge, Oscar), Lean consumers (the `--lean-view` checkouts), and anything importing the pinned checkouts |
+| `ghcr.io/dzackgarza/sage:runtime-<sha>` (immutable), `:runtime` (moving) | Sage and its checkout, GAP 4.16.1 as the only GAP, the Sage venv, sage-categories' pinned GAP allocation, Julia 1.12.7 with its build-time-resolved depot, uv and just — no Lean, no research checkouts beyond that one | **≈ 5.3 GB** | Sage, GAP and Julia consumers: README examples, `sage.all` and libgap work, `sage_categories` and `sage_extensions` |
+| `ghcr.io/dzackgarza/sage:develop` | the runtime plus elan, the Lean packages and every research checkout under `/repos` | ≈ 17 GB | Lean consumers (the `--lean-view` checkouts) and anything importing the pinned checkouts |
+
+Julia is in the runtime image because the consumers it exists for need it: importing
+`sage_categories` constructs functor object images through Catlab, which imports
+`juliacall`, so every `sage_categories` consumer — `sage_extensions` included —
+loads Julia. Its depot is resolved at build time for the same reason: at import
+`juliapkg` resolves the Julia and package requirements of every installed
+distribution, and against an unresolved depot that is a network fetch.
+`sage_categories/juliapkg.json` pins Julia `=1.12.7`, which is the release the image
+installs.
+
+The 5.3 GB is computed from the published layer sizes and the measured compression of
+each group (venv 2.92, Julia depot 3.05, lake-packages 3.24, checkouts 3.86): base
+layers 1.96 GB, Julia 0.29 GB, depot 1.39 GB, venv-only sync with the GAP allocation
+and the resolved depot ≈ 1.45 GB, plus the check layer. The published manifest size is
+the authority and replaces this number once the tag exists.
 
 The runtime's layers are a byte-identical prefix of the full image's, so the registry
 stores the difference and a runner that pulls both downloads only what it lacks.
@@ -149,10 +164,12 @@ minutes, while a README example's own work is under 10 seconds (sage#9).
 Each tag is checked for what it ships: `docker/research-environment-check.py` on
 `develop` (the full check, unchanged), and `docker/runtime-environment-check.py` on
 the runtime tag — Sage's version and checkout, GAP with its matrix-group packages,
-sage-categories' 26 pinned releases, and the documented consumer commands run with
-the network unreachable. That last one matters because `juliacall` resolves a Julia
-download through `juliapkg` at import time; the runtime image does not ship it and
-asserts it cannot be imported, so no import can fetch anything.
+sage-categories' 26 pinned releases, and the documented consumer commands, including
+`import sage_categories`, run with the network unreachable against the image's own
+Julia depot. That last one is the property that matters: `juliacall` resolves Julia
+and its packages through `juliapkg` at import, so an image whose depot is not
+resolved fetches at import and an image whose Julia does not satisfy
+`sage_categories/juliapkg.json` fetches a Julia instead.
 
 
 Sage's GAP carries the packages the image was built with

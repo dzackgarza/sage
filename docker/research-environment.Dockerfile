@@ -246,10 +246,12 @@ RUN set -eu; \
 # pulls stops there:
 #
 #   runtime    base + Sage's system packages + GAP + /sage + the Sage venv +
-#              sage-categories' pinned GAP allocation. No Julia, no Lean, no
-#              research checkouts beyond that one.
-#   develop    the runtime plus Julia's depot, elan, the Lean packages and every
-#              research checkout under /repos (what "full" below adds).
+#              sage-categories' pinned GAP allocation + Julia and its resolved
+#              depot. No Lean, no research checkouts beyond that one. Julia is here
+#              because importing sage_categories loads it: the engine builds functor
+#              object images through Catlab, which imports juliacall.
+#   develop    the runtime plus elan, the Lean packages and every research checkout
+#              under /repos (what "full" below adds).
 #
 # The runtime's layers are a byte-identical prefix of the full image's, so the
 # registry stores the difference rather than a second image, and Dockerfile edits
@@ -270,8 +272,8 @@ COPY . /sage
 ENV CCACHE_DIR=/ccache
 
 # RESEARCH_REPOSITORIES=0 runs the virtual-environment half of the recipe only:
-# `uv sync`, Sage compiled and installed. The research checkouts, the Julia depot
-# and the Lean packages are what the full image adds below.
+# `uv sync`, Sage compiled and installed. The other research checkouts and the Lean
+# packages are what the full image adds below.
 ARG RELOCK=false
 RUN --mount=type=cache,target=/ccache \
     if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
@@ -283,37 +285,23 @@ RUN --mount=type=cache,target=/ccache \
 # allocation present. The other 23 checkouts stay in the full image.
 RUN docker/install-sage-categories-gap-packages.sh /repos
 
-# juliacall resolves a Julia download through juliapkg at import time -- measured
-# with the network isolated: it queries julialang-s3.julialang.org for versions and
-# fails there with no Julia present. A runtime image has no Julia, so shipping the
-# packages would make any import of them a network fetch; they are removed, and the
-# runtime check asserts they cannot be imported. The full image reinstalls them with
-# its own sync.
-RUN uv pip uninstall --python /sage/.venv/bin/python juliacall juliapkg \
- && ! /sage/.venv/bin/python -c 'import juliacall' 2>/dev/null
-
-ENV SAGE_BIN=/sage/.venv/bin/sage
-ENV PATH=/sage/.venv/bin:$PATH
-
-# What the runtime tag ships, asserted at build time: Sage and its checkout, GAP as
-# the only GAP with its matrix-group packages, sage-categories' 26 pinned releases,
-# and the documented consumer commands with the network unreachable.
-RUN "$SAGE_BIN" docker/runtime-environment-check.py
-
-# ---------------------------------------------------------------------------
-# The full image: the runtime plus Julia's depot, elan, the Lean packages and every
-# research checkout. This is the `develop` tag.
-# ---------------------------------------------------------------------------
-FROM runtime AS environment
-
-# Julia and Oscar for sage-julia-bridge. Oscar and JSON go into the default
-# environment of the read-only /opt/julia-depot, so no desk keeps its own copy
-# of the Oscar artifacts; the bridge's own --project stacks on top of it. At
-# runtime a writable depot is placed in front of this one; the trailing empty
-# entry keeps Julia's bundled stdlib depot on the path.
+# Julia, because the consumers this image exists for need it: importing
+# sage_categories constructs functor object images through Catlab, which imports
+# juliacall, so every sage-categories consumer -- sage-extensions included -- loads
+# Julia. The depot is resolved HERE, at build time, for the same reason: at import
+# juliapkg resolves the Julia and package requirements of every installed
+# distribution, and against an unresolved depot that is a network fetch.
+# sage_categories/juliapkg.json pins Julia =1.12.7; measured with 1.12.5 in the
+# image, `import sage_categories` reached julialang-s3.julialang.org and died with
+# the network down, which is why this installs that exact release.
+#
+# Oscar and JSON go into the default environment of the read-only /opt/julia-depot,
+# so no desk keeps its own copy of the Oscar artifacts; the bridge's own --project
+# stacks on top of it. At runtime a writable depot is placed in front of this one;
+# the trailing empty entry keeps Julia's bundled stdlib depot on the path.
 RUN set -eu; \
-    curl -LsSf -o /tmp/julia.tar.gz https://julialang-s3.julialang.org/bin/linux/x64/1.12/julia-1.12.5-linux-x86_64.tar.gz; \
-    echo "41b84d727e4e96fbf3ed9e92fa195d773d247b9097f73fad688f8b699758bae7  /tmp/julia.tar.gz" | sha256sum -c -; \
+    curl -LsSf -o /tmp/julia.tar.gz https://julialang-s3.julialang.org/bin/linux/x64/1.12/julia-1.12.7-linux-x86_64.tar.gz; \
+    echo "4e7e9e776634d24835250de67cde39b0d4af15bc432eb20697e6be6c28ea69e8  /tmp/julia.tar.gz" | sha256sum -c -; \
     mkdir /opt/julia; \
     tar -xzf /tmp/julia.tar.gz -C /opt/julia --strip-components=1; \
     rm /tmp/julia.tar.gz
@@ -338,6 +326,31 @@ RUN set -eu; \
         using Oscar; \
         println("JSON ", pkgversion(JSON), ", Oscar ", Oscar.VERSION_NUMBER, " loaded")'; \
     chmod -R a+rX /opt/julia-depot
+
+# Resolve what those distributions require into the depot, so no later import has
+# anything left to fetch: sage_categories pins Catlab =0.17.6 and GATlab =0.2.4, and
+# a fresh depot resolves them in about four minutes. The runtime check below then
+# asserts the property with the network unreachable.
+RUN set -eu; \
+    jl="$(command -v julia)"; \
+    HOME=/root python -c 'import juliapkg; juliapkg.resolve()'; \
+    chmod -R a+rX /opt/julia-depot; \
+    echo "depot resolved at build time against $("$jl" --version)"
+
+ENV SAGE_BIN=/sage/.venv/bin/sage
+ENV PATH=/sage/.venv/bin:$PATH
+
+# What the runtime tag ships, asserted at build time: Sage and its checkout, GAP as
+# the only GAP with its matrix-group packages, sage-categories' 26 pinned releases,
+# and the documented consumer commands with the network unreachable.
+RUN "$SAGE_BIN" docker/runtime-environment-check.py
+
+# ---------------------------------------------------------------------------
+# The full image: the runtime plus elan, the Lean packages and every research
+# checkout. This is the `develop` tag.
+# ---------------------------------------------------------------------------
+FROM runtime AS environment
+
 
 # Lean 4 through elan; install-research-repositories.sh installs the toolchain
 # each Lean checkout pins.

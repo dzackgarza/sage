@@ -37,13 +37,11 @@ RUN --mount=type=cache,target=/ccache \
     if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
  && RESEARCH_REPOSITORIES=0 just research-environment-sync && ccache --show-stats
 
-# The steps the runtime stage repeats after its sync. They are idempotent: the GAP
+# The steps the runtime stage repeats after its sync. Both are idempotent: the GAP
 # step skips when the checkout already sits at the locked commit with its whole
-# allocation, and the uninstall is a no-op once the packages are gone.
+# allocation. Julia and its resolved depot come from the base image, which is why
+# nothing here installs or resolves them.
 RUN docker/install-sage-categories-gap-packages.sh /repos
-
-RUN uv pip uninstall --python /sage/.venv/bin/python juliacall juliapkg \
- && ! /sage/.venv/bin/python -c 'import juliacall' 2>/dev/null
 
 ENV SAGE_BIN=/sage/.venv/bin/sage
 ENV PATH=/sage/.venv/bin:$PATH
