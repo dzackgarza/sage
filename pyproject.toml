@@ -223,27 +223,6 @@ extra = [
 # ]
 
 [dependency-groups]
-research-environment = [
-  "dzack-research",
-  "igraph",
-  "jupymake",
-  "jupyter-mcp-server",
-  "latticedb",
-  "lrcalc ~=2.1",
-  "mypy",
-  "pycosat >=0.6.3",
-  "pynormaliz >=2.18",
-  "sage-categories",
-  "sage-categories-homotopy",
-  "sage-extensions",
-  "sage-indefinite-port",
-  "sage-julia-bridge",
-  "sage-lsp",
-  "sage-mypy-category-plugin",
-  "sage-stubs",
-  "tree-sitter-sage",
-  "vinal",
-]
 dev = [
   "cibuildwheel",
   "grayskull",
@@ -277,6 +256,27 @@ docs = [
   "sphinx-inline-tabs",
 ]
 lint = ["flake8-rst-docstrings", "pycodestyle", "relint", "ruff"]
+research-environment = [
+  "dzack-research",
+  "igraph",
+  "jupymake",
+  "jupyter-mcp-server",
+  "latticedb",
+  "lrcalc ~=2.1",
+  "mypy",
+  "pycosat >=0.6.3",
+  "pynormaliz >=2.18",
+  "sage-categories",
+  "sage-categories-homotopy",
+  "sage-extensions",
+  "sage-indefinite-port",
+  "sage-julia-bridge",
+  "sage-lsp",
+  "sage-mypy-category-plugin",
+  "sage-stubs",
+  "tree-sitter-sage",
+  "vinal",
+]
 test = ["coverage", "pytest"]
 
 # Every research project is fetched from its repository, so this environment is
@@ -289,12 +289,12 @@ test = ["coverage", "pytest"]
 # locally, so editing them stays live without a path here.
 [tool.uv.sources]
 dzack-research = { git = "https://github.com/dzackgarza/research" }
-latticedb = { git = "https://github.com/dzackgarza/lattice-database" }
-sage-indefinite-port = { git = "https://github.com/dzackgarza/sage-indefinite-port" }
 jupyter-mcp-server = { git = "https://github.com/dzackgarza/jupyter-mcp-server" }
+latticedb = { git = "https://github.com/dzackgarza/lattice-database" }
 sage-categories = { git = "https://github.com/dzackgarza/sage-categories" }
 sage-categories-homotopy = { git = "https://github.com/dzackgarza/sage-categories", subdirectory = "native/homotopy-python" }
 sage-extensions = { git = "https://github.com/dzackgarza/sage-extensions" }
+sage-indefinite-port = { git = "https://github.com/dzackgarza/sage-indefinite-port" }
 sage-julia-bridge = { git = "https://github.com/dzackgarza/sage-julia-bridge" }
 sage-lsp = { git = "https://github.com/dzackgarza/sage-lsp-server" }
 sage-mypy-category-plugin = { git = "https://github.com/dzackgarza/sagemath-mypy-plugin" }
@@ -802,7 +802,7 @@ no-build-isolation-package = ["sagemath"]
 # meson-python, and research-environment-sync configures it with meson-python's
 # own setup arguments, so a lock after a sync finds the tree configured and
 # compiled.
-config-settings-package = { tree-sitter-sage = { editable_mode = "strict" }, sagemath = { build-dir = "builddir" } }
+config-settings-package = { sagemath = { build-dir = "builddir" }, tree-sitter-sage = { editable_mode = "strict" } }
 # Build these packages from source instead of installing pre-built wheels.
 no-binary-package = ["cypari2", "pplpy", "primecountpy"]
 
@@ -811,12 +811,12 @@ no-binary-package = ["cypari2", "pplpy", "primecountpy"]
 # just to read its metadata, so `uv lock` fails; state that metadata here.
 [[tool.uv.dependency-metadata]]
 name = "sage-numerical-backends-coin"
-version = "10.4"
 requires-dist = ["sphinx"]
+version = "10.4"
 
 # jupymake ships only an sdist whose build runs polymake-config; uv builds it
 # just to read its metadata, so state that metadata here.
 [[tool.uv.dependency-metadata]]
 name = "jupymake"
-version = "0.9"
 requires-dist = []
+version = "0.9"
