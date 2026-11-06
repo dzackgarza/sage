@@ -979,7 +979,7 @@ wheels = [
 [[package]]
 name = "dzack-research"
 version = "0.1.1"
-source = { git = "https://github.com/dzackgarza/research#1f7cc618ec818c27188d29df81861275237a85a2" }
+source = { git = "https://github.com/dzackgarza/research#5cbcfa428739892db20df56fac17f66112ac397b" }
 dependencies = [
     { name = "haystack-ai" },
     { name = "pandoc-config" },
@@ -2105,7 +2105,7 @@ wheels = [
 [[package]]
 name = "latticedb"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/lattice-database#acb4403fe48831205799ac95d71a24214c6f0852" }
+source = { git = "https://github.com/dzackgarza/lattice-database#a184cc5387479c29a63afbc475073e489546b4d1" }
 dependencies = [
     { name = "cyclopts" },
     { name = "cypari2", version = "2.2.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },

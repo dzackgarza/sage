@@ -1,0 +1,49 @@
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -312,8 +312,46 @@
+           /sage/.venv/bin/python -m pytest -o addopts= \
+             "${checkout}/tests/lattices/test_isotropic_line_orbits_of_small_indefinite_lattices.sage" \
+             -q -p qc_sage_session
+ 
++      # lattice-database's 6JRR card has no computed field until `latticedb certify`
++      # runs with Sage and the preamble, and the image is where that record is minted.
++      # The CLI selects cards with --tag, so this certifies that card alone.
++      #
++      # An owner failure is an accepted outcome -- the preamble's printed rational
++      # (lattice-database#4, sage-extensions#293) is the evidence this step exists to
++      # capture -- so it prints the log, the files written and the card's diff and does
++      # not gate on the exit status. --minutes bounds the run; a computation still
++      # running at the deadline stays in the checkout's exceeded.yaml.
++      - name: Certify lattice-database card 6JRR
++        run: |
++          set -uo pipefail
++          checkout=/repos/lattice-database
++          git -C "${checkout}" rev-parse HEAD
++          set +e
++          PYTHONPATH="/repos/research/src:${checkout}/src" \
++            /sage/.venv/bin/python -m latticedb certify --tag 6JRR --minutes 20 \
++            > /tmp/certify-6JRR.log 2>&1
++          status=$?
++          set -e
++          echo "certify --tag 6JRR exited ${status}"
++          tail -n 200 /tmp/certify-6JRR.log
++          echo "--- certificate files"
++          ( cd "${checkout}" && git status --porcelain -- certificates | head -50 )
++          echo "--- the card's diff"
++          ( cd "${checkout}" && git diff -- lattices/6JRR.md | head -200 )
++          echo "--- the ledgers, if the run added to them"
++          ( cd "${checkout}" && git diff -- failures.yaml exceeded.yaml | head -200 ) || true
++          echo "certify is evidence, not a gate: exit ${status} is reported above"
++
++      - name: Upload the certificates the run wrote
++        if: always()
++        uses: actions/upload-artifact@v4
++        with:
++          name: latticedb-certificates-6JRR
++          path: /repos/lattice-database/certificates/
++          if-no-files-found: warn
++
+   # The image is also the environment for hosts that cannot run Docker, chroot
+   # or PRoot, which docker/sage-image.py provides by unpacking the image and
+   # running it under bubblewrap. This job is the only place that path runs on a
+   # host it was not developed on; a regression there is invisible to every
