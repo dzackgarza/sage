@@ -59,8 +59,43 @@ while read -r url; do
     fi
 done < "${sage_root}/docker/research-repositories.txt"
 
-cd "${sage_root}"
+# Run this OUTSIDE the project. From ${sage_root} uv discovers that project's
+# [tool.uv.sources] and [tool.uv] override-dependencies, which name every research
+# package by its git URL so one resolution can carry the lock -- and an override
+# applies to an `-e <path>` requirement as well, so the checkout would be replaced
+# by the URL. Measured in run 42255840314: `-e /repos/research` became
+# `dzack-research @ git+.../research@e46b96a8` and `-e /repos/sage-extensions`
+# became `sage-extensions @ git+...@d4c75e3b`, while the two packages no source
+# names (pandoc-config, sage-categories-homotopy) did install from file:///repos.
+# Measured again as a dry run: from the project directory the same command resolves
+# `dzack-research @ git+...`, from outside it resolves `dzack-research @ file:///repos/research`.
+cd "${repositories_root}"
 uv pip install --python "${sage_python}" --no-deps "${editable[@]}"
+
+# They must be editable installs, not wheels from those URLs: that property is what
+# the environment check asserts an hour later, and a name missing here says which
+# package to look at.
+expected="$("${sage_python}" - "${editable[@]}" <<'EOF'
+import sys
+import tomllib
+
+names = []
+for argument in sys.argv[1:]:
+    if argument == "-e":
+        continue
+    with open(f"{argument}/pyproject.toml", "rb") as handle:
+        names.append(tomllib.load(handle)["project"]["name"])
+print("\n".join(sorted(names)))
+EOF
+)"
+installed="$(uv pip list --python "${sage_python}" --editable 2>/dev/null | awk 'NR>2 {print $1}' | sort -u)"
+missing="$(comm -23 <(printf '%s\n' "${expected}") <(printf '%s\n' "${installed}"))"
+if [ -n "${missing}" ]; then
+    printf 'FATAL: these were to be installed from their checkouts and are not editable: %s\n' \
+        "$(printf '%s' "${missing}" | tr '\n' ' ')" >&2
+    exit 1
+fi
+echo "editable from their checkouts: $(printf '%s' "${expected}" | tr '\n' ' ')"
 
 just -f "${repositories_root}/sage-julia-bridge/justfile" julia-deps
 
