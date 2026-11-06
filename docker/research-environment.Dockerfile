@@ -281,8 +281,13 @@ COPY --chmod=0755 docker/julia-launcher.sh /usr/local/bin/julia
 
 # Package caches must load on both the CI CPU and the host CPU.
 # https://docs.julialang.org/en/v1.12/manual/environment-variables/#JULIA_CPU_TARGET
+# JULIA_BINDIR states what the launcher states, for processes that reach julia
+# through PATH rather than through the wrapper: a caller that derives the sysimage
+# from the name it invoked otherwise looks for /usr/local/lib/julia/sys.so. Measured
+# in run 42288361749.
 ENV JULIA_DEPOT_PATH=/opt/julia-depot: \
-    JULIA_CPU_TARGET=generic
+    JULIA_CPU_TARGET=generic \
+    JULIA_BINDIR=/opt/julia/bin
 
 RUN set -eu; \
     julia --startup-file=no --color=no -e ' \

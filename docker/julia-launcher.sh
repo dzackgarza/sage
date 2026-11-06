@@ -21,4 +21,12 @@ case ":${JULIA_DEPOT_PATH-}:" in
     export JULIA_DEPOT_PATH
     ;;
 esac
+# Julia locates its system image relative to the bindir it derives from the
+# executable, and callers that compute that path from the name they invoked --
+# juliapkg adds julia's project and sysimage paths from `julia`'s directory -- get
+# /usr/local/lib/julia/sys.so from this wrapper, which does not exist. Stating the
+# bindir removes the inference: measured in run 42288361749 as
+# `could not load library "/usr/local/bin/../lib/julia/sys.so"`.
+JULIA_BINDIR=/opt/julia/bin
+export JULIA_BINDIR
 exec /opt/julia/bin/julia "$@"

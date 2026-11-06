@@ -1,0 +1,56 @@
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -364,9 +364,13 @@
+           set -uo pipefail
+           checkout=/repos/research
+           git -C "${checkout}" rev-parse HEAD
+           status=0
+-          for record in coble_isotropic_orbits coble_plane-half-f2; do
++          # coble_I18_vinberg-chamber is the stage-2 record: Vinberg's algorithm on
++          # I_{1,8} with candidates k_0 >= 1, nine walls, and its printed Gram matrix is
++          # the comparison target -- the whole post-provenance body is compared, as for
++          # the stage-1 records.
++          for record in coble_isotropic_orbits coble_plane-half-f2 coble_I18_vinberg-chamber; do
+             script="${checkout}/computations/reports/${record}.py"
+             expected="${checkout}/computations/reports/${record}-run.txt"
+             actual="/tmp/${record}.out"
+             test -f "${script}" && test -f "${expected}"
+@@ -405,16 +409,38 @@
+           COMPARE
+           done
+           exit "${status}"
+ 
++      # The same record's chamber read by the other engine: CoxIter on the nine-node
++      # diagram the Vinberg run prints. The in-tree row for (9, 9, 1) calls that diagram
++      # a chain, which is the claim this log lets the research chat check. It prints and
++      # does not gate: CoxIter's verdict on the diagram is evidence, not an image defect.
++      - name: Read the I_{1,8} chamber with CoxIter
++        run: |
++          set -uo pipefail
++          record=/repos/research/computations/reports/coble_I18_vinberg-chamber-run.txt
++          test -f "${record}"
++          coxiter="$(command -v coxiter)"
++          echo "coxiter: ${coxiter}"
++          "${coxiter}" -h > /tmp/coxiter-usage.txt 2>&1 || true
++          head -20 /tmp/coxiter-usage.txt
++          set +e
++          "${coxiter}" -v < "${record}" > /tmp/coxiter-I18.out 2>&1
++          status=$?
++          set -e
++          echo "coxiter exited ${status}"
++          cat /tmp/coxiter-I18.out
++
+       - name: Upload the reproduced record outputs
+         if: always()
+         uses: actions/upload-artifact@v4
+         with:
+           name: research-stage1-records
+           path: |
+             /tmp/coble_isotropic_orbits.out
+             /tmp/coble_plane-half-f2.out
++            /tmp/coble_I18_vinberg-chamber.out
++            /tmp/coxiter-I18.out
+           if-no-files-found: warn
+ 
+   # The image is also the environment for hosts that cannot run Docker, chroot
+   # or PRoot, which docker/sage-image.py provides by unpacking the image and
