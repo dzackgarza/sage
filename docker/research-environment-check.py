@@ -204,6 +204,43 @@ for module in (
     assert origin.startswith("/repos/"), (module, origin)
 importlib.import_module("sage_categories_homotopy")
 
+# The record: the revision of every research package this image actually carries.
+# A checkout installed editable answers from its git tree; a git wheel answers with
+# the commit_id in its direct_url.json. Both are printed and held to the lock, so a
+# build log states the revisions instead of implying them.
+import json
+import tomllib
+from importlib.metadata import PackageNotFoundError, distribution
+
+lock = tomllib.loads(Path("/sage/uv.lock").read_text(encoding="utf-8"))
+for package in sorted(lock["package"], key=lambda entry: entry["name"]):
+    source = package.get("source", {}).get("git")
+    if source is None:
+        continue
+    name, pinned = package["name"], source.split("#")[1]
+    observed = None
+    repository = source.split("#")[0].rsplit("/", 1)[-1].removesuffix(".git")
+    checkout = Path("/repos") / repository
+    if (checkout / ".git").is_dir():
+        observed = subprocess.run(
+            ["git", "-C", str(checkout), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        kind = "checkout"
+    else:
+        try:
+            direct = distribution(name).read_text("direct_url.json")
+        except PackageNotFoundError:
+            direct = None
+        if direct:
+            observed = json.loads(direct).get("vcs_info", {}).get("commit_id")
+            kind = "git wheel"
+    if observed is None:
+        print(f"research {name}: not installed")
+        continue
+    print(f"research {name}: {observed} ({kind}, lock {pinned})")
+    assert observed == pinned, (name, observed, pinned)
+
 # sage-categories runs its finite-category engine on GAP releases allocated to its
 # own checkout: every consumer of a presented module fixes each package's path to
 # .gap/pkg before the first LoadPackage, so the image's GAP cannot substitute for
