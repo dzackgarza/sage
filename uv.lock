@@ -8,6 +8,22 @@ resolution-markers = [
     "sys_platform == 'ios'",
 ]
 
+[manifest]
+overrides = [
+    { name = "dzack-research", git = "https://github.com/dzackgarza/research" },
+    { name = "jupyter-mcp-server", git = "https://github.com/dzackgarza/jupyter-mcp-server" },
+    { name = "latticedb", git = "https://github.com/dzackgarza/lattice-database" },
+    { name = "sage-categories", git = "https://github.com/dzackgarza/sage-categories" },
+    { name = "sage-extensions", git = "https://github.com/dzackgarza/sage-extensions" },
+    { name = "sage-indefinite-port", git = "https://github.com/dzackgarza/sage-indefinite-port" },
+    { name = "sage-julia-bridge", git = "https://github.com/dzackgarza/sage-julia-bridge" },
+    { name = "sage-lsp", git = "https://github.com/dzackgarza/sage-lsp-server" },
+    { name = "sage-mypy-category-plugin", git = "https://github.com/dzackgarza/sagemath-mypy-plugin" },
+    { name = "sage-stubs", git = "https://github.com/dzackgarza/sage-stubs.git" },
+    { name = "tree-sitter-sage", git = "https://github.com/dzackgarza/tree-sitter-sage" },
+    { name = "vinal", git = "https://github.com/dzackgarza/vinal.git" },
+]
+
 [[manifest.dependency-metadata]]
 name = "jupymake"
 version = "0.9"
@@ -784,8 +800,25 @@ wheels = [
 
 [[package]]
 name = "cypari2"
+version = "2.2.4"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "sys_platform == 'win32'",
+]
+dependencies = [
+    { name = "cysignals" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/48/34/3f8671615a7ac0c6de69ca4ba7d9f640a46198cf020eca114eda33dd25f4/cypari2-2.2.4.tar.gz", hash = "sha256:f9f0e994a9a0b064619320411e1d9c303158847e055b58082efdade5ac97f613", size = 692543, upload-time = "2025-10-31T15:15:03.071Z" }
+
+[[package]]
+name = "cypari2"
 version = "2.2.6"
 source = { url = "https://github.com/sagemath/cypari2/archive/3d7553e63d88ccafc445fa5cf577dad65a056d88.tar.gz" }
+resolution-markers = [
+    "sys_platform == 'emscripten'",
+    "sys_platform != 'emscripten' and sys_platform != 'ios' and sys_platform != 'win32'",
+    "sys_platform == 'ios'",
+]
 dependencies = [
     { name = "cysignals" },
 ]
@@ -957,14 +990,13 @@ wheels = [
 [[package]]
 name = "dzack-research"
 version = "0.1.1"
-source = { git = "https://github.com/dzackgarza/research.git?rev=main#ec1333eeb0747240bf67990831c98abd47439e7e" }
+source = { git = "https://github.com/dzackgarza/research#fac3d455ea8b3a128ae676c882a323ee2cc0303e" }
 dependencies = [
     { name = "haystack-ai" },
     { name = "pandoc-config" },
     { name = "python-dotenv" },
     { name = "python-flint" },
     { name = "python-frontmatter" },
-    { name = "sage-categories" },
     { name = "sage-extensions" },
     { name = "sage-julia-bridge" },
     { name = "streamlit" },
@@ -1780,7 +1812,7 @@ wheels = [
 [[package]]
 name = "jupyter-mcp-server"
 version = "1.1.0"
-source = { git = "https://github.com/dzackgarza/jupyter-mcp-server#57cba02e5199478e01eb392bb0994fee907cba29" }
+source = { git = "https://github.com/dzackgarza/jupyter-mcp-server#ad3e793cadf9045fd1cbfbf3d21b825e08e47c88" }
 dependencies = [
     { name = "code-sandboxes" },
     { name = "datalayer-reactor" },
@@ -2084,10 +2116,11 @@ wheels = [
 [[package]]
 name = "latticedb"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/lattice-database#230d41aef69bd940e4e92ee0ff43d819ca5287b3" }
+source = { git = "https://github.com/dzackgarza/lattice-database#72b7a4c4fe82766d4a39054e811e6a9660070bb4" }
 dependencies = [
     { name = "cyclopts" },
-    { name = "cypari2" },
+    { name = "cypari2", version = "2.2.4", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'win32'" },
+    { name = "cypari2", version = "2.2.6", source = { url = "https://github.com/sagemath/cypari2/archive/3d7553e63d88ccafc445fa5cf577dad65a056d88.tar.gz" }, marker = "sys_platform != 'win32'" },
     { name = "dzack-research" },
     { name = "jinja2" },
     { name = "markdown-it-py" },
@@ -2762,7 +2795,7 @@ wheels = [
 [[package]]
 name = "pandoc-config"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/pandoc-config#83e44b32f379e6f11868b9f0e78335e21220db67" }
+source = { git = "https://github.com/dzackgarza/pandoc-config#6f17727ebf6e02b6fd70e6612a8fc9c7cc816cad" }
 dependencies = [
     { name = "cyclopts" },
     { name = "pydantic" },
@@ -3963,7 +3996,7 @@ wheels = [
 [[package]]
 name = "sage-categories"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-categories.git#de31eec22f8495bf92d084a5bb17e4406192639a" }
+source = { git = "https://github.com/dzackgarza/sage-categories#01d1219ca14bedc6ac8ab530eb67b2ad8954cc05" }
 dependencies = [
     { name = "attrs" },
     { name = "discopy" },
@@ -3980,12 +4013,12 @@ dependencies = [
 [[package]]
 name = "sage-categories-homotopy"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-categories?subdirectory=native%2Fhomotopy-python#de31eec22f8495bf92d084a5bb17e4406192639a" }
+source = { git = "https://github.com/dzackgarza/sage-categories?subdirectory=native%2Fhomotopy-python#01d1219ca14bedc6ac8ab530eb67b2ad8954cc05" }
 
 [[package]]
 name = "sage-extensions"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-extensions#7b222e86214524a53802350f3cfda9c513707600" }
+source = { git = "https://github.com/dzackgarza/sage-extensions#3a86676fff588dfb075d7100864fdb22e88ea936" }
 dependencies = [
     { name = "networkx" },
     { name = "sage-categories" },
@@ -3997,7 +4030,7 @@ dependencies = [
 [[package]]
 name = "sage-indefinite-port"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-indefinite-port#4f0ee50c3ef432681ecdbbd7a5a7f5adb244d83b" }
+source = { git = "https://github.com/dzackgarza/sage-indefinite-port#991b88b095a42a1e3679569ea42328c900c120f6" }
 dependencies = [
     { name = "pynormaliz" },
     { name = "sage-extensions" },
@@ -4014,7 +4047,7 @@ dependencies = [
 [[package]]
 name = "sage-lsp"
 version = "0.3.3"
-source = { git = "https://github.com/dzackgarza/sage-lsp-server#b22ecb0ed19251f7834dc6feaa185bd4b0d3364f" }
+source = { git = "https://github.com/dzackgarza/sage-lsp-server#4a100e5af65142b62b79aa06f41c5eb18b4be1e5" }
 dependencies = [
     { name = "pycodestyle" },
     { name = "pyflakes" },
@@ -4026,7 +4059,7 @@ dependencies = [
 [[package]]
 name = "sage-mypy-category-plugin"
 version = "0.0.0"
-source = { git = "https://github.com/dzackgarza/sagemath-mypy-plugin#dd2f93b55109dc7feca2f025b0e2dbe06c385aad" }
+source = { git = "https://github.com/dzackgarza/sagemath-mypy-plugin#692389a8617d65dec149eed15e54a75650f54e77" }
 dependencies = [
     { name = "mypy" },
     { name = "packaging" },
@@ -4036,14 +4069,14 @@ dependencies = [
 [[package]]
 name = "sage-stubs"
 version = "10.7.0"
-source = { git = "https://github.com/dzackgarza/sage-stubs.git#49780ceabc506ee15bd00a6b33f681731beec701" }
+source = { git = "https://github.com/dzackgarza/sage-stubs.git#38ecb94244a45dbc041ea583629b48ea5be1e717" }
 
 [[package]]
 name = "sagemath"
 source = { editable = "." }
 dependencies = [
     { name = "conway-polynomials" },
-    { name = "cypari2", marker = "sys_platform != 'win32'" },
+    { name = "cypari2", version = "2.2.6", source = { url = "https://github.com/sagemath/cypari2/archive/3d7553e63d88ccafc445fa5cf577dad65a056d88.tar.gz" }, marker = "sys_platform != 'win32'" },
     { name = "cysignals" },
     { name = "cython" },
     { name = "fpylll", marker = "sys_platform != 'win32'" },
@@ -4089,7 +4122,7 @@ test = [
 [package.dev-dependencies]
 dev = [
     { name = "cibuildwheel" },
-    { name = "cypari2", marker = "sys_platform != 'win32'" },
+    { name = "cypari2", version = "2.2.6", source = { url = "https://github.com/sagemath/cypari2/archive/3d7553e63d88ccafc445fa5cf577dad65a056d88.tar.gz" }, marker = "sys_platform != 'win32'" },
     { name = "cysignals" },
     { name = "cython" },
     { name = "gmpy2" },
@@ -4931,7 +4964,7 @@ wheels = [
 [[package]]
 name = "vinal"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/vinal#74ed7de08908493cab213fc33d0e4cb409dfaccf" }
+source = { git = "https://github.com/dzackgarza/vinal.git#6240a17558672017da15ce27f7891c58b95c1031" }
 dependencies = [
     { name = "numpy" },
     { name = "scipy" },

@@ -809,6 +809,20 @@ no-binary-package = ["cypari2", "pplpy", "primecountpy"]
 # sage-numerical-backends-coin ships only an sdist whose build requires
 # sagemath-objects 10.7, which does not compile on Python 3.14. uv builds it
 # just to read its metadata, so `uv lock` fails; state that metadata here.
+override-dependencies = [
+  "dzack-research @ git+https://github.com/dzackgarza/research",
+  "jupyter-mcp-server @ git+https://github.com/dzackgarza/jupyter-mcp-server",
+  "latticedb @ git+https://github.com/dzackgarza/lattice-database",
+  "sage-categories @ git+https://github.com/dzackgarza/sage-categories",
+  "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions",
+  "sage-indefinite-port @ git+https://github.com/dzackgarza/sage-indefinite-port",
+  "sage-julia-bridge @ git+https://github.com/dzackgarza/sage-julia-bridge",
+  "sage-lsp @ git+https://github.com/dzackgarza/sage-lsp-server",
+  "sage-mypy-category-plugin @ git+https://github.com/dzackgarza/sagemath-mypy-plugin",
+  "sage-stubs @ git+https://github.com/dzackgarza/sage-stubs.git",
+  "tree-sitter-sage @ git+https://github.com/dzackgarza/tree-sitter-sage",
+  "vinal @ git+https://github.com/dzackgarza/vinal.git",
+]
 [[tool.uv.dependency-metadata]]
 name = "sage-numerical-backends-coin"
 requires-dist = ["sphinx"]
