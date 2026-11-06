@@ -107,7 +107,12 @@ platforms = ['linux-64', 'linux-aarch64', 'osx-64', 'osx-arm64']
 [tool.pytest.ini_options]
 # sage.libs.giac is a stub to keep the old imports working; all
 # it does is try to import sagemath_giac.
-norecursedirs = "local prefix venv build builddir pkgs .git .github src/doc src/bin src/sage/libs/giac tools subprojects"
+# `docker` and `results` hold scripts that drive this environment -- the image
+# check, the consumer check, the adoption rehearsal -- not modules of Sage. They
+# import sage_extensions and assert the GAP roots of an installed runtime, which is
+# exactly what they are for and exactly what "all modules can be imported" cannot
+# do; collecting them made that check report the environment's absence.
+norecursedirs = "local prefix venv build builddir pkgs .git .github src/doc src/bin src/sage/libs/giac tools subprojects docker results"
 python_files = "*_test.py"
 # The "no:warnings" is to stop pytest from capturing warnings so that they are printed to the output of the doctest
 addopts = "--import-mode importlib -p no:warnings --strict-markers"
