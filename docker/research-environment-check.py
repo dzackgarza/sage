@@ -273,22 +273,95 @@ subprocess.run(
     check=True,
 )
 
-# Each Lean checkout runs Lake on the toolchain it pins, and the pinned project
-# imports Mathlib. A version string says nothing about whether the packages the
-# project resolves carry object files, which is what the import needs: the
-# image ships Mathlib's official cache and builds the packages it imports.
-for toolchain in Path("/repos").glob("*/lean-toolchain"):
-    subprocess.run(["lake", "--version"], cwd=toolchain.parent, check=True)
+# Each Lean checkout imports Mathlib the way a consumer runs it. A Lean release
+# refuses another release's oleans, so a Mathlib is readable only by the toolchain
+# that built it, and the same holds for every package Mathlib imports: docker/
+# provision-lean-packages.sh builds each pinned Mathlib revision as its own project
+# when the shared packages directory does not already carry that revision, and its
+# dependencies are built inside that checkout by that checkout's toolchain (sage#12),
+# which is what the launcher's view binds over the packages directory. The check
+# reproduces that environment exactly: LEAN_PATH is the build directory of every
+# package in the project's manifest, resolved the way the view resolves it, and the
+# import runs on the toolchain the project pins rather than through Lake, whose
+# `env` does not return in this environment.
+import json
 
-mathlib_project = Path("/repos/lean-categories")
+
+def pinned(project: Path) -> tuple[str, dict[str, str]]:
+    """The toolchain a checkout pins and the revision it pins for every package."""
+    toolchain = (project / "lean-toolchain").read_text(encoding="utf-8").strip()
+    manifest = json.loads((project / "lake-manifest.json").read_text(encoding="utf-8"))
+    return toolchain, {
+        package["name"]: package["rev"]
+        for package in manifest["packages"]
+        if package.get("type") == "git"
+    }
+
+
+index = json.loads(Path("/opt/lake-views/index.json").read_text(encoding="utf-8"))
 with tempfile.NamedTemporaryFile(
     "w", suffix=".lean", prefix="mathlib-import-", delete=False
 ) as handle:
     handle.write("import Mathlib\n#check (Nat.add_comm : \u2200 a b : Nat, a + b = b + a)\n")
     import_file = handle.name
+imported = []
 try:
-    subprocess.run(["lake", "env", "lean", import_file], cwd=mathlib_project, check=True)
+    for toolchain_file in sorted(Path("/repos").glob("*/lean-toolchain")):
+        project = toolchain_file.parent
+        if not (project / "lake-manifest.json").is_file():
+            continue
+        pinned_toolchain, pins = pinned(project)
+        subprocess.run(["lake", "--version"], cwd=project, check=True)
+        entry = index.get(str(project))
+        assert entry is not None, f"{project} is not in /opt/lake-views/index.json"
+        packages_dir = Path(entry["packages_dir"])
+        overrides = {item["name"]: item for item in entry["overrides"]}
+        directories = {
+            name: Path(overrides[name]["checkout"]) if name in overrides else packages_dir / name
+            for name in pins
+        }
+        if "mathlib" in overrides:
+            # A revision the shared directory does not carry: its dependencies are
+            # built inside the Mathlib checkout, by the toolchain that built it, and
+            # the project's pins must agree with the closure there or no view could
+            # serve both.
+            mathlib = Path(overrides["mathlib"]["checkout"])
+            _, closure = pinned(mathlib)
+            for name, revision in closure.items():
+                if name in pins:
+                    assert pins[name] == revision, (name, pins[name], revision, str(mathlib))
+                directories[name] = mathlib / ".lake" / "packages" / name
+            directories["mathlib"] = mathlib
+            where = "from its override checkout"
+        else:
+            mathlib = (packages_dir / "mathlib").resolve()
+            where = "from the shared packages directory"
+        for name, directory in sorted(directories.items()):
+            resolved = subprocess.run(
+                ["git", "-C", str(directory), "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+            assert resolved == pins[name], (str(directory), resolved, pins[name])
+        built_by = (mathlib / "lean-toolchain").read_text(encoding="utf-8").strip()
+        assert built_by == pinned_toolchain, (str(mathlib), built_by, pinned_toolchain)
+        lean_path = ":".join(
+            str(directory / ".lake" / "build" / "lib" / "lean")
+            for _, directory in sorted(directories.items())
+        )
+        output = subprocess.run(
+            ["elan", "run", pinned_toolchain, "lean", import_file],
+            cwd=project,
+            env={**os.environ, "LEAN_PATH": lean_path},
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        assert "Nat.add_comm" in output, output
+        imported.append(
+            f"{project.name} ({pinned_toolchain}) {where} mathlib {pins['mathlib'][:8]}:"
+            f" {output.splitlines()[-1]}"
+        )
 finally:
     Path(import_file).unlink()
+for line in imported:
+    print(line)
 
 print(version())

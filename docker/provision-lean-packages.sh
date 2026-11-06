@@ -179,21 +179,36 @@ while IFS=$'\t' read -r kind checkout toolchain; do
     elan toolchain install "${toolchain}"
 done <<< "${plan}"
 
-# One Mathlib for every view: the official cache for the pinned revision first,
-# so Mathlib itself is not compiled here, then the packages it imports.
-mathlib_checkout="$(awk -F'\t' '$1 == "PIN" && $4 == "mathlib" { print $2; exit }' <<< "${plan}")"
-if [ -n "${mathlib_checkout}" ]; then
-    mathlib_dir="$(awk -F'\t' -v c="${mathlib_checkout}" '$1 == "PIN" && $2 == c && $4 == "mathlib" { print $3; exit }' <<< "${plan}")"
-    mathlib_olean="${mathlib_dir}/mathlib/.lake/build/lib/lean/Mathlib.olean"
-    if [ ! -f "${mathlib_olean}" ]; then
-        ( cd "${mathlib_checkout}" && lake exe cache get )
-        ( cd "${mathlib_checkout}" && lake build Mathlib )
+# Mathlib for every revision some checkout pins, each revision in its own
+# content-addressed checkout. A revision the shared packages directory already
+# carries is built there, by the checkouts that resolve it; a revision it does not
+# carry -- one a checkout pins differently, which the launcher binds from its
+# override -- is built here as its own project: the official cache for that
+# revision first, then the packages it imports, which Lake resolves into this
+# checkout's own .lake/packages and builds with this checkout's toolchain. Two
+# revisions must not share one build tree: a Lean release refuses another release's
+# oleans, so a Mathlib built by 4.33.0 is unreadable to 4.33.1 (sage#12), and the
+# same holds for every package it imports.
+while IFS=$'\t' read -r revision; do
+    [ -n "${revision}" ] || continue
+    mathlib_checkout="${lake_packages}/mathlib@${revision}"
+    olean="${mathlib_checkout}/.lake/build/lib/lean/Mathlib.olean"
+    if [ ! -d "${mathlib_checkout}" ]; then
+        printf 'error: no checkout for mathlib %s\n' "${revision}" >&2
+        problems=1
+        continue
     fi
-    if [ ! -f "${mathlib_olean}" ]; then
-        printf 'error: %s is missing after the build\n' "${mathlib_olean}" >&2
+    if [ ! -f "${olean}" ]; then
+        ( cd "${mathlib_checkout}" && lake exe cache get ) \
+            || { printf 'error: the Mathlib cache for %s could not be fetched\n' "${revision}" >&2; problems=1; continue; }
+        ( cd "${mathlib_checkout}" && lake build Mathlib ) \
+            || { printf 'error: Mathlib %s did not build\n' "${revision}" >&2; problems=1; continue; }
+    fi
+    if [ ! -f "${olean}" ]; then
+        printf 'error: %s is missing after the build\n' "${olean}" >&2
         problems=1
     fi
-fi
+done < <(awk -F'\t' '$1 == "PIN" && $4 == "mathlib" { print $5 }' <<< "${plan}" | sort -u)
 
 # Every checkout must either be fully carried by the shared directory or have
 # an override for each package it pins differently; a checkout with no override

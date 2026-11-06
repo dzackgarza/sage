@@ -212,6 +212,21 @@ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
 
 Nothing global is rewritten, so the two resolve different revisions of one
 package at the same time in separate mount namespaces.
+
+Two checkouts that pin one package at different revisions are separated by the
+views above. Two that pin **Mathlib** at different revisions need separate *build
+trees* as well, because a Lean release refuses another release's oleans: a Mathlib
+built by 4.33.0 is unreadable to 4.33.1, and the same holds for every package
+Mathlib imports (sage#12). Provisioning therefore builds each pinned Mathlib
+revision as its own project — `lake exe cache get` and `lake build Mathlib` inside
+`/opt/lake-packages/mathlib@<revision>`, where that revision's dependencies resolve
+into that checkout's `.lake/packages` and are built by that checkout's toolchain —
+and does it only for a revision the shared directory does not already carry, which
+is exactly the revision a checkout pins differently. The environment check imports
+Mathlib for every checkout that pins it: `LEAN_PATH` is the build directory of each
+package that checkout's view resolves to, and the import runs on the toolchain the
+checkout pins, rather than through `lake env`, which does not return in this
+environment.
 Under PRoot the same mount is one `-b` per override, both paths taken from the
 index: `-b <rootfs>/opt/lake-packages/<name>@<revision>:<packagesDir>/<name>`.
 
