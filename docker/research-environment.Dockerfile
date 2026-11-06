@@ -15,7 +15,7 @@
 # build/pkgs/*/distros/debian.txt names a package Debian ships. Ubuntu 24.04
 # is missing five of them -- maxima-sage and HiGHS among them -- so the same
 # metadata that resolves completely here resolves partially there.
-FROM debian:trixie AS environment
+FROM debian:trixie AS base
 
 ENV DEBIAN_FRONTEND=noninteractive
 # /sage is the fork's git checkout. Meson's vcs_tag would stamp its commit into
@@ -67,7 +67,7 @@ WORKDIR /sage
 # distribution still packages BRiAl.
 RUN set -eu; \
     packages="$(build/bin/sage-get-system-packages debian $(build/bin/sage-package list :standard:) \
-        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev|gap-polenta' | tr '\n' ' ')"; \
+        | tr ' ' '\n' | grep -vxE 'libbrial-dev|libbrial-groebner-dev|gap|libgap.*|gap-.*' | tr '\n' ' ')"; \
     if [ -z "$packages" ]; then \
         echo "FATAL: Sage's package metadata produced no Debian packages" >&2; exit 1; \
     fi; \
@@ -91,23 +91,108 @@ RUN apt-get update \
     macaulay2 \
     4ti2 latte-int lrslib topcom msolve normaliz-bin libnormaliz-dev \
     polymake libpolymake-dev libgiac-dev xcas fricas kissat cliquer \
-    gap-atlasrep gap-design gap-grape gap-guava gap-guava-bin gap-hap gap-radiroot \
-    gap-polycyclic gap-alnuth gap-autpgrp gap-cryst gap-crystcat gap-io gap-nq \
-    gap-character-tables gap-table-of-marks gap-transgrp gap-primgrp gap-smallgrp-extra \
-    gap-utils gap-float gap-toric gap-laguna gap-sonata gap-factint gap-congruence \
     sagemath-database-graphs sagemath-database-polytopes \
     pari-galdata pari-elldata pari-seadata pari-galpol \
     pandoc graphviz dvipng imagemagick texlive-latex-extra \
     cmake libpcre2-dev cargo rustc ccache rsync binutils-gold \
  && rm -rf /var/lib/apt/lists/*
 
-# Polenta (polycyclic presentations of matrix groups) is a standard GAP package
-# for Sage, but Debian trixie does not package it; its release is pure GAP.
+# The venv has to exist before GAP is installed into it. uv refuses to adopt a
+# nonempty .venv that is not a valid Python environment -- "cannot be used
+# because it is not a valid Python environment (no Python executable was found)"
+# -- which is precisely what installing GAP into the directory first produces.
+# So: create the venv, install GAP into it, then let the sync populate it. The
+# files GAP installs are not Python's and survive `uv sync` (verified).
+RUN uv venv /sage/.venv --python 3.14
+
+# src/meson.build:233 asks pkg-config for `libgap >= 4.13` before falling back to
+# cc.find_library('gap'). An ENV, not an export inside one RUN: an incremental
+# build reuses this image and runs its own `research-environment-sync`, and Meson
+# caches dependency discovery in the build directory, so the variable has to be in
+# the environment every such run starts from.
+ENV PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig
+
+# GAP, libgap, its headers and every GAP package come from ONE pinned upstream
+# source: the tarball Sage's own `gap` and `gap_packages` spkgs declare in
+# build/pkgs/gap/checksums.ini. Nothing here comes from the distribution, and no
+# path outside $SAGE_LOCAL is involved.
+#
+# Why this replaces the Debian GAP the image used to install:
+#
+#  * Reproducibility. A distro GAP is whatever trixie ships (4.14.0 here) while
+#    Sage pins 4.16.1. An executable, a libgap, headers and package roots from
+#    different builds is the failure class this repository already recorded once
+#    for bliss: headers and library disagreeing about ABI.
+#  * Reachability. Sage's documented home for optional GAP packages is
+#    $SAGE_LOCAL/lib/gap/pkg (build/pkgs/gap_packages/spkg-install.in:31), but
+#    that is only a GAP root when GAP itself was built into $SAGE_LOCAL
+#    (build/pkgs/gap/spkg-install.in:11). With a distro GAP, `sage -i
+#    gap_packages` installs files no GAP searches.
+#  * Linkage. src/meson.build:233 resolves `libgap` through pkg-config and falls
+#    back to cc.find_library('gap') -- independently of spkg-configure -- so
+#    building GAP here is only half the job: PKG_CONFIG_PATH must point at this
+#    prefix and no system libgap.pc may be visible, which is why the distro
+#    packages are excluded above.
+#
+# src/sage/libs/gap/util.pyx:284 hands libgap `-l <roots of the gap on PATH>`, so
+# once $SAGE_LOCAL/bin/gap is the one PATH resolves, the root list follows.
 RUN set -eu; \
-    curl -fsSL -o /tmp/polenta.tar.gz https://github.com/gap-packages/polenta/releases/download/v1.3.11/polenta-1.3.11.tar.gz; \
-    echo "aabf20981e438c2b361f416527163ae299a27a0a95ff3eb908a1aeae07b21bc1  /tmp/polenta.tar.gz" | sha256sum -c -; \
-    tar -xzf /tmp/polenta.tar.gz -C /usr/share/gap/pkg; \
-    rm /tmp/polenta.tar.gz
+    SAGE_LOCAL=/sage/.venv; \
+    version="$(cat build/pkgs/gap/package-version.txt)"; \
+    sha256="$(sed -n 's/^sha256=//p' build/pkgs/gap/checksums.ini)"; \
+    curl -fsSL -o /tmp/gap.tar.gz "https://github.com/gap-system/gap/releases/download/v${version}/gap-${version}.tar.gz"; \
+    echo "${sha256}  /tmp/gap.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/gap; tar -xzf /tmp/gap.tar.gz -C /tmp/gap --strip-components=1; \
+    cd /tmp/gap; \
+    ./configure --prefix="$SAGE_LOCAL"; \
+    make -j"$(nproc)"; \
+    make install; \
+    test -x "$SAGE_LOCAL/bin/gap" && test -f "$SAGE_LOCAL/lib/gap/sysinfo.gap"; \
+    # Every package the pinned GAP distribution ships, not a curated subset: a
+    # hand-picked list keeps turning out to be missing a member of some package's
+    # NeededOtherPackages closure -- `polenta` wants `alnuth`, `atlasrep` wants
+    # `primgrp`+`gapdoc`, `guava` wants `sonata`, `orb` wants `io` -- and GAP then
+    # refuses to load the package that needed it. A normal GAP installation has
+    # all of them, so this one does too.
+    #
+    # GAP's `make install` does not install pkg/ at all, so it is copied, whole,
+    # from the same pinned source into the root GAP searches. `/.` copies the
+    # contents; without it a second run would nest pkg/pkg.
+    GAP_ROOT_PKG="$SAGE_LOCAL/lib/gap/pkg"; \
+    mkdir -p "$GAP_ROOT_PKG"; \
+    cp -a /tmp/gap/pkg/. "$GAP_ROOT_PKG/"; \
+    echo "installed $(ls "$GAP_ROOT_PKG" | wc -l) GAP packages"; \
+    # The packages Sage's own gap_packages spkg compiles; the pinned source ships
+    # their C, so they are built here against this GAP and its gac.
+    compiled_old="cohomolo crypting grape orb datastructures"; \
+    compiled_new="nq io digraphs"; \
+    for pkg in $compiled_old; do \
+        echo "building GAP package $pkg"; \
+        cd "$GAP_ROOT_PKG/$pkg" && ./configure "$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
+    done; \
+    echo "building GAP package guava"; \
+    export CFLAGS="-std=gnu17 -Wno-implicit-function-declaration ${CFLAGS:-}"; \
+    cd "$GAP_ROOT_PKG/guava" && ./configure "$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
+    for pkg in $compiled_new; do \
+        echo "building GAP package $pkg"; \
+        cd "$GAP_ROOT_PKG/$pkg" && ./configure --with-gaproot="$SAGE_LOCAL/lib/gap" && make -j"$(nproc)" && cd /; \
+    done; \
+    cd /; rm -rf /tmp/gap /tmp/gap.tar.gz; \
+    # The binary carries no rpath to $SAGE_LOCAL/lib, so the loader must be told
+    # where libgap.so.11 is before this build runs it -- and before anything else
+    # in the image runs it.
+    printf '%s\n' "$SAGE_LOCAL/lib" > /etc/ld.so.conf.d/sage-local.conf; \
+    ldconfig; \
+    # Load, not just list: LoadPackage fails when a NeededOtherPackages entry is
+    # missing from the root, so this is the closure check. hap needs polycyclic,
+    # guava needs sonata, orb needs io, grape needs GAPDoc, polenta needs alnuth
+    # and polycyclic, recog needs atlasrep, genss needs orb -- all pinned source.
+    "$SAGE_LOCAL/bin/gap" -q --nointeract -c 'for n in ["atlasrep", "design", "grape", "guava", "hap", "polenta", "polycyclic", "sonata", "io", "alnuth", "orb", "forms", "genss", "recog"] do if LoadPackage(n) <> true then Print("FATAL: GAP package ", n, " does not load\n"); QUIT_GAP(1); fi; od;'
+
+# The GAP packages Sage's feature checks and the matrix-group work need are all
+# inside that same tarball (the spkg installs them from its pkg/ directory), so
+# there is nothing else to fetch: atlasrep, design, grape, guava, hap, polenta,
+# polycyclic, factint, tomlib, genss, orb, forms and recog are bundled.
 
 # Debian installs these programs under package prefixes (4ti2-hilbert,
 # latte-count, topcom-points2allfinetriangs); Sage's features look for the
@@ -155,18 +240,34 @@ RUN set -eu; \
     rm -rf /tmp/pcre /tmp/pcre.tar.bz2 /tmp/coxiter; \
     command -v coxiter
 
-# Julia and Oscar for sage-julia-bridge. Oscar and JSON go into the default
-# environment of the read-only /opt/julia-depot, so no desk keeps its own copy
-# of the Oscar artifacts; the bridge's own --project stacks on top of it. At
-# runtime a writable depot is placed in front of this one; the trailing empty
-# entry keeps Julia's bundled stdlib depot on the path.
+FROM base AS environment
+
+# Julia, because the consumers this image exists for need it: importing
+# sage_categories constructs functor object images through Catlab, which imports
+# juliacall, so every sage-categories consumer -- sage-extensions included -- loads
+# Julia. The depot is resolved HERE, at build time, for the same reason: at import
+# juliapkg resolves the Julia and package requirements of every installed
+# distribution, and against an unresolved depot that is a network fetch.
+# sage_categories/juliapkg.json pins Julia =1.12.7; measured with 1.12.5 in the
+# image, `import sage_categories` reached julialang-s3.julialang.org and died with
+# the network down, which is why this installs that exact release.
+#
+# Oscar and JSON go into the default environment of the read-only /opt/julia-depot,
+# so no desk keeps its own copy of the Oscar artifacts; the bridge's own --project
+# stacks on top of it. At runtime a writable depot is placed in front of this one;
+# the trailing empty entry keeps Julia's bundled stdlib depot on the path.
 RUN set -eu; \
-    curl -LsSf -o /tmp/julia.tar.gz https://julialang-s3.julialang.org/bin/linux/x64/1.12/julia-1.12.5-linux-x86_64.tar.gz; \
-    echo "41b84d727e4e96fbf3ed9e92fa195d773d247b9097f73fad688f8b699758bae7  /tmp/julia.tar.gz" | sha256sum -c -; \
+    curl -LsSf -o /tmp/julia.tar.gz https://julialang-s3.julialang.org/bin/linux/x64/1.12/julia-1.12.7-linux-x86_64.tar.gz; \
+    echo "4e7e9e776634d24835250de67cde39b0d4af15bc432eb20697e6be6c28ea69e8  /tmp/julia.tar.gz" | sha256sum -c -; \
     mkdir /opt/julia; \
     tar -xzf /tmp/julia.tar.gz -C /opt/julia --strip-components=1; \
-    rm /tmp/julia.tar.gz; \
-    ln -s /opt/julia/bin/julia /usr/local/bin/julia
+    rm /tmp/julia.tar.gz
+
+# /usr/local/bin/julia is the image's entry point rather than a symlink: it
+# adds /opt/julia-depot to whatever JULIA_DEPOT_PATH the caller has, so a
+# process whose environment did not come from this image (PRoot over the
+# unpacked filesystem, a bare exec) still resolves the bridge's packages.
+COPY --chmod=0755 docker/julia-launcher.sh /usr/local/bin/julia
 
 # Package caches must load on both the CI CPU and the host CPU.
 # https://docs.julialang.org/en/v1.12/manual/environment-variables/#JULIA_CPU_TARGET
@@ -183,6 +284,18 @@ RUN set -eu; \
         println("JSON ", pkgversion(JSON), ", Oscar ", Oscar.VERSION_NUMBER, " loaded")'; \
     chmod -R a+rX /opt/julia-depot
 
+
+ENV SAGE_BIN=/sage/.venv/bin/sage
+ENV PATH=/sage/.venv/bin:$PATH
+
+
+COPY . /sage
+
+# ccache keeps compiler output across image builds; Meson uses it whenever it
+# is on PATH. The cache mount is not part of the image, and CI carries it
+# between runs, so a source change recompiles only the modules it touches.
+ENV CCACHE_DIR=/ccache
+
 # Lean 4 through elan; install-research-repositories.sh installs the toolchain
 # each Lean checkout pins.
 ENV ELAN_HOME=/opt/elan
@@ -191,26 +304,32 @@ RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-ini
     | sh -s -- -y --no-modify-path --default-toolchain none \
  && elan --version
 
-COPY . /sage
-
-# ccache keeps compiler output across image builds; Meson uses it whenever it
-# is on PATH. The cache mount is not part of the image, and CI carries it
-# between runs, so a source change recompiles only the modules it touches.
-ENV CCACHE_DIR=/ccache
-# RELOCK=true first moves the git-sourced research packages to their heads; the
-# sync then installs that lock, and the `lock` stage below exports it.
-ARG RELOCK=false
+# The recipe: the Sage virtual environment, then every research checkout, the
+# bridge's julia-deps, sage-categories' GAP releases and the Lean packages each
+# checkout pins.
 RUN --mount=type=cache,target=/ccache \
-    if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
- && just research-environment-sync && ccache --show-stats
+    just research-environment-sync && ccache --show-stats
+
+# Resolve what the installed distributions require into the depot, so no later
+# import has anything left to fetch: sage_categories pins Catlab =0.17.6 and GATlab
+# =0.2.4, and a fresh depot resolves them in about four minutes. This runs HERE, and
+# with the Sage venv's own interpreter, because juliapkg is a dependency of this
+# environment: it arrives with the sync above and is what `import sage_categories`
+# will use. Resolving earlier ran the uv-managed python, which has no juliapkg --
+# measured: `ModuleNotFoundError: No module named 'juliapkg'` in run 42220489790.
+RUN set -eu; \
+    jl="$(command -v julia)"; \
+    HOME=/root /sage/.venv/bin/python -c 'import juliapkg; juliapkg.resolve()'; \
+    chmod -R a+rX /opt/julia-depot; \
+    echo "depot resolved at build time against $("$jl" --version)"
 
 FROM scratch AS lock
 COPY --from=environment /sage/uv.lock /uv.lock
 
 FROM environment
 
-ENV SAGE_BIN=/sage/.venv/bin/sage
-ENV PATH=/sage/.venv/bin:$PATH
-
-# Fail the build if any system the image exists to provide is absent.
+# Fail the build if any system the image exists to provide is absent. The Lean
+# part of the check imports Mathlib from a pinned checkout, which exercises
+# docker/provision-lean-packages.sh against whatever this build left in place: a
+# full build is the only one that runs it with an empty packages directory.
 RUN "$SAGE_BIN" docker/research-environment-check.py

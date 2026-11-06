@@ -1,0 +1,5 @@
+/usr/share/gap/pkg/forms-1.3.0
+/usr/share/gap/pkg/genss-1.6.10
+/usr/share/gap/pkg/orb-5.1.0
+/usr/share/gap/pkg/recog-1.5.1
+/usr/bin/gac

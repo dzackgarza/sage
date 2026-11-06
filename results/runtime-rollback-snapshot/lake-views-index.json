@@ -1,0 +1,26 @@
+{
+  "/repos/lean-cas-dsl": {
+    "overrides": [
+      {
+        "checkout": "/opt/lake-packages/lean_categories@eea5c7f3bce7a1d2fdfbd58840c4d4bd75c9a8bc",
+        "name": "lean_categories",
+        "revision": "eea5c7f3bce7a1d2fdfbd58840c4d4bd75c9a8bc"
+      }
+    ],
+    "packages_dir": "/.local/share/lean/v4.33.0/packages"
+  },
+  "/repos/lean-cas-dsl-leaf-contracts": {
+    "overrides": [
+      {
+        "checkout": "/opt/lake-packages/lean_categories@82d1370de372a00a86391b74fc2566c9547dfcb6",
+        "name": "lean_categories",
+        "revision": "82d1370de372a00a86391b74fc2566c9547dfcb6"
+      }
+    ],
+    "packages_dir": "/.local/share/lean/v4.33.0/packages"
+  },
+  "/repos/lean-categories": {
+    "overrides": [],
+    "packages_dir": "/.local/share/lean/v4.33.0/packages"
+  }
+}

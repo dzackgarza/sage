@@ -1,0 +1,58 @@
+From d6aa74d75d36d532baa289135736c0cf45c8fc8e Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sat, 31 Oct 2026 20:56:57 +0000
+Subject: [PATCH 02/16] test: check both canonical-label backends in the
+ research image
+
+The image installs the distribution libbliss, so its build is the one place a
+bliss ABI mismatch or a copied Stats has to fail. Canonical labels from both
+backends on a relabelled copy of one labelled graph, the minimal two-vertex
+case, and the bliss automorphism search now run as part of
+docker/research-environment-check.py, which the image build executes.
+
+Verified against the image's own build tree by rebuilding sage.graphs.bliss
+with these flags: the published module segfaults on the first assertion, the
+same module built with the definition alone aborts on a double free in the
+last, and with both changes every check passes and sage.doctest
+--optional=sage,bliss src/sage/graphs/bliss.pyx reports all 95 tests passing.
+Not verified: a rebuilt and republished image, which needs CI.
+---
+ docker/research-environment-check.py | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/docker/research-environment-check.py b/docker/research-environment-check.py
+index 53a1eac..aba266e 100644
+--- a/docker/research-environment-check.py
++++ b/docker/research-environment-check.py
+@@ -7,7 +7,7 @@ from pathlib import Path
+ from sage.features.all import all_features
+ from sage.features.gap import GapPackage
+ from sage.features.interfaces import Macaulay2
+-from sage.all import QQ
++from sage.all import Graph, graphs, QQ
+ from sage_julia_bridge import julia
+ 
+ subprocess.run([
+@@ -28,6 +28,22 @@ features += [GapPackage(name) for name in (
+ missing = [feature.name for feature in features if not feature.is_present()]
+ assert not missing, missing
+ 
++# Both canonical-label backends return the same label for a relabelled copy of
++# a labelled graph, and the bliss automorphism search finishes.  A system
++# libbliss built with a different BigNum representation than its headers
++# segfaults on the first assertion, and one whose bliss::Stats is copied
++# instead of referenced aborts on a double free in the last: this image
++# installs that library, so its build has to link it the way the library's
++# pkg-config file asks.
++labelled = Graph([(0, 1, "a"), (2, 3, None), (1, 2, "a"), (3, 0, None)])
++relabelled = labelled.relabel({0: 2, 1: 0, 2: 3, 3: 1}, inplace=False)
++for algorithm in ("bliss", "sage"):
++    assert labelled.canonical_label(algorithm=algorithm, edge_labels=True) == (
++        relabelled.canonical_label(algorithm=algorithm, edge_labels=True)
++    ), algorithm
++assert Graph([[0, 1]]).canonical_label(edge_labels=True) == Graph([[0, 1]])
++assert graphs.PetersenGraph().automorphism_group().order() == 120
++
+ # The research packages run from their checkouts under /repos. The homotopy
+ # package is a compiled extension built from its checkout, so its module is in
+ # site-packages.

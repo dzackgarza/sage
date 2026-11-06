@@ -1,0 +1,14 @@
+kernel_info (GAP version, arch, roots): ('4.14.0', 'x86_64-pc-linux-gnu-default64-kv9', '/root/.gap/;/root/gap/;/usr/local/lib/gap/;/usr/local/share/gap/;/usr/lib/gap/;/usr/share/gap/')
+LoadPackage(forms) = true in 0.076s
+LoadPackage(orb) = true in 0.000s
+LoadPackage(genss) = true in 0.000s
+LoadPackage(recog) = true in 0.000s
+GAPInfo.RootPaths = [ "/root/.gap/", "/root/.gap/", "/root/gap/", "/usr/local/lib/gap/", "/usr/local/share/gap/", "/usr/lib/gap/", "/usr/share/gap/" ]
+PackageInfo(genss) version = 1.6.10
+PackageInfo(recog) version = 1.5.1
+PackageInfo(forms) version = 1.3.0
+PackageInfo(orb) version = 5.1.0
+deg2 order = 20 in 0.003s
+deg4 order = 62500 (expect 62500) in 0.005s
+sage feature GapPackage('genss').is_present() = FeatureTestResult('gap_package_genss', True)
+sage feature GapPackage('recog').is_present() = FeatureTestResult('gap_package_recog', True)

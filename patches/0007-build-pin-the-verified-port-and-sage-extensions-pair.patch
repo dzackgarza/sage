@@ -1,0 +1,114 @@
+From 6614e1f07933d6a32f96c344055c15f9e4fa0370 Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sun, 1 Nov 2026 00:36:30 +0000
+Subject: [PATCH 07/16] build: pin the verified port and sage-extensions pair
+ in the research lock
+
+The lock pinned sage-indefinite-port 86d860a, which reads the predecessor
+research library; the post-move research checkout it pinned at ec1333e is the
+successor's content, and the two did not agree. The port project verified the
+replacement pair independently -- port main 4f0ee50c, which pins
+sage-extensions 7b222e86214524a53802350f3cfda9c513707600 -- and its own
+provisioning now reads that revision from pyproject.toml with no predecessor
+research library.
+
+uv.lock therefore moves sage-indefinite-port to
+4f0ee50c3ef432681ecdbbd7a5a7f5adb244d83b with dependencies pynormaliz and
+sage-extensions instead of dzack-research, and sage-extensions to
+7b222e86214524a53802350f3cfda9c513707600, whose own requirements are unchanged.
+Every other git source keeps its revision, and dzack-research stays at ec1333e
+as content for the consumers that still import it: the mismatch goes away
+because the port stops reading it, not because an old module identity returns.
+
+research-environment-check.py gains the pair's smoke checks beside the bliss and
+Julia ones: the installed requirement of the port names sage-extensions and no
+research library, Lattices is sage_extensions.categories.lattices, an isometry
+exists between a lattice and the same lattice in another basis and none exists
+between lattices of different determinant, and the hyperbolic plane's O, Aut and
+stable orthogonal group have their recorded orders.
+
+Evidence, inside the image (Sage 11.0.beta5, CPython 3.14.10): uv sync --locked
+accepts the edited lock and reports both packages at the new revisions; the
+smoke block passes with the port installed from its own pyproject
+(requires: sage-extensions @ ...@7b222e86..., PyNormaliz) and fails on the image
+as published, whose port still requires dzack-research; and the whole check
+passes with the two checkouts at the pinned revisions, the local bliss repair
+and the julia launcher bound in, ending at SageMath 11.0.beta5.
+
+Not touched: research-repositories.txt, every other git source, and the
+publication state.
+---
+ docker/research-environment-check.py | 21 ++++++++++++++++++++-
+ uv.lock                              |  7 ++++---
+ 2 files changed, 24 insertions(+), 4 deletions(-)
+
+diff --git a/docker/research-environment-check.py b/docker/research-environment-check.py
+index e44062a..2046314 100644
+--- a/docker/research-environment-check.py
++++ b/docker/research-environment-check.py
+@@ -3,12 +3,14 @@
+ import importlib
+ import os
+ import subprocess
++from importlib.metadata import requires as distribution_requires
+ from pathlib import Path
+ 
+ from sage.features.all import all_features
+ from sage.features.gap import GapPackage
+ from sage.features.interfaces import Macaulay2
+-from sage.all import Graph, graphs, QQ
++from sage.all import Graph, graphs, ZZ, QQ
++from sage_extensions.all import Lattices
+ from sage_julia_bridge import julia
+ 
+ subprocess.run([
+@@ -57,6 +59,23 @@ for module in (
+     assert origin.startswith("/repos/"), (module, origin)
+ importlib.import_module("sage_categories_homotopy")
+ 
++# The canonical pair: the port reads sage-extensions, and nothing revives the
++# predecessor research library it used to read. A stale pair still loads, so
++# the requirement the port installs and the category it composes are both
++# checked, with one isometry and one group that exercise them.
++requirements = distribution_requires("sage-indefinite-port") or []
++assert any("sage-extensions" in line for line in requirements), requirements
++assert not any("research" in line for line in requirements), requirements
++assert Lattices.__module__ == "sage_extensions.categories.lattices", Lattices.__module__
++
++lattices = Lattices(ZZ)
++plane = lattices([[0, 1], [1, 0]])
++assert not plane.Isom(plane).is_empty()
++assert lattices([[2, 1], [1, 2]]).Isom(lattices([[1, 0], [0, 1]])).is_empty()
++assert plane.O().cardinality() == 4
++assert plane.Aut().cardinality() == 4
++assert plane.stable_orthogonal_group().order() == 4
++
+ assert julia.sage("1 // 2") == QQ(1) / 2
+ julia.eval("using Oscar")
+ assert julia.sage("ZZ(2)^10") == 1024
+diff --git a/uv.lock b/uv.lock
+index ccc6310..f24981a 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -3985,7 +3985,7 @@ source = { git = "https://github.com/dzackgarza/sage-categories?subdirectory=nat
+ [[package]]
+ name = "sage-extensions"
+ version = "0.1.0"
+-source = { git = "https://github.com/dzackgarza/sage-extensions#441519c574cec12ada06ad586f6c3862fbca96d0" }
++source = { git = "https://github.com/dzackgarza/sage-extensions#7b222e86214524a53802350f3cfda9c513707600" }
+ dependencies = [
+     { name = "networkx" },
+     { name = "sage-categories" },
+@@ -3997,9 +3997,10 @@ dependencies = [
+ [[package]]
+ name = "sage-indefinite-port"
+ version = "0.1.0"
+-source = { git = "https://github.com/dzackgarza/sage-indefinite-port#86d860a428c2c50604bfeff2c5c0793137179dc1" }
++source = { git = "https://github.com/dzackgarza/sage-indefinite-port#4f0ee50c3ef432681ecdbbd7a5a7f5adb244d83b" }
+ dependencies = [
+-    { name = "dzack-research" },
++    { name = "pynormaliz" },
++    { name = "sage-extensions" },
+ ]
+ 
+ [[package]]

@@ -1,0 +1,153 @@
+From 3cee6bb0ffa7ba77937551a8ecbec881e408cfb7 Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sun, 1 Nov 2026 00:48:04 +0000
+Subject: [PATCH 08/16] fix: provision Lean packages where the projects resolve
+ them
+
+The Lean checkouts under /repos declare packagesDir in their lakefile --
+"../../.local/share/lean/v4.33.0/packages", which is
+/.local/share/lean/v4.33.0/packages -- and Lake reads dependencies there, never
+from .lake/packages. The recipe linked the shared /opt/lake-packages checkouts
+into .lake/packages and used that link as the guard for retrieving Mathlib's
+cache, so it linked where no project looks: Mathlib's official cache did land in
+the resolved directory (8322 oleans in the published image), no dependency was
+ever built, and import Mathlib stopped at
+"object file '.../packages/batteries/.lake/build/lib/lean/Batteries.olean' of
+module Batteries does not exist". /opt/lake-packages/mathlib@db584cd6... carried
+no build tree at all.
+
+install-research-repositories.sh now reads packagesDir from each checkout's
+lake-manifest.json, resolves it against the checkout, and links the shared
+checkouts there, so the packages stay one copy under /opt. It retrieves the
+official pinned Mathlib cache once and then builds its dependency closure once
+(lake build Mathlib), so Mathlib itself is never compiled, and it fails the
+build unless the resolved directory holds Mathlib.olean.
+
+research-environment-check.py keeps the per-checkout lake --version and adds the
+import that was missing: lake env lean on a file containing import Mathlib, run
+from /repos/lean-categories.
+
+Provenance: toolchain leanprover/lean4:v4.33.0, commit
+d8b18978322de05a8f3dba51ef03cf5461676c17; Mathlib pinned at
+db584cd6d46c92f209a44c0f1c829460d327499d from
+https://github.com/leanprover-community/mathlib4, whose cache is fetched by
+lake exe cache get for that revision.
+
+Evidence, in the published image with writable copies of the packages and
+Mathlib's cached tree linked read-only so it cannot be silently rebuilt: the
+dependency closure builds in under three minutes ("Build completed successfully (8711
+jobs)"), lake env lean on import Mathlib then returns
+"Nat.add_comm : forall (n m : Nat), n + m = m + n" (19 s, exit 0), and the whole
+research environment check passes with this script bound in.
+
+Not touched: the Lean checkouts, their lakefiles and manifests, the toolchain,
+and the publication state.
+---
+ docker/install-research-repositories.sh | 42 ++++++++++++++++++++-----
+ docker/research-environment-check.py    | 17 +++++++++-
+ 2 files changed, 51 insertions(+), 8 deletions(-)
+
+diff --git a/docker/install-research-repositories.sh b/docker/install-research-repositories.sh
+index 4799ab8..6effbd9 100755
+--- a/docker/install-research-repositories.sh
++++ b/docker/install-research-repositories.sh
+@@ -62,17 +62,36 @@ just -f "${repositories_root}/sage-julia-bridge/justfile" julia-deps
+ 
+ # Lean: each checkout with a root lean-toolchain gets its toolchain from elan.
+ # Every Lake package a manifest pins is checked out once per revision under
+-# /opt/lake-packages and linked into the checkout's .lake/packages, so the
+-# checkouts share one Mathlib, whose prebuilt cache is unpacked into it once.
+-# The checkouts' own targets are the agents' work and are not built here.
++# /opt/lake-packages and linked into the directory that project resolves: a
++# manifest records it as packagesDir, and a project that sets one -- these set
++# ../../.local/share/lean/<toolchain>/packages -- never reads .lake/packages.
++# The packages are one copy under /opt because each project's link points there.
++# Mathlib's oleans come from the official cache for the pinned revision, so the
++# multi-hour Mathlib build is never run; the packages Mathlib imports have no
++# such cache and are built once, here. The checkouts' own targets are the
++# agents' work and are not built.
+ lake_packages=/opt/lake-packages
+ mkdir -p "${lake_packages}"
++lean_project=
++lean_packages_dir=
+ for checkout in "${repositories_root}"/*/; do
+     checkout="${checkout%/}"
+     [ -f "${checkout}/lean-toolchain" ] || continue
+     elan toolchain install "$(cat "${checkout}/lean-toolchain")"
+     [ -f "${checkout}/lake-manifest.json" ] || continue
+-    mkdir -p "${checkout}/.lake/packages"
++    packages_dir="$("${sage_python}" - "${checkout}/lake-manifest.json" <<'PY'
++import json
++import sys
++
++print(json.load(open(sys.argv[1])).get("packagesDir") or ".lake/packages")
++PY
++)"
++    case "${packages_dir}" in
++        /*) ;;
++        *) packages_dir="${checkout}/${packages_dir}" ;;
++    esac
++    packages_dir="$(realpath -m "${packages_dir}")"
++    mkdir -p "${packages_dir}"
+     "${sage_python}" - "${checkout}/lake-manifest.json" <<'PY' |
+ import json
+ import sys
+@@ -87,10 +106,19 @@ PY
+             git clone --quiet --filter=blob:none "${url}" "${shared}"
+             git -C "${shared}" checkout --quiet "${revision}"
+         fi
+-        ln -sfn "${shared}" "${checkout}/.lake/packages/${name}"
++        ln -sfn "${shared}" "${packages_dir}/${name}"
+     done
+-    if [ -L "${checkout}/.lake/packages/mathlib" ]; then
+-        (cd "${checkout}" && lake exe cache get)
++    if [ -e "${packages_dir}/mathlib" ] && [ -z "${lean_project}" ]; then
++        lean_project="${checkout}"
++        lean_packages_dir="${packages_dir}"
+     fi
+ done
++
++# One project's Mathlib closure is every project's: the packages are shared by
++# revision. The cache is retrieved before the build, so Mathlib itself is not
++# compiled here, and the image fails if Mathlib does not end up loadable.
++if [ -n "${lean_project}" ]; then
++    ( cd "${lean_project}" && lake exe cache get && lake build Mathlib )
++    test -f "${lean_packages_dir}/mathlib/.lake/build/lib/lean/Mathlib.olean"
++fi
+ elan default "$(cat "${repositories_root}/lean-categories/lean-toolchain")"
+diff --git a/docker/research-environment-check.py b/docker/research-environment-check.py
+index 2046314..c686db4 100644
+--- a/docker/research-environment-check.py
++++ b/docker/research-environment-check.py
+@@ -3,6 +3,7 @@
+ import importlib
+ import os
+ import subprocess
++import tempfile
+ from importlib.metadata import requires as distribution_requires
+ from pathlib import Path
+ 
+@@ -99,8 +100,22 @@ subprocess.run(
+     check=True,
+ )
+ 
+-# Each Lean checkout runs Lake on the toolchain it pins.
++# Each Lean checkout runs Lake on the toolchain it pins, and the pinned project
++# imports Mathlib. A version string says nothing about whether the packages the
++# project resolves carry object files, which is what the import needs: the
++# image ships Mathlib's official cache and builds the packages it imports.
+ for toolchain in Path("/repos").glob("*/lean-toolchain"):
+     subprocess.run(["lake", "--version"], cwd=toolchain.parent, check=True)
+ 
++mathlib_project = Path("/repos/lean-categories")
++with tempfile.NamedTemporaryFile(
++    "w", suffix=".lean", prefix="mathlib-import-", delete=False
++) as handle:
++    handle.write("import Mathlib\n#check (Nat.add_comm : \u2200 a b : Nat, a + b = b + a)\n")
++    import_file = handle.name
++try:
++    subprocess.run(["lake", "env", "lean", import_file], cwd=mathlib_project, check=True)
++finally:
++    Path(import_file).unlink()
++
+ print(version())

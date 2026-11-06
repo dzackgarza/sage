@@ -14,6 +14,9 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE} AS environment
 
 ENV JULIA_CPU_TARGET=generic
+# Same reason as the full Dockerfile: Meson resolves `libgap` through pkg-config,
+# and this file rebuilds the venv on top of an existing image.
+ENV PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig
 
 COPY . /tmp/sage-source
 RUN rsync --recursive --links --checksum \
@@ -22,6 +25,30 @@ RUN rsync --recursive --links --checksum \
  && rm -rf /tmp/sage-source
 
 ENV CCACHE_DIR=/ccache
+# Debian's GAP does not belong in this environment and is not in the full
+# Dockerfile's package lists: Sage's `gap` spkg is excluded by name and no other
+# package depends on it, so a build from debian:trixie has none. A package list can
+# only stop an install; it cannot remove one, and this image is built on a published
+# base. A base older than e1e3235b ("build GAP, libgap and its packages from Sage's
+# pinned source instead of Debian") carries Debian's 4.14 -- /usr/bin/gap,
+# /usr/lib/gap, /usr/share/gap, libgap.so.9 -- and apt never removes what a layer
+# installed. That copy is what sage.libs.gap.util.kernel_info() runs when PATH does
+# not resolve $SAGE_LOCAL/bin/gap first, and libgap.so.11 then reads 4.14's library
+# and segfaults in DoOperation1Args (sage#11). Nothing in the image is built against
+# it, so it is purged here, and the build stops if the purge did not take.
+RUN purged="$(dpkg-query -W -f='${Package} ${Status}\n' 'gap*' 'libgap*' 2>/dev/null \
+        | awk '$2 == "install" && $3 == "ok" && $4 == "installed" {print $1}')" \
+ && if [ -n "$purged" ]; then \
+        printf 'purging the distribution GAP: %s\n' "$purged"; \
+        apt-get purge -y $purged; \
+    fi \
+ && rm -rf /usr/share/gap /usr/lib/gap \
+        /usr/lib/x86_64-linux-gnu/libgap.so.9 \
+        /usr/lib/x86_64-linux-gnu/libgap.so \
+        /usr/lib/x86_64-linux-gnu/pkgconfig/libgap.pc \
+ && test ! -e /usr/bin/gap \
+ && test ! -d /usr/share/gap
+
 # RELOCK=true first moves the git-sourced research packages to their heads; the
 # sync then installs that lock, and the `lock` stage below exports it.
 ARG RELOCK=false

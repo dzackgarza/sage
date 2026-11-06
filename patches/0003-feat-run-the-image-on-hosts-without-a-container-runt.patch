@@ -1,0 +1,501 @@
+From b75e5b3386c4387fe0cb3cba624ad3f1ef40075f Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sat, 31 Oct 2026 21:03:35 +0000
+Subject: [PATCH 03/16] feat: run the image on hosts without a container
+ runtime
+
+Consumers on hosts without Docker, chroot or PRoot fell back to a distribution
+Sage, and the import and version failures that follow were read as defects in
+the libraries the image provides. The environment was therefore not
+reproducible for them, and a real fault in the image was reported as one.
+
+docker/sage-image.py fetches the published image from the registry without a
+daemon, verifies the digest of every layer, unpacks it into a cache that
+records the index, manifest, config and source revision, and runs commands in
+that tree with bubblewrap's unprivileged user namespaces: no root, no chroot,
+no ptrace. The current directory is mounted at /work, more paths with
+--bind SRC:DEST, and `check` runs the environment check the image build runs.
+A missing bubblewrap or a kernel without user namespaces is named before
+anything runs.
+
+docker/SAGE-ENVIRONMENT.md documents the supported invocations -- the image in
+Docker or as a CI job container, and this script where neither is available --
+that provisioning is owned by this repository rather than copied into
+consumers, and that a distribution Sage is not this environment. AGENTS.md
+points at it, and records that the image is published from develop.
+
+Verified here with no Docker, no chroot and no PRoot in use: the script unpacks
+the published image, runs its Sage (ZZ(2)**10, an exact determinant, the
+partn_ref canonical label), mounts a consumer checkout at /work, and
+reproduces the published image's bliss segfault. Not verified: a full `check`
+(image's own Julia/Lean checks) and the same script on a host whose kernel
+forbids user namespaces, which this host cannot simulate.
+---
+ AGENTS.md                  |   8 +
+ docker/SAGE-ENVIRONMENT.md | 116 ++++++++++++++
+ docker/sage-image.py       | 317 +++++++++++++++++++++++++++++++++++++
+ 3 files changed, 441 insertions(+)
+ create mode 100644 docker/SAGE-ENVIRONMENT.md
+ create mode 100755 docker/sage-image.py
+
+diff --git a/AGENTS.md b/AGENTS.md
+index 44003d6..86cfb71 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -4,3 +4,11 @@ Use the [shared math container](https://github.com/dzackgarza/ai-review-ci/blob/
+ (`ghcr.io/dzackgarza/sage:develop`) for Lean/elan, Sage with mypy, GAP,
+ Julia/Oscar, Macaulay2, and Singular. The guide covers image pull/run commands,
+ CI use, and the host launchers.
++
++The image is published from this fork's default branch, `develop`; there is no
++`main`. Provisioning is owned here: [docker/SAGE-ENVIRONMENT.md](docker/SAGE-ENVIRONMENT.md)
++documents the supported invocations, including `docker/sage-image.py` for hosts
++without Docker, chroot or PRoot, and the check the image build runs. A
++distribution Sage is not this environment — its import and version failures say
++nothing about the libraries in the image — and consumers do not keep their own
++provisioning copy.
+diff --git a/docker/SAGE-ENVIRONMENT.md b/docker/SAGE-ENVIRONMENT.md
+new file mode 100644
+index 0000000..7e9e1f3
+--- /dev/null
++++ b/docker/SAGE-ENVIRONMENT.md
+@@ -0,0 +1,116 @@
++# The research Sage environment
++
++`ghcr.io/dzackgarza/sage:develop` is the environment this fork's consumers run
++Sage in: this tree built with CPython 3.14, GAP, Julia with Oscar/Hecke,
++Macaulay2, Singular, Normaliz, polymake, CoxIter and Lean/elan.  It is one
++image, built by `.github/workflows/research-environment-image.yml` from
++`docker/research-environment.Dockerfile`, published for linux/amd64 only.
++
++The fork's default branch is `develop`; there is no `main`.  The image is
++published from `develop`, and `org.opencontainers.image.revision` in its config
++names the commit it was built from.
++
++## What the image is pinned to
++
++```sh
++docker/sage-image.py info        # index, manifest, config, revision of the cache
++```
++
++`info` and `fetch` print the digests a consumer can pin: the OCI index, the
++linux/amd64 manifest, and the config that carries the source revision.  A
++consumer that records the manifest digest is unaffected by later rebuilds; a
++consumer that pulls the tag follows `develop`.
++
++## Invocations
++
++### A workstation or CI runner with Docker
++
++```sh
++docker run --rm -it ghcr.io/dzackgarza/sage:develop bash
++docker run --rm ghcr.io/dzackgarza/sage:develop python -c \
++  'from sage.all import QQ, matrix; assert matrix(QQ, [[2, 1], [1, 2]]).det() == 3'
++```
++
++In GitHub Actions, use it as the job container, as
++`.github/workflows/research-image-consumer.yml` does:
++
++```yaml
++jobs:
++  qc:
++    runs-on: ubuntu-latest
++    container: ghcr.io/dzackgarza/sage:develop
++    env:
++      SAGE_BIN: /sage/.venv/bin/sage
++```
++
++### A host without Docker, chroot or PRoot
++
++A container image is a filesystem and a process.  `docker/sage-image.py`
++fetches the image from the registry without a daemon, verifies the digest of
++every layer, unpacks it into a cache directory, and runs commands in that tree
++with [bubblewrap](https://github.com/containers/bubblewrap)'s unprivileged user
++namespaces — no root, no chroot, no ptrace, no container runtime:
++
++```sh
++# once per image, and whenever the tag moves
++docker/sage-image.py fetch --digest sha256:<manifest from info>
++
++# the same interpreter, Sage build and libraries the image ships
++docker/sage-image.py run -- sage -c 'print(ZZ(2)**10)'
++docker/sage-image.py run -- /sage/.venv/bin/python -m pytest tests/
++
++# the image's own environment check, which its build runs too
++docker/sage-image.py check
++```
++
++The current directory is mounted at `/work`, which is the working directory
++inside the image, so a consumer checkout is visible to its tests.  Use
++`--bind SRC[:DEST]` for more paths and `--env KEY=VALUE` for variables:
++
++```sh
++docker/sage-image.py run --bind ~/research/src:/repos/research/src \
++  --env PYTHONPATH=/repos/research/src -- sage -c 'import dzack_research'
++```
++
++Requirements, both checked before anything runs:
++
++* `bubblewrap` installed (`apt install bubblewrap`, `dnf install bubblewrap`);
++* unprivileged user namespaces permitted by the kernel
++  (`/proc/sys/kernel/unprivileged_userns_clone` is `1`, or the distribution's
++  equivalent).
++
++`run` stops with the missing piece named.  The cache lives in
++`$XDG_CACHE_HOME/sage-image` and is reused only when its recorded manifest
++matches the requested one, so a pinned digest and a moved tag cannot be
++confused.
++
++Where neither Docker nor unprivileged user namespaces are available, run the
++job in the image on a CI runner, or on a machine that has a container runtime.
++There is no third supported path.
++
++### What is not an environment
++
++A distribution Sage — on a host without a container runtime, an older Sage with
++an older Python — is not this environment.  Its import failures, version
++mismatches and missing modules describe the host's packaging, not the libraries
++in the image, and cost real defects their diagnosis: a `canonical_label()`
++segmentation fault in the image, for example, was reported as a Python 3.14
++library defect after a fallback to a Sage 10.8 host, while the image's actual
++fault was its own linkage against the distribution's `libbliss` (fixed in
++"link bliss with the ABI its system library was built with").
++
++Provisioning is owned here, once: consumers call `docker/sage-image.py` or use
++the image as their job container, and do not carry their own copy of a fetch,
++unpack or launcher script.
++
++## Checking a change to the image
++
++```sh
++docker/sage-image.py check
++```
++
++`docker/research-environment-check.py` runs inside the image at build time and
++verifies that every system the image exists to provide is present and works,
++including the environment's own interpreter and both canonical-label backends.
++A change that removes a library, breaks a link, or ships a build of Sage that
++crashes is meant to fail the image build here rather than a consumer's job.
+diff --git a/docker/sage-image.py b/docker/sage-image.py
+new file mode 100755
+index 0000000..dab1a26
+--- /dev/null
++++ b/docker/sage-image.py
+@@ -0,0 +1,317 @@
++#!/usr/bin/env python3
++"""Run the published research image on a host without a container runtime.
++
++The environment these repositories write Sage against is the image
++``ghcr.io/dzackgarza/sage``: this tree with CPython 3.14, GAP, Julia/Oscar,
++Macaulay2, Singular and Lean.  A container image is a filesystem and a
++process, so a host that cannot run Docker, chroot or PRoot can still use it:
++this script fetches the image layer by layer from the registry, verifies every
++digest, unpacks it into a cache directory, and runs commands inside that tree
++with bubblewrap's unprivileged user namespaces.  There is no daemon, no root
++and no ptrace.
++
++    docker/sage-image.py fetch
++    docker/sage-image.py run -- sage -c 'print(ZZ(2)**10)'
++    docker/sage-image.py check
++
++``fetch`` records the index, manifest, config and source revision it unpacked;
++``--digest`` pins the image and makes the cache single-use, and ``info`` prints
++what the cache holds.  ``run`` passes ``--`` and everything after it to the
++image, with the current directory mounted at its own path so a checkout of a
++consumer repository is visible at the path its tests expect.
++
++bubblewrap must be installed (``apt install bubblewrap``, ``dnf install
++bubblewrap``) and the kernel must allow unprivileged user namespaces; ``run``
++names which of the two is missing.  Where neither is available, run the job in
++the image on a CI runner (see ``.github/workflows/research-image-consumer.yml``)
++or on a machine with a container runtime.  A distribution Sage is not this
++environment, and import failures under one say nothing about the libraries in
++the image.
++"""
++
++from __future__ import annotations
++
++import argparse
++import hashlib
++import json
++import os
++import shutil
++import subprocess
++import sys
++import tarfile
++import time
++import urllib.request
++from pathlib import Path
++
++REGISTRY = "https://ghcr.io"
++IMAGE = "dzackgarza/sage"
++REFERENCE = "develop"
++CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "sage-image"
++STAMP = "image.json"
++
++ACCEPT_INDEX = "application/vnd.oci.image.index.v1+json"
++ACCEPT_MANIFEST = "application/vnd.oci.image.manifest.v1+json"
++
++
++def log(message: str) -> None:
++    print(message, file=sys.stderr, flush=True)
++
++
++def token(image: str) -> str:
++    url = f"{REGISTRY}/token?scope=repository:{image}:pull&service=ghcr.io"
++    with urllib.request.urlopen(url, timeout=120) as response:
++        return json.load(response)["token"]
++
++
++def blob_request(credentials: str, image: str, path: str, accept: str) -> urllib.request.Request:
++    return urllib.request.Request(
++        f"{REGISTRY}/v2/{image}/{path}",
++        headers={"Authorization": f"Bearer {credentials}", "Accept": accept},
++    )
++
++
++def read_json(credentials: str, image: str, path: str, accept: str) -> tuple[bytes, dict]:
++    with urllib.request.urlopen(blob_request(credentials, image, path, accept), timeout=120) as response:
++        body = response.read()
++    return body, json.loads(body)
++
++
++def resolve(credentials: str, image: str, reference: str) -> dict:
++    """Return the linux/amd64 manifest and the digests that name it."""
++    body, index = read_json(credentials, image, f"manifests/{reference}", ACCEPT_INDEX)
++    index_digest = "sha256:" + hashlib.sha256(body).hexdigest()
++    entry = next(
++        manifest
++        for manifest in index["manifests"]
++        if manifest.get("platform", {}).get("os") == "linux"
++        and manifest.get("platform", {}).get("architecture") == "amd64"
++    )
++    _, manifest = read_json(credentials, image, f"manifests/{entry['digest']}", ACCEPT_MANIFEST)
++    return {
++        "image": image,
++        "reference": reference,
++        "index": index_digest,
++        "manifest": entry["digest"],
++        "config": manifest["config"]["digest"],
++        "layers": manifest["layers"],
++    }
++
++
++def stamp_path(cache: Path) -> Path:
++    return cache / STAMP
++
++
++def read_stamp(cache: Path) -> dict | None:
++    try:
++        return json.loads(stamp_path(cache).read_text())
++    except FileNotFoundError:
++        return None
++
++
++def fetch_blob(credentials: str, image: str, digest: str, destination: Path) -> None:
++    sha = hashlib.sha256()
++    with urllib.request.urlopen(blob_request(credentials, image, f"blobs/{digest}", "*/*"), timeout=3600) as response:
++        with destination.open("wb") as handle:
++            while chunk := response.read(1 << 22):
++                sha.update(chunk)
++                handle.write(chunk)
++    if "sha256:" + sha.hexdigest() != digest:
++        raise SystemExit(f"layer {digest} does not match its digest; the registry or the transfer is corrupt")
++
++
++def clear(directory: Path) -> None:
++    for entry in directory.iterdir():
++        if entry.is_dir() and not entry.is_symlink():
++            shutil.rmtree(entry, ignore_errors=True)
++        else:
++            entry.unlink(missing_ok=True)
++
++
++def apply_layer(blob: Path, root: Path) -> int:
++    """Apply one OCI layer, resolving whiteouts; return the members skipped."""
++    skipped = 0
++    with tarfile.open(blob) as archive:
++        for member in archive.getmembers():
++            name = member.name
++            base = os.path.basename(name)
++            parent = root / os.path.dirname(name)
++            if base == ".wh..wh..opq":
++                if parent.is_dir():
++                    clear(parent)
++                continue
++            if base.startswith(".wh."):
++                target = parent / base[4:]
++                if target.is_dir() and not target.is_symlink():
++                    shutil.rmtree(target, ignore_errors=True)
++                else:
++                    target.unlink(missing_ok=True)
++                continue
++            if not (member.isreg() or member.isdir() or member.issym() or member.islnk()):
++                continue
++            try:
++                archive.extract(member, root, filter="fully_trusted", set_attrs=True)
++            except (PermissionError, OSError):
++                # A path this user may not write, or an owner it may not set:
++                # the content that matters to Sage is readable without it.
++                skipped += 1
++    return skipped
++
++
++def unpack(cache: Path, image: str, reference: str, digest: str | None) -> dict:
++    credentials = token(image)
++    resolved = resolve(credentials, image, digest or reference)
++    if digest and resolved["manifest"] != digest:
++        raise SystemExit(f"{reference} resolves to {resolved['manifest']}, not the requested {digest}")
++    previous = read_stamp(cache)
++    root = cache / "rootfs"
++    if previous and previous.get("manifest") == resolved["manifest"] and root.is_dir() and any(root.iterdir()):
++        log(f"reusing {root} unpacked from {resolved['manifest']}")
++        return previous
++
++    _, config = read_json(credentials, image, f"blobs/{resolved['config']}", "*/*")
++    resolved["revision"] = config.get("config", {}).get("Labels", {}).get("org.opencontainers.image.revision", "")
++    if root.exists():
++        shutil.rmtree(root)
++    root.mkdir(parents=True)
++    log(f"{len(resolved['layers'])} layers, {sum(layer['size'] for layer in resolved['layers']) / 1e9:.2f} GB compressed")
++    blob = cache / "layer.blob"
++    skipped = 0
++    for position, layer in enumerate(resolved["layers"], start=1):
++        log(f"[{position}/{len(resolved['layers'])}] {layer['size'] / 1e6:.1f} MB {layer['digest'][:19]}")
++        fetch_blob(credentials, image, layer["digest"], blob)
++        skipped += apply_layer(blob, root)
++        blob.unlink()
++    if skipped:
++        log(f"{skipped} files not writable by this user; the rest of the image is intact")
++    record = {key: resolved[key] for key in ("image", "reference", "index", "manifest", "config", "revision")}
++    record["unpacked"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
++    stamp_path(cache).write_text(json.dumps(record, indent=2) + "\n")
++    return record
++
++
++def user_namespaces() -> str | None:
++    """Return why unprivileged user namespaces are unavailable, if they are."""
++    knob = Path("/proc/sys/kernel/unprivileged_userns_clone")
++    if knob.exists() and knob.read_text().strip() == "0":
++        return "/proc/sys/kernel/unprivileged_userns_clone is 0"
++    probe = subprocess.run(
++        ["bwrap", "--unshare-user-try", "--ro-bind", "/", "/", "--", "true"],
++        capture_output=True,
++        text=True,
++    )
++    if probe.returncode != 0:
++        return (probe.stderr or "bwrap cannot create a user namespace").strip().splitlines()[-1]
++    return None
++
++
++def runtime() -> None:
++    if shutil.which("bwrap") is None:
++        raise SystemExit(
++            "bubblewrap is not installed: apt install bubblewrap (or dnf install bubblewrap).\n"
++            "Without it and without a container runtime, run this job in the image on a CI\n"
++            "runner; a distribution Sage is not this environment."
++        )
++    reason = user_namespaces()
++    if reason:
++        raise SystemExit(
++            f"unprivileged user namespaces are not permitted here ({reason}).\n"
++            "Ask the host administrator for kernel.unprivileged_userns_clone=1, or run this\n"
++            "job in the image on a CI runner. Do not substitute a distribution Sage."
++        )
++
++
++def command(rootfs: Path, arguments: list[str], binds: list[str], environment: list[str], directory: str | None) -> int:
++    runtime()
++    home = rootfs.parent / "home"
++    home.mkdir(exist_ok=True)
++    mounts = ["--bind", str(rootfs), "/", "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--bind", str(home), "/root"]
++    if Path("/sys").is_dir():
++        mounts += ["--bind", "/sys", "/sys"]
++    # The image's own directories are owned by the account that built it and
++    # are not traversable from this one, so a host directory is mounted as a
++    # new path rather than over its own: /work for the current directory, and
++    # whatever DEST a caller asks for with --bind SRC:DEST.
++    mounts += ["--bind", os.path.abspath(os.getcwd()), "/work"]
++    workdir = directory or "/work"
++    for mount in binds:
++        source, _, destination = mount.partition(":")
++        source = os.path.abspath(source)
++        mounts += ["--bind", source, destination or source]
++    argv = [
++        "bwrap",
++        *mounts,
++        "--chdir",
++        workdir,
++        "--unshare-pid",
++        "--die-with-parent",
++        "--setenv",
++        "HOME",
++        "/root",
++        "--setenv",
++        "PATH",
++        "/sage/.venv/bin:/opt/elan/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
++        "--setenv",
++        "TMPDIR",
++        "/tmp",
++    ]
++    for entry in environment:
++        key, _, value = entry.partition("=")
++        argv += ["--setenv", key, value]
++    argv += ["--", *arguments]
++    return subprocess.run(argv).returncode
++
++
++def main(argv: list[str]) -> int:
++    parser = argparse.ArgumentParser(prog="sage-image.py", description=__doc__.splitlines()[0])
++    parser.add_argument("--cache", type=Path, default=CACHE)
++    parser.add_argument("--image", default=IMAGE)
++    parser.add_argument("--reference", default=REFERENCE)
++    parser.add_argument("--digest", help="linux/amd64 manifest digest to pin instead of the reference")
++    parser.add_argument("--rootfs", type=Path, help="an already unpacked image, instead of the cache")
++    commands = parser.add_subparsers(dest="command", required=True)
++    commands.add_parser("fetch", help="fetch and unpack the image")
++    commands.add_parser("info", help="print the digests the cache was unpacked from")
++    commands.add_parser("check", help="run the image's research environment check")
++    run = commands.add_parser("run", help="run a command inside the image")
++    run.add_argument("--bind", action="append", default=[], metavar="SRC[:DEST]", help="mount SRC at DEST (default: its own path)")
++    run.add_argument("--env", action="append", default=[], metavar="KEY=VALUE")
++    run.add_argument("--chdir", metavar="DIR")
++    options, rest = parser.parse_known_args(argv)
++    if rest and rest[0] == "--":
++        rest = rest[1:]
++    if options.command == "run" and not rest:
++        parser.error("run needs a command after --")
++
++    record: dict = {}
++    if options.rootfs:
++        if options.command in ("fetch", "info"):
++            parser.error(f"{options.command} maintains the cache; do not combine it with --rootfs")
++        rootfs = options.rootfs
++    else:
++        rootfs = options.cache / "rootfs"
++        if options.command == "info":
++            record = read_stamp(options.cache) or {}
++            if not record:
++                raise SystemExit(f"no image unpacked in {options.cache}; run fetch first")
++        else:
++            if options.command == "fetch" or not stamp_path(options.cache).exists():
++                record = unpack(options.cache, options.image, options.reference, options.digest)
++            else:
++                record = read_stamp(options.cache) or {}
++            if options.digest and record.get("manifest") != options.digest:
++                raise SystemExit(
++                    f"the cache holds {record.get('manifest')}, not the requested {options.digest}; run fetch first"
++                )
++
++    if options.command in ("fetch", "info"):
++        print(json.dumps(record, indent=2))
++        return 0
++    if not rootfs.is_dir():
++        raise SystemExit(f"{rootfs} is not an unpacked image; run fetch first")
++    if options.command == "check":
++        return command(rootfs, ["/sage/.venv/bin/sage", "docker/research-environment-check.py"], [], [], "/sage")
++    return command(rootfs, rest, options.bind, options.env, options.chdir)
++
++
++if __name__ == "__main__":
++    sys.exit(main(sys.argv[1:]))

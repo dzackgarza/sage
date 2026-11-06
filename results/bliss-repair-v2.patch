@@ -1,0 +1,86 @@
+From 66ae252d48a52e385155f7c5ee44346c226003d7 Mon Sep 17 00:00:00 2001
+From: "D. Zack Garza" <dzackgarza@gmail.com>
+Date: Sun, 1 Nov 2026 01:30:17 +0000
+Subject: [PATCH] fix: let a missing libbliss-cxx fall through under
+ -Dbliss=enabled
+
+The pkg-config probes in the bliss lookup were required: get_option('bliss'),
+so with -Dbliss=enabled -- or auto_features=enabled, which turns feature options
+into enabled -- a missing libbliss-cxx aborted the configure before the
+pkg-config fallback or the raw library was tried. disabler: true does not make a
+required dependency optional; it only disables targets that depend on an
+unfound one.
+
+Both pkg-config probes are now required: false, the whole chain is skipped when
+the feature is disabled, and only the final cc.find_library carries
+required: bliss_opt. So: disabled probes nothing and leaves bliss disabled;
+auto finds whichever of the three exists and otherwise disables it without
+failing; enabled accepts a pkg-config name or the raw library and fails only
+when neither exists -- from the last probe, as before.
+
+The comment now states the assumption the raw fallback makes: a library found
+only by name is assumed to be built with the headers' default big-number
+representation, which is what Sage's own USE_GMP=OFF spkg installs. A
+distribution library reached only through that path is the ABI mismatch this
+code exists to avoid.
+
+Resolution cases, run in the image against the extracted block with a feature
+option: enabled + libbliss-cxx -> found; enabled with no pkg-config files ->
+found through cc.find_library, no abort (the defect); auto with and without
+pkg-config -> found; names that resolve nowhere -> auto and disabled return
+"not found" with exit 0, while enabled fails with "C++ shared or static library
+'...' not found" from the last probe; disabled with the library present ->
+"not found", exit 0, no probe run.
+---
+ src/sage/graphs/meson.build | 38 +++++++++++++++++++++++--------------
+ 1 file changed, 24 insertions(+), 14 deletions(-)
+
+diff --git a/src/sage/graphs/meson.build b/src/sage/graphs/meson.build
+index 971785b..b512129 100644
+--- a/src/sage/graphs/meson.build
++++ b/src/sage/graphs/meson.build
+@@ -1,17 +1,27 @@
+-# Some distributions (Debian, Ubuntu) build libbliss with BLISS_USE_GMP,
+-# which changes the layout of bliss::Stats.  Such a library records the
+-# definition its consumers need in a pkg-config file named libbliss-cxx; the
+-# name is bliss on other distributions.  Linking -lbliss alone leaves
+-# bliss/bignum.hh on its default representation, so the Stats that bliss.pyx
+-# hands to the library is smaller than the one the library writes and
+-# canonical_form() corrupts the heap.  Sage's own bliss spkg builds with
+-# USE_GMP=OFF and installs no pkg-config file, so it keeps using -lbliss.
+-bliss = dependency('libbliss-cxx', required: get_option('bliss'), disabler: true)
+-if not bliss.found()
+-  bliss = dependency('bliss', required: get_option('bliss'), disabler: true)
+-endif
+-if not bliss.found()
+-  bliss = cc.find_library('bliss', required: get_option('bliss'), disabler: true)
++# Some distributions (Debian, Ubuntu) build libbliss with BLISS_USE_GMP, which
++# changes the layout of bliss::Stats.  Such a library records the definition its
++# consumers need in a pkg-config file named libbliss-cxx; the name is bliss on
++# other distributions.  Linking -lbliss alone leaves bliss/bignum.hh on its
++# default representation, so the Stats that bliss.pyx hands to the library is
++# smaller than the one the library writes and canonical_form() corrupts the
++# heap.
++#
++# Only the last probe can satisfy 'enabled': a missing pkg-config name falls
++# through to the raw library, and a missing raw library fails the configure.
++# The raw library is assumed to be built with the headers' default
++# representation -- Sage's own bliss spkg builds with USE_GMP=OFF and installs
++# no pkg-config file -- so a distribution library found only this way would be
++# the ABI mismatch this code exists to avoid.
++bliss_opt = get_option('bliss')
++bliss = disabler()
++if not bliss_opt.disabled()
++  bliss = dependency('libbliss-cxx', required: false, disabler: true)
++  if not bliss.found()
++    bliss = dependency('bliss', required: false, disabler: true)
++  endif
++  if not bliss.found()
++    bliss = cc.find_library('bliss', required: bliss_opt, disabler: true)
++  endif
+ endif
+ 
+ mcqd = disabler()
+-- 
+2.53.0
+

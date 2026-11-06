@@ -1,0 +1,95 @@
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -41,8 +41,13 @@
+         description: Lock every git-sourced research package at its head, build the image on that lock, and commit it
+         required: false
+         type: boolean
+         default: false
++      zstd_probe:
++        description: Build a tiny zstd-compressed image and pull it in a container job, to prove the runner can read zstd layers
++        required: false
++        type: boolean
++        default: false
+ concurrency:
+   group: research-environment-image-${{ inputs.sage_source_sha || github.ref }}
+   cancel-in-progress: false
+ jobs:
+@@ -312,4 +317,78 @@
+           IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
+         run: |
+           ./docker/sage-image.py --image "$IMAGE" --reference "$IMAGE_TAG" fetch
+           ./docker/sage-image.py --image "$IMAGE" --reference "$IMAGE_TAG" check
++
++  # Whether recompressing the research image to zstd would pay is a question about
++  # the runner, not about the build: BuildKit exports zstd through an isolated
++  # builder (this workflow has one), but a zstd layer is only useful if the daemon
++  # that pulls a `container:` job can read it. Docker's classic overlay2 store is
++  # not the containerd store, and a layer it cannot read fails the job at container
++  # init -- which on the real image would take every consumer down until a rebuild.
++  # The question is settled here on an image that costs seconds.
++  #
++  # Dispatch with zstd_probe=true. What to read:
++  #   * `Build and push a zstd-compressed probe` publishes the image and prints its
++  #     layer media types; `application/vnd.oci.image.layer.v1.tar+zstd` is the
++  #     format under test;
++  #   * `zstd-pull` exists only to start that image as its container. Reaching its
++  #     step means the runner's daemon pulled a zstd layer, so the real image can be
++  #     recompressed; failing at initialization means it cannot, and the layer
++  #     layout (research-environment-incremental.Dockerfile) is the lever instead.
++  zstd-probe:
++    if: github.event_name == 'workflow_dispatch' && inputs.zstd_probe
++    runs-on: ubuntu-latest
++    timeout-minutes: 15
++    permissions:
++      contents: read
++      packages: write
++    steps:
++      - uses: docker/setup-buildx-action@v3
++      - uses: docker/login-action@v3
++        with:
++          registry: ghcr.io
++          username: ${{ github.actor }}
++          password: ${{ secrets.GITHUB_TOKEN }}
++      - name: Build and push a zstd-compressed probe
++        env:
++          IMAGE: ghcr.io/${{ github.repository_owner }}/sage:zstd-probe
++        run: |
++          set -eu
++          printf 'FROM debian:trixie\nRUN printf "zstd probe ok\\n" > /probe.txt\n' > "${RUNNER_TEMP}/Dockerfile.zstd-probe"
++          cat "${RUNNER_TEMP}/Dockerfile.zstd-probe"
++          docker buildx build \
++            --file "${RUNNER_TEMP}/Dockerfile.zstd-probe" \
++            --tag "${IMAGE}" \
++            --output type=image,push=true,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true \
++            "${RUNNER_TEMP}"
++      - name: Show the layer media types it published
++        env:
++          IMAGE: ghcr.io/${{ github.repository_owner }}/sage:zstd-probe
++        run: |
++          set -eu
++          # The digest a runner would pull, and the compression it would meet.
++          digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${IMAGE}")"
++          echo "manifest ${digest}"
++          docker buildx imagetools inspect --raw "${IMAGE}@${digest}" | tr ',' '\n' | grep -E 'mediaType|"size"'
++          docker buildx imagetools inspect --raw "${IMAGE}@${digest}" | grep -q 'tar\+zstd'
++          echo "a zstd layer was published"
++
++  zstd-pull:
++    needs: zstd-probe
++    if: github.event_name == 'workflow_dispatch' && inputs.zstd_probe
++    runs-on: ubuntu-latest
++    timeout-minutes: 15
++    permissions:
++      contents: read
++      packages: read
++    container:
++      image: ghcr.io/${{ github.repository_owner }}/sage:zstd-probe
++      credentials:
++        username: ${{ github.actor }}
++        password: ${{ secrets.GITHUB_TOKEN }}
++    steps:
++      - name: Read the probe file from inside a container of the zstd image
++        run: |
++          set -eu
++          test "$(cat /probe.txt)" = "zstd probe ok"
++          echo "the runner pulled a zstd-compressed layer and started a container from it"
