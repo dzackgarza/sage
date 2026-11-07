@@ -1,0 +1,107 @@
+"""The T_Co step's provenance must verify both boundaries it straddles (image#15/#18).
+
+That step runs inside the published image, but the job installs the workflow's own
+sage-extensions checkout editable first (step 5), so **two** revisions are in play and they are
+not the same observation:
+
+* the image's provider, `/repos/sage-extensions`, which the image's `/sage/uv.lock` pins;
+* the consumer checkout, `${{ github.workspace }}`, which the job deliberately tests in place of
+  the image's copy.
+
+A workspace checkout cannot stand in for the image provider, and a provenance line that reports
+only one of them leaves the other unverified. This test runs the step's provenance block with the
+provider imported from a workspace-style checkout and requires it to report both revisions and
+still assert the image's own copy against the lock.
+
+Run 42379122786 died here: the block treated `/__w/sage/sage` as if it were the image's copy and
+`git -C` there answered 128. That condition is established from the run's own log -- the runner
+adds `safe.directory /__w/sage/sage` on the *host* and creates the workspace `.git` there, so the
+tree is foreign-owned inside the container, while `git -C /repos/...` succeeds in the same
+container. This test cannot reproduce a foreign owner (the sandbox maps one uid), so it pins the
+contract and not the ownership: both revisions reported, the image's copy asserted, and any
+required revision that cannot be read fails the step.
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+import yaml
+
+REPOSITORY = Path(__file__).resolve().parents[2]
+WORKFLOW = Path(os.environ.get("PROVENANCE_WORKFLOW", REPOSITORY / ".github" / "workflows" / "research-environment-image.yml"))
+ROOTFS = Path(os.environ.get("SAGE_IMAGE_ROOTFS", Path.home() / "sage-image" / "rootfs"))
+RUNNER = REPOSITORY / "docker" / "sage-image.py"
+CHECKOUT = Path(os.environ.get("WORKSPACE_CHECKOUT", REPOSITORY / ".scratch" / "se-240c"))
+STEP = "Construct T_Co and compute its O(T_Co) generators"
+BOUND = 300
+
+
+def provenance_block() -> str:
+    """The step's provenance code, up to the T_Co construction."""
+    document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    steps = [step for step in document["jobs"]["consumer-acceptance"]["steps"] if step.get("name") == STEP]
+    assert len(steps) == 1, f"{STEP!r} appears {len(steps)} times"
+    body = steps[0]["run"]
+    python = body.split("<<'PY'", 1)[1].rsplit("\nPY", 1)[0]
+    return python.split("# T_Co = ", 1)[0]
+
+
+def run(binds: list[str], environment: list[str]) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(RUNNER), "--rootfs", str(ROOTFS), "run", *binds,
+         "--env", "HOME=/root", *environment, "--chdir", "/tmp", "--", "/sage/.venv/bin/python", "-"],
+        input=provenance_block(), capture_output=True, text=True, timeout=BOUND, check=False,
+    )
+
+
+requires_image = pytest.mark.skipif(
+    not ROOTFS.is_dir() or shutil.which("bwrap") is None or not (CHECKOUT / ".git").exists(),
+    reason="needs the image, bubblewrap, and a sage-extensions checkout (WORKSPACE_CHECKOUT)",
+)
+
+
+@requires_image
+def test_the_image_provider_is_asserted_against_its_lock() -> None:
+    finished = run([], [])
+    output = finished.stdout + finished.stderr
+    assert finished.returncode == 0, output[-3000:]
+    assert "checkout /repos/sage-extensions at" in output and "held" in output, output[-3000:]
+
+
+@requires_image
+def test_a_consumer_checkout_is_reported_while_the_image_copy_stays_asserted() -> None:
+    finished = run(
+        ["--bind", f"{CHECKOUT}:/__w/sage/sage"],
+        ["--env", "PYTHONPATH=/__w/sage/sage/src"],
+    )
+    output = finished.stdout + finished.stderr
+    assert finished.returncode == 0, output[-4000:]
+    assert "imported from /__w/sage/sage/src/sage_extensions" in output, output[-3000:]
+    assert "checkout /__w/sage/sage at" in output, output[-3000:]
+    assert "checkout /repos/sage-extensions at" in output, output[-3000:]
+
+
+@requires_image
+def test_an_unreadable_required_revision_fails_the_step(tmp_path: Path) -> None:
+    """A revision the step cannot read is a failed obligation, not a line in the log.
+
+    The tree here has a `.git` git will not describe; the step must print git's own words and
+    exit non-zero, rather than reporting the revision as unknown and carrying on.
+    """
+    broken = tmp_path / "checkout"
+    (broken / ".git").mkdir(parents=True)
+    (broken / "src" / "sage_extensions").mkdir(parents=True)
+    (broken / "src" / "sage_extensions" / "__init__.py").write_text("")
+    shutil.copytree(CHECKOUT / "src" / "sage_extensions", broken / "src" / "sage_extensions", dirs_exist_ok=True)
+    finished = run(
+        ["--bind", f"{broken}:/__w/sage/sage"],
+        ["--env", "PYTHONPATH=/__w/sage/sage/src"],
+    )
+    output = finished.stdout + finished.stderr
+    assert finished.returncode != 0, output[-3000:]
+    assert "unreadable" in output, output[-3000:]
+    assert "fatal" in output or "git" in output.lower(), output[-3000:]
