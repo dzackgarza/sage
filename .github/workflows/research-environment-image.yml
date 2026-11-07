@@ -18,19 +18,19 @@ on:
   push:
     branches: [develop]
     paths:
-      - 'pyproject.toml'
-      - 'uv.lock'
-      - 'justfile'
-      - 'meson.build'
-      - 'src/**'
-      - 'build/pkgs/**'
-      - 'docker/research-environment.Dockerfile'
-      - 'docker/research-environment-incremental.Dockerfile'
-      - 'docker/relock-research-packages.sh'
-      - 'docker/research-environment-check.py'
-      - 'docker/install-research-repositories.sh'
-      - 'docker/research-repositories.txt'
-      - .github/workflows/research-environment-image.yml
+    - 'pyproject.toml'
+    - 'uv.lock'
+    - 'justfile'
+    - 'meson.build'
+    - 'src/**'
+    - 'build/pkgs/**'
+    - 'docker/research-environment.Dockerfile'
+    - 'docker/research-environment-incremental.Dockerfile'
+    - 'docker/relock-research-packages.sh'
+    - 'docker/research-environment-check.py'
+    - 'docker/install-research-repositories.sh'
+    - 'docker/research-repositories.txt'
+    - .github/workflows/research-environment-image.yml
   workflow_dispatch:
     inputs:
       sage_source_sha:
@@ -61,183 +61,183 @@ jobs:
       image_tag: ${{ steps.image-tag.outputs.tag }}
       source_sha: ${{ inputs.sage_source_sha || github.sha }}
     steps:
-      - name: Check out the complete Sage build context
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event_name == 'push' && github.sha || 'develop' }}
-          path: sage-source
+    - name: Check out the complete Sage build context
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event_name == 'push' && github.sha || 'develop' }}
+        path: sage-source
           # /sage is the fork's working checkout in the image: full history,
           # contents fetched on demand.
-          fetch-depth: 0
-          filter: blob:none
+        fetch-depth: 0
+        filter: blob:none
           # .git goes into the image, so the token stays out of its config.
-          persist-credentials: false
-      - name: Check out the exact maintained Sage PR revision
-        if: inputs.sage_source_sha != ''
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.sage_source_sha }}
-          path: .spinor-patch
-          fetch-depth: 0
-      - name: Apply only the maintained spinor-generator source change
-        if: inputs.sage_source_sha != ''
-        env:
-          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha }}
-        run: |
-          case "$SAGE_SOURCE_SHA" in
-            *[!0-9a-fA-F]*|'') echo "sage_source_sha must be a full commit SHA" >&2; exit 1 ;;
-          esac
-          test "${#SAGE_SOURCE_SHA}" -eq 40
-          test "$(git -C .spinor-patch rev-parse HEAD)" = "$SAGE_SOURCE_SHA"
-          git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SAGE_SOURCE_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
-          test -s .spinor.patch
-          git -C sage-source apply --check ../.spinor.patch
-          git -C sage-source apply ../.spinor.patch
-          printf '%s\n' "$SAGE_SOURCE_SHA" > sage-source/.spinor-source-revision
-          git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
-          git -C sage-source diff --check
-          git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
-      - name: Record ordinary develop revision
-        if: inputs.sage_source_sha == ''
-        run: |
-          git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
-          git -C sage-source rev-parse HEAD > sage-source/.spinor-source-revision
+        persist-credentials: false
+    - name: Check out the exact maintained Sage PR revision
+      if: inputs.sage_source_sha != ''
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.sage_source_sha }}
+        path: .spinor-patch
+        fetch-depth: 0
+    - name: Apply only the maintained spinor-generator source change
+      if: inputs.sage_source_sha != ''
+      env:
+        SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha }}
+      run: |
+        case "$SAGE_SOURCE_SHA" in
+          *[!0-9a-fA-F]*|'') echo "sage_source_sha must be a full commit SHA" >&2; exit 1 ;;
+        esac
+        test "${#SAGE_SOURCE_SHA}" -eq 40
+        test "$(git -C .spinor-patch rev-parse HEAD)" = "$SAGE_SOURCE_SHA"
+        git -C .spinor-patch diff 601df58edafe95f68597b9dec61e0a75adca8983 "$SAGE_SOURCE_SHA" -- src/sage/quadratic_forms/genera/genus.py > .spinor.patch
+        test -s .spinor.patch
+        git -C sage-source apply --check ../.spinor.patch
+        git -C sage-source apply ../.spinor.patch
+        printf '%s\n' "$SAGE_SOURCE_SHA" > sage-source/.spinor-source-revision
+        git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
+        git -C sage-source diff --check
+        git -C sage-source diff -- src/sage/quadratic_forms/genera/genus.py
+    - name: Record ordinary develop revision
+      if: inputs.sage_source_sha == ''
+      run: |
+        git -C sage-source rev-parse HEAD > sage-source/.spinor-base-revision
+        git -C sage-source rev-parse HEAD > sage-source/.spinor-source-revision
       # The image carries Sage's build tree, every research checkout and
       # Mathlib's build; the runner's preinstalled toolchains make room for it.
-      - name: Free the runner's disk
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-      - uses: docker/setup-buildx-action@v3
-        id: setup-buildx
+    - name: Free the runner's disk
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        df -h /
+    - uses: docker/setup-buildx-action@v3
+      id: setup-buildx
       # The Dockerfile's ccache mount lives in BuildKit, which each runner starts
       # empty; carry it through the Actions cache between runs. Restoring and
       # injecting is half the round trip: cache-dance only writes into the builder,
       # and the cache comes back to `ccache/` through a second invocation with
       # `extract: true` after the builds. Without that step nothing ever writes the
       # directory, so every run restored an empty cache.
-      - name: Restore the Sage compiler cache
-        uses: actions/cache@v4
-        id: ccache
-        with:
-          path: ccache
-          key: sage-ccache-${{ github.sha }}
-          restore-keys: sage-ccache-
-      - name: Inject the compiler cache into BuildKit
-        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
-        with:
-          builder: ${{ steps.setup-buildx.outputs.name }}
-          cache-map: '{"ccache": "/ccache"}'
-          skip-extraction: ${{ steps.ccache.outputs.cache-hit == 'true' }}
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Select the image tag and refuse overwrites
-        id: image-tag
-        env:
-          SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha || github.sha }}
-          IS_DEVELOP: ${{ github.ref == 'refs/heads/develop' && !inputs.sage_source_sha }}
-        run: |
-          if [ "$IS_DEVELOP" = "true" ]; then
-            echo "tag=develop" >> "$GITHUB_OUTPUT"
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          tag="spinor-$SAGE_SOURCE_SHA"
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:$tag"
-          set +e
-          output="$(docker manifest inspect "$image" 2>&1)"
-          status=$?
-          set -e
-          if [ "$status" -eq 0 ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          elif grep -qiE 'manifest unknown|no such manifest|not found|404' <<<"$output"; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          else
-            printf '%s\n' "$output" >&2
-            echo "Registry lookup failed; refusing to publish without proving the tag absent" >&2
-            exit 1
-          fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+    - name: Restore the Sage compiler cache
+      uses: actions/cache@v4
+      id: ccache
+      with:
+        path: ccache
+        key: sage-ccache-${{ github.sha }}
+        restore-keys: sage-ccache-
+    - name: Inject the compiler cache into BuildKit
+      uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+      with:
+        builder: ${{ steps.setup-buildx.outputs.name }}
+        cache-map: '{"ccache": "/ccache"}'
+        skip-extraction: ${{ steps.ccache.outputs.cache-hit == 'true' }}
+    - uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Select the image tag and refuse overwrites
+      id: image-tag
+      env:
+        SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha || github.sha }}
+        IS_DEVELOP: ${{ github.ref == 'refs/heads/develop' && !inputs.sage_source_sha }}
+      run: |
+        if [ "$IS_DEVELOP" = "true" ]; then
+          echo "tag=develop" >> "$GITHUB_OUTPUT"
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        tag="spinor-$SAGE_SOURCE_SHA"
+        image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/sage:$tag"
+        set +e
+        output="$(docker manifest inspect "$image" 2>&1)"
+        status=$?
+        set -e
+        if [ "$status" -eq 0 ]; then
+          echo "exists=true" >> "$GITHUB_OUTPUT"
+        elif grep -qiE 'manifest unknown|no such manifest|not found|404' <<<"$output"; then
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+        else
+          printf '%s\n' "$output" >&2
+          echo "Registry lookup failed; refusing to publish without proving the tag absent" >&2
+          exit 1
+        fi
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
       # As upstream's build.yml does, a source change is rebuilt on top of the
       # last published image. The full build runs when the system layers
       # changed, when a file was deleted (the incremental copy deletes
       # nothing), or for an isolated spinor image.
-      - name: Select a full or an incremental build
-        id: build-kind
-        if: steps.image-tag.outputs.exists != 'true'
-        env:
-          BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/sage:develop
-          IS_SPINOR: ${{ inputs.sage_source_sha != '' }}
-        run: |
-          if [ "$IS_SPINOR" = "true" ]; then
-            echo "kind=full" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          base_revision="$(docker buildx imagetools inspect "$BASE_IMAGE" --format '{{ index .Image.Config.Labels "org.opencontainers.image.revision" }}')"
-          git -C sage-source fetch --depth 1 origin "$base_revision"
-          changes="$(git -C sage-source diff --name-status "$base_revision" HEAD)"
-          printf 'Changes since the base image (%s):\n%s\n' "$base_revision" "$changes"
-          if grep -qE '^D|docker/research-environment\.Dockerfile$' <<<"$changes"; then
-            echo "kind=full" >> "$GITHUB_OUTPUT"
-          else
-            echo "kind=incremental" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Build and publish the selected Sage image
-        if: steps.image-tag.outputs.exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: sage-source
-          file: sage-source/docker/research-environment${{ steps.build-kind.outputs.kind == 'incremental' && '-incremental' || '' }}.Dockerfile
-          build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
-            RELOCK=${{ inputs.relock && 'true' || 'false' }}
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/sage:${{ steps.image-tag.outputs.tag }}
-          labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
+    - name: Select a full or an incremental build
+      id: build-kind
+      if: steps.image-tag.outputs.exists != 'true'
+      env:
+        BASE_IMAGE: ghcr.io/${{ github.repository_owner }}/sage:develop
+        IS_SPINOR: ${{ inputs.sage_source_sha != '' }}
+      run: |
+        if [ "$IS_SPINOR" = "true" ]; then
+          echo "kind=full" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        base_revision="$(docker buildx imagetools inspect "$BASE_IMAGE" --format '{{ index .Image.Config.Labels "org.opencontainers.image.revision" }}')"
+        git -C sage-source fetch --depth 1 origin "$base_revision"
+        changes="$(git -C sage-source diff --name-status "$base_revision" HEAD)"
+        printf 'Changes since the base image (%s):\n%s\n' "$base_revision" "$changes"
+        if grep -qE '^D|docker/research-environment\.Dockerfile$' <<<"$changes"; then
+          echo "kind=full" >> "$GITHUB_OUTPUT"
+        else
+          echo "kind=incremental" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Build and publish the selected Sage image
+      if: steps.image-tag.outputs.exists != 'true'
+      uses: docker/build-push-action@v6
+      with:
+        context: sage-source
+        file: sage-source/docker/research-environment${{ steps.build-kind.outputs.kind == 'incremental' && '-incremental' || '' }}.Dockerfile
+        build-args: |
+          BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
+          RELOCK=${{ inputs.relock && 'true' || 'false' }}
+        push: true
+        tags: ghcr.io/${{ github.repository_owner }}/sage:${{ steps.image-tag.outputs.tag }}
+        labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
           # Layers go to the registry: the Actions cache is capped at 10 GB
           # per repository, which a Sage image's layers exceed.
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache,mode=max
+        cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
+        cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache,mode=max
       # Back out of the builder into `ccache/`, which actions/cache saves at job end.
       # It runs on failure too: a build that dies after compiling still warmed the
       # cache, and that is what makes the next full build cheap.
-      - name: Extract the compiler cache from BuildKit
-        if: always()
-        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
-        with:
-          builder: ${{ steps.setup-buildx.outputs.name }}
-          cache-map: '{"ccache": "/ccache"}'
-          extract: true
+    - name: Extract the compiler cache from BuildKit
+      if: always()
+      uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+      with:
+        builder: ${{ steps.setup-buildx.outputs.name }}
+        cache-map: '{"ccache": "/ccache"}'
+        extract: true
 
       # The lock stage reuses the build above from the BuildKit cache.
-      - name: Export the lock the image was built on
-        if: inputs.relock
-        uses: docker/build-push-action@v6
-        with:
-          context: sage-source
-          file: sage-source/docker/research-environment${{ steps.build-kind.outputs.kind == 'incremental' && '-incremental' || '' }}.Dockerfile
-          target: lock
-          build-args: |
-            BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
-            RELOCK=true
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
-          outputs: type=local,dest=relock
-      - name: Commit the lock
-        if: inputs.relock
-        working-directory: sage-source
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cp ../relock/uv.lock uv.lock
-          git diff --stat -- uv.lock
-          git diff --quiet -- uv.lock && exit 0
-          git config user.name github-actions
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m "build: lock the research packages at their heads" -- uv.lock
-          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:develop
+    - name: Export the lock the image was built on
+      if: inputs.relock
+      uses: docker/build-push-action@v6
+      with:
+        context: sage-source
+        file: sage-source/docker/research-environment${{ steps.build-kind.outputs.kind == 'incremental' && '-incremental' || '' }}.Dockerfile
+        target: lock
+        build-args: |
+          BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
+          RELOCK=true
+        cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
+        outputs: type=local,dest=relock
+    - name: Commit the lock
+      if: inputs.relock
+      working-directory: sage-source
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        cp ../relock/uv.lock uv.lock
+        git diff --stat -- uv.lock
+        git diff --quiet -- uv.lock && exit 0
+        git config user.name github-actions
+        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+        git commit -m "build: lock the research packages at their heads" -- uv.lock
+        git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:develop
   # Runs on the published image of every image this workflow builds, the develop one
   # included: the consumer statements it makes -- the T_Co generator call, the
   # lattice-database contracts, the stage-1 record reproductions -- are claims about the
@@ -261,91 +261,91 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Verify the image embeds the requested patch and base revisions
-        env:
-          SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
-        run: |
-          test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
-          printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
-          printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
-          "$SAGE_BIN" --version
-      - name: Check out public consumer assertions
-        uses: actions/checkout@v4
-        with:
-          repository: dzackgarza/sage-extensions
-          ref: main
-      - name: Install the checked-out sage-extensions source
-        run: >-
-          uv pip install --python /sage/.venv/bin/python --no-deps -e .
-      - name: Install the Sage pytest collector plugin
-        uses: actions/checkout@v4
-        with:
-          repository: dzackgarza/ai-review-ci
-          ref: main
-          path: .qc-infra
+    - name: Verify the image embeds the requested patch and base revisions
+      env:
+        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+      run: |
+        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
+        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
+        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
+        "$SAGE_BIN" --version
+    - name: Check out public consumer assertions
+      uses: actions/checkout@v4
+      with:
+        repository: dzackgarza/sage-extensions
+        ref: main
+    - name: Install the checked-out sage-extensions source
+      run: >-
+        uv pip install --python /sage/.venv/bin/python --no-deps -e .
+    - name: Install the Sage pytest collector plugin
+      uses: actions/checkout@v4
+      with:
+        repository: dzackgarza/ai-review-ci
+        ref: main
+        path: .qc-infra
       # The spinor assertion is about the isolated image built from a Sage PR commit:
       # it pins a sage-extensions `main` checkout and a test whose subject is that
       # commit's genus correction. An ordinary develop image has no such patch to
       # assert, so the step keeps its original scope and the rest of the job runs
       # everywhere.
-      - name: Run the unchanged published four-spinor-genus assertion
-        if: inputs.sage_source_sha != ''
-        env:
-          PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
-        run: >-
-          /sage/.venv/bin/python -m pytest -p qc_sage_session tests/lattices/test_genus.sage -k test_published_four_spinor_genus_is_counted_from_all_generators
+    - name: Run the unchanged published four-spinor-genus assertion
+      if: inputs.sage_source_sha != ''
+      env:
+        PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
+      run: >-
+        /sage/.venv/bin/python -m pytest -p qc_sage_session tests/lattices/test_genus.sage -k test_published_four_spinor_genus_is_counted_from_all_generators
       # sage#14's consumer statement: an image in which sage_indefinite_port imports
       # and T_Co's O(T_Co) generator computation returns. The construction and the
       # call are taken verbatim from the research record
       # computations/reports/coble_tco_surjectivity_specimen.py, which ran it against
       # port 4f0ee50c (raised) and again at 991b88b0 (returns True); this job fails
       # unless it returns here too, and prints the revisions it ran on.
-      - name: Construct T_Co and compute its O(T_Co) generators
-        run: |
-          /sage/.venv/bin/python - <<'PY'
-          import json, time
-          from importlib.metadata import distribution
-          from sage.all import CartanMatrix, ZZ, block_diagonal_matrix, matrix
-          from sage_extensions.all import Lattices
-          import sage_indefinite_port
+    - name: Construct T_Co and compute its O(T_Co) generators
+      run: |
+        /sage/.venv/bin/python - <<'PY'
+        import json, time
+        from importlib.metadata import distribution
+        from sage.all import CartanMatrix, ZZ, block_diagonal_matrix, matrix
+        from sage_extensions.all import Lattices
+        import sage_indefinite_port
 
-          for name in ("sage-indefinite-port", "sage-extensions"):
-              commit = json.loads(distribution(name).read_text("direct_url.json")).get("vcs_info", {}).get("commit_id")
-              print(f"{name}: {commit}")
-          print(f"sage_indefinite_port: {sage_indefinite_port.__file__}")
+        for name in ("sage-indefinite-port", "sage-extensions"):
+            commit = json.loads(distribution(name).read_text("direct_url.json")).get("vcs_info", {}).get("commit_id")
+            print(f"{name}: {commit}")
+        print(f"sage_indefinite_port: {sage_indefinite_port.__file__}")
 
-          # T_Co = <2> + U(2) + E8(2): rank 11, determinant -2048, signature (2, 9).
-          U = matrix(ZZ, [[0, 1], [1, 0]])
-          E8 = -CartanMatrix(["E", 8])
-          gram = block_diagonal_matrix(matrix(ZZ, [[2]]), 2 * U, 2 * E8)
-          L = Lattices(ZZ)([list(row) for row in gram.rows()])
-          print(f"T_Co: rank {L.rank()}, determinant {L.determinant()}, signature {L.signature_pair()}")
+        # T_Co = <2> + U(2) + E8(2): rank 11, determinant -2048, signature (2, 9).
+        U = matrix(ZZ, [[0, 1], [1, 0]])
+        E8 = -CartanMatrix(["E", 8])
+        gram = block_diagonal_matrix(matrix(ZZ, [[2]]), 2 * U, 2 * E8)
+        L = Lattices(ZZ)([list(row) for row in gram.rows()])
+        print(f"T_Co: rank {L.rank()}, determinant {L.determinant()}, signature {L.signature_pair()}")
 
-          started = time.time()
-          generators = L.Aut().group_generators()
-          elapsed = time.time() - started
-          generators = list(generators)
-          assert generators, "the O(T_Co) generator computation returned nothing"
-          print(f"O(T_Co) generators: {len(generators)} in {elapsed:.1f}s")
+        started = time.time()
+        generators = L.Aut().group_generators()
+        elapsed = time.time() - started
+        generators = list(generators)
+        assert generators, "the O(T_Co) generator computation returned nothing"
+        print(f"O(T_Co) generators: {len(generators)} in {elapsed:.1f}s")
 
-          started = time.time()
-          assert L.discriminant_representation_is_surjective() is True
-          print(f"discriminant_representation_is_surjective(): True in {time.time() - started:.1f}s")
-          PY
+        started = time.time()
+        assert L.discriminant_representation_is_surjective() is True
+        print(f"discriminant_representation_is_surjective(): True in {time.time() - started:.1f}s")
+        PY
 
       # Stage-1 acceptance is that the published counts reproduce inside the published
       # image, not on a PYTHONPATH binding to a working tree. The module is run from the
       # installed sage-extensions checkout, which is what the environment check asserts
       # is installed from /repos/sage-extensions.
-      - name: Run sage-extensions' isotropic-line-orbit suite from the installed checkout
-        run: |
-          set -eu
-          checkout=/repos/sage-extensions
-          test -d "${checkout}/tests/lattices"
-          git -C "${checkout}" rev-parse HEAD
-          /sage/.venv/bin/python -m pytest -o addopts= \
-            "${checkout}/tests/lattices/test_isotropic_line_orbits_of_small_indefinite_lattices.sage" \
-            -q -p qc_sage_session
+    - name: Run sage-extensions' isotropic-line-orbit suite from the installed checkout
+      run: |
+        set -eu
+        checkout=/repos/sage-extensions
+        test -d "${checkout}/tests/lattices"
+        git -C "${checkout}" rev-parse HEAD
+        /sage/.venv/bin/python -m pytest -o addopts= \
+          "${checkout}/tests/lattices/test_isotropic_line_orbits_of_small_indefinite_lattices.sage" \
+          -q -p qc_sage_session
 
       # lattice-database's 6JRR card has no computed field until `latticedb certify`
       # runs with Sage and the preamble, and the image is where that record is minted.
@@ -356,34 +356,36 @@ jobs:
       # capture -- so it prints the log, the files written and the card's diff and does
       # not gate on the exit status. --minutes bounds the run; a computation still
       # running at the deadline stays in the checkout's exceeded.yaml.
-      - name: Certify lattice-database card 6JRR
-        run: |
-          set -uo pipefail
-          checkout=/repos/lattice-database
-          git -C "${checkout}" rev-parse HEAD
-          set +e
-          PYTHONPATH="/repos/research/src:${checkout}/src" \
-            /sage/.venv/bin/python -m latticedb certify --tag 6JRR --minutes 20 \
-            > /tmp/certify-6JRR.log 2>&1
-          status=$?
-          set -e
-          echo "certify --tag 6JRR exited ${status}"
-          tail -n 200 /tmp/certify-6JRR.log
-          echo "--- certificate files"
-          ( cd "${checkout}" && git status --porcelain -- certificates | head -50 )
-          echo "--- the card's diff"
-          ( cd "${checkout}" && git diff -- lattices/6JRR.md | head -200 )
-          echo "--- the ledgers, if the run added to them"
-          ( cd "${checkout}" && git diff -- failures.yaml exceeded.yaml | head -200 ) || true
-          echo "certify is evidence, not a gate: exit ${status} is reported above"
+      env:
+        PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
+    - name: Certify lattice-database card 6JRR
+      run: |
+        set -uo pipefail
+        checkout=/repos/lattice-database
+        git -C "${checkout}" rev-parse HEAD
+        set +e
+        PYTHONPATH="/repos/research/src:${checkout}/src" \
+          /sage/.venv/bin/python -m latticedb certify --tag 6JRR --minutes 20 \
+          > /tmp/certify-6JRR.log 2>&1
+        status=$?
+        set -e
+        echo "certify --tag 6JRR exited ${status}"
+        tail -n 200 /tmp/certify-6JRR.log
+        echo "--- certificate files"
+        ( cd "${checkout}" && git status --porcelain -- certificates | head -50 )
+        echo "--- the card's diff"
+        ( cd "${checkout}" && git diff -- lattices/6JRR.md | head -200 )
+        echo "--- the ledgers, if the run added to them"
+        ( cd "${checkout}" && git diff -- failures.yaml exceeded.yaml | head -200 ) || true
+        echo "certify is evidence, not a gate: exit ${status} is reported above"
 
-      - name: Upload the certificates the run wrote
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: latticedb-certificates-6JRR
-          path: /repos/lattice-database/certificates/
-          if-no-files-found: warn
+    - name: Upload the certificates the run wrote
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: latticedb-certificates-6JRR
+        path: /repos/lattice-database/certificates/
+        if-no-files-found: warn
 
       # The stage-1 research records, reproduced inside the image. Each record is a
       # script beside the `-run.txt` it produced; that file opens with the block the
@@ -393,110 +395,110 @@ jobs:
       # opening `provenance` to the first blank line -- and holds every non-blank line
       # after it, right-trimmed, to the committed file. A differing result line fails
       # the job and prints the diff.
-      - name: Reproduce the stage-1 research records
-        run: |
-          set -uo pipefail
-          checkout=/repos/research
-          git -C "${checkout}" rev-parse HEAD
-          status=0
-          # coble_I18_vinberg-chamber is the stage-2 record: Vinberg's algorithm on
-          # I_{1,8} with candidates k_0 >= 1, nine walls, and its printed Gram matrix is
-          # the comparison target -- the whole post-provenance body is compared, as for
-          # the stage-1 records.
-          for record in coble_isotropic_orbits coble_plane-half-f2 coble_I18_vinberg-chamber; do
-            script="${checkout}/computations/reports/${record}.py"
-            expected="${checkout}/computations/reports/${record}-run.txt"
-            actual="/tmp/${record}.out"
-            test -f "${script}" && test -f "${expected}"
-            PYTHONPATH="/repos/research/src:${checkout}/src" \
-              /sage/.venv/bin/python "${script}" > "${actual}" 2>&1 || {
-                echo "${record}: the script exited non-zero; its output follows"
-                cat "${actual}"
-                status=1
-                continue
-              }
-            /sage/.venv/bin/python - "${expected}" "${actual}" "${record}" <<'COMPARE' || status=1
-          import difflib
-          import sys
+    - name: Reproduce the stage-1 research records
+      run: |
+        set -uo pipefail
+        checkout=/repos/research
+        git -C "${checkout}" rev-parse HEAD
+        status=0
+        # coble_I18_vinberg-chamber is the stage-2 record: Vinberg's algorithm on
+        # I_{1,8} with candidates k_0 >= 1, nine walls, and its printed Gram matrix is
+        # the comparison target -- the whole post-provenance body is compared, as for
+        # the stage-1 records.
+        for record in coble_isotropic_orbits coble_plane-half-f2 coble_I18_vinberg-chamber; do
+          script="${checkout}/computations/reports/${record}.py"
+          expected="${checkout}/computations/reports/${record}-run.txt"
+          actual="/tmp/${record}.out"
+          test -f "${script}" && test -f "${expected}"
+          PYTHONPATH="/repos/research/src:${checkout}/src" \
+            /sage/.venv/bin/python "${script}" > "${actual}" 2>&1 || {
+              echo "${record}: the script exited non-zero; its output follows"
+              cat "${actual}"
+              status=1
+              continue
+            }
+          /sage/.venv/bin/python - "${expected}" "${actual}" "${record}" <<'COMPARE' || status=1
+        import difflib
+        import sys
 
-          expected_path, actual_path, name = sys.argv[1:4]
-
-
-          def results(path):
-              """The record's lines without the provenance block it prints first."""
-              lines = open(path, encoding="utf-8").read().splitlines()
-              if lines and lines[0].strip() == "provenance":
-                  while lines and lines[0].strip():
-                      lines.pop(0)
-                  while lines and not lines[0].strip():
-                      lines.pop(0)
-              return [line.rstrip() for line in lines if line.strip()]
+        expected_path, actual_path, name = sys.argv[1:4]
 
 
-          want, got = results(expected_path), results(actual_path)
-          if want == got:
-              print(f"{name}: reproduced, {len(got)} result lines match")
-              raise SystemExit(0)
-          print(f"{name}: differs")
-          print("\n".join(difflib.unified_diff(want, got, "committed", "run here", lineterm="", n=2)))
-          raise SystemExit(1)
-          COMPARE
-          done
-          exit "${status}"
+        def results(path):
+            """The record's lines without the provenance block it prints first."""
+            lines = open(path, encoding="utf-8").read().splitlines()
+            if lines and lines[0].strip() == "provenance":
+                while lines and lines[0].strip():
+                    lines.pop(0)
+                while lines and not lines[0].strip():
+                    lines.pop(0)
+            return [line.rstrip() for line in lines if line.strip()]
+
+
+        want, got = results(expected_path), results(actual_path)
+        if want == got:
+            print(f"{name}: reproduced, {len(got)} result lines match")
+            raise SystemExit(0)
+        print(f"{name}: differs")
+        print("\n".join(difflib.unified_diff(want, got, "committed", "run here", lineterm="", n=2)))
+        raise SystemExit(1)
+        COMPARE
+        done
+        exit "${status}"
 
       # The other stage-1 records, compared by the same rule: the provenance block is
       # dropped and every non-blank line after it, right-trimmed, is held to the
       # committed run file. A missing run file fails the step and says so -- a record
       # with no committed run has nothing to reproduce against, and is not skipped.
-      - name: Reproduce the stage-1 known-family records
-        run: |
-          set -uo pipefail
-          checkout=/repos/research
-          git -C "${checkout}" rev-parse HEAD
-          status=0
-          for record in coble_plane-half-index coble_TEn-dictionaries coble_TEn-sandwich coble_TEn-opplus-split; do
-            script="${checkout}/computations/reports/${record}.py"
-            expected="${checkout}/computations/reports/${record}-run.txt"
-            actual="/tmp/${record}.out"
-            if [ ! -f "${script}" ]; then
-              echo "${record}: no script in this checkout"; status=1; continue
-            fi
-            if [ ! -f "${expected}" ]; then
-              echo "${record}: no committed run file beside it; nothing to compare against"
-              status=1; continue
-            fi
-            PYTHONPATH="${checkout}/src" \
-              /sage/.venv/bin/python "${script}" > "${actual}" 2>&1 || {
-                echo "${record}: the script exited non-zero; its output follows"
-                cat "${actual}"; status=1; continue
-              }
-            /sage/.venv/bin/python - "${expected}" "${actual}" "${record}" <<'COMPARE' || status=1
-          import difflib
-          import sys
+    - name: Reproduce the stage-1 known-family records
+      run: |
+        set -uo pipefail
+        checkout=/repos/research
+        git -C "${checkout}" rev-parse HEAD
+        status=0
+        for record in coble_plane-half-index coble_TEn-dictionaries coble_TEn-sandwich coble_TEn-opplus-split; do
+          script="${checkout}/computations/reports/${record}.py"
+          expected="${checkout}/computations/reports/${record}-run.txt"
+          actual="/tmp/${record}.out"
+          if [ ! -f "${script}" ]; then
+            echo "${record}: no script in this checkout"; status=1; continue
+          fi
+          if [ ! -f "${expected}" ]; then
+            echo "${record}: no committed run file beside it; nothing to compare against"
+            status=1; continue
+          fi
+          PYTHONPATH="${checkout}/src" \
+            /sage/.venv/bin/python "${script}" > "${actual}" 2>&1 || {
+              echo "${record}: the script exited non-zero; its output follows"
+              cat "${actual}"; status=1; continue
+            }
+          /sage/.venv/bin/python - "${expected}" "${actual}" "${record}" <<'COMPARE' || status=1
+        import difflib
+        import sys
 
-          expected_path, actual_path, name = sys.argv[1:4]
-
-
-          def results(path):
-              lines = open(path, encoding="utf-8").read().splitlines()
-              if lines and lines[0].strip() == "provenance":
-                  while lines and lines[0].strip():
-                      lines.pop(0)
-                  while lines and not lines[0].strip():
-                      lines.pop(0)
-              return [line.rstrip() for line in lines if line.strip()]
+        expected_path, actual_path, name = sys.argv[1:4]
 
 
-          want, got = results(expected_path), results(actual_path)
-          if want == got:
-              print(f"{name}: reproduced, {len(got)} result lines match")
-              raise SystemExit(0)
-          print(f"{name}: differs")
-          print("\n".join(difflib.unified_diff(want, got, "committed", "run here", lineterm="", n=2)))
-          raise SystemExit(1)
-          COMPARE
-          done
-          exit "${status}"
+        def results(path):
+            lines = open(path, encoding="utf-8").read().splitlines()
+            if lines and lines[0].strip() == "provenance":
+                while lines and lines[0].strip():
+                    lines.pop(0)
+                while lines and not lines[0].strip():
+                    lines.pop(0)
+            return [line.rstrip() for line in lines if line.strip()]
+
+
+        want, got = results(expected_path), results(actual_path)
+        if want == got:
+            print(f"{name}: reproduced, {len(got)} result lines match")
+            raise SystemExit(0)
+        print(f"{name}: differs")
+        print("\n".join(difflib.unified_diff(want, got, "committed", "run here", lineterm="", n=2)))
+        raise SystemExit(1)
+        COMPARE
+        done
+        exit "${status}"
 
       # lattice-database's owner contracts, run inside the image against the image's own
       # sage_extensions and sage_julia_bridge -- no PYTHONPATH binding to a checkout, so
@@ -505,56 +507,58 @@ jobs:
       # at 60 s on a GitHub runner inside the Julia bridge's stderr drain
       # (sage_julia_bridge/interface.py:279); sage-extensions#300 is that defect and its
       # acceptance is this module returning here.
-      - name: Run lattice-database's owner contracts against the image's packages
-        run: |
-          set -uo pipefail
-          checkout=/repos/lattice-database
-          git -C "${checkout}" rev-parse HEAD
-          module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
-          test -f "${module}"
-          /sage/.venv/bin/python -c 'import sage_extensions, sage_julia_bridge; print(sage_extensions.__file__); print(sage_julia_bridge.__file__)'
-          set +e
-          timeout 1500 /sage/.venv/bin/python -m pytest -o addopts= \
-            --durations=0 -q -p qc_sage_session "${module}"
-          status=$?
-          set -e
-          if [ "${status}" -eq 124 ]; then
-            echo "the owner contracts did not finish within 1500 s"
-          fi
-          echo "owner contracts exited ${status}"
-          exit "${status}"
+    - name: Run lattice-database's owner contracts against the image's packages
+      run: |
+        set -uo pipefail
+        checkout=/repos/lattice-database
+        git -C "${checkout}" rev-parse HEAD
+        module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
+        test -f "${module}"
+        /sage/.venv/bin/python -c 'import sage_extensions, sage_julia_bridge; print(sage_extensions.__file__); print(sage_julia_bridge.__file__)'
+        set +e
+        timeout 1500 /sage/.venv/bin/python -m pytest -o addopts= \
+          --durations=0 -q -p qc_sage_session "${module}"
+        status=$?
+        set -e
+        if [ "${status}" -eq 124 ]; then
+          echo "the owner contracts did not finish within 1500 s"
+        fi
+        echo "owner contracts exited ${status}"
+        exit "${status}"
 
       # The same record's chamber read by the other engine: CoxIter on the nine-node
       # diagram the Vinberg run prints. The in-tree row for (9, 9, 1) calls that diagram
       # a chain, which is the claim this log lets the research chat check. It prints and
       # does not gate: CoxIter's verdict on the diagram is evidence, not an image defect.
-      - name: Read the I_{1,8} chamber with CoxIter
-        run: |
-          set -uo pipefail
-          record=/repos/research/computations/reports/coble_I18_vinberg-chamber-run.txt
-          test -f "${record}"
-          coxiter="$(command -v coxiter)"
-          echo "coxiter: ${coxiter}"
-          "${coxiter}" -h > /tmp/coxiter-usage.txt 2>&1 || true
-          head -20 /tmp/coxiter-usage.txt
-          set +e
-          "${coxiter}" -v < "${record}" > /tmp/coxiter-I18.out 2>&1
-          status=$?
-          set -e
-          echo "coxiter exited ${status}"
-          cat /tmp/coxiter-I18.out
+      env:
+        PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
+    - name: Read the I_{1,8} chamber with CoxIter
+      run: |
+        set -uo pipefail
+        record=/repos/research/computations/reports/coble_I18_vinberg-chamber-run.txt
+        test -f "${record}"
+        coxiter="$(command -v coxiter)"
+        echo "coxiter: ${coxiter}"
+        "${coxiter}" -h > /tmp/coxiter-usage.txt 2>&1 || true
+        head -20 /tmp/coxiter-usage.txt
+        set +e
+        "${coxiter}" -v < "${record}" > /tmp/coxiter-I18.out 2>&1
+        status=$?
+        set -e
+        echo "coxiter exited ${status}"
+        cat /tmp/coxiter-I18.out
 
-      - name: Upload the reproduced record outputs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: research-stage1-records
-          path: |
-            /tmp/coble_isotropic_orbits.out
-            /tmp/coble_plane-half-f2.out
-            /tmp/coble_I18_vinberg-chamber.out
-            /tmp/coxiter-I18.out
-          if-no-files-found: warn
+    - name: Upload the reproduced record outputs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: research-stage1-records
+        path: |
+          /tmp/coble_isotropic_orbits.out
+          /tmp/coble_plane-half-f2.out
+          /tmp/coble_I18_vinberg-chamber.out
+          /tmp/coxiter-I18.out
+        if-no-files-found: warn
 
   # The image is also the environment for hosts that cannot run Docker, chroot
   # or PRoot, which docker/sage-image.py provides by unpacking the image and
@@ -571,49 +575,49 @@ jobs:
       # The script comes from the branch that triggered this run, not from
       # needs.publish.outputs.source_sha: a dispatched spinor image is built
       # from a Sage PR commit that predates it.
-      - name: Check out the provisioning script
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: docker
+    - name: Check out the provisioning script
+      uses: actions/checkout@v4
+      with:
+        sparse-checkout: docker
       # The image is ~14 GB compressed and larger unpacked.
-      - name: Free the runner's disk
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
-      - name: Install bubblewrap
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bubblewrap
+    - name: Free the runner's disk
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        df -h /
+    - name: Install bubblewrap
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bubblewrap
       # Host security policy belongs to the administrator of the host. This job
       # does not change a sysctl or an AppArmor profile to make itself work: it
       # runs where unprivileged user namespaces are already permitted, and
       # reports the configuration as unsupported where they are not. The image
       # build's own check and the container consumer job remain the gate.
-      - name: Probe unprivileged user namespaces
-        id: runtime
-        run: |
-          if bwrap --ro-bind / / --proc /proc --dev /dev --unshare-user --unshare-pid -- /bin/true; then
-            echo "supported=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "supported=false" >> "$GITHUB_OUTPUT"
-          {
-            echo "### No-runtime check skipped"
-            echo ""
-            echo "This runner does not permit unprivileged user namespaces, so the image"
-            echo "cannot be run here without a container runtime. The job does not change"
-            echo "host policy. The image build's own check and the container consumer job"
-            echo "remain the gate."
-          } >> "$GITHUB_STEP_SUMMARY"
-          echo "::warning::runner does not permit unprivileged user namespaces; no-runtime check skipped"
-      - name: Fetch and check the image with no container runtime
-        if: steps.runtime.outputs.supported == 'true'
-        env:
-          IMAGE: ${{ github.repository_owner }}/sage
-          IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
-        run: |
-          ./docker/sage-image.py --image "$IMAGE" --reference "$IMAGE_TAG" fetch
-          ./docker/sage-image.py --image "$IMAGE" --reference "$IMAGE_TAG" check
+    - name: Probe unprivileged user namespaces
+      id: runtime
+      run: |
+        if bwrap --ro-bind / / --proc /proc --dev /dev --unshare-user --unshare-pid -- /bin/true; then
+          echo "supported=true" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        echo "supported=false" >> "$GITHUB_OUTPUT"
+        {
+          echo "### No-runtime check skipped"
+          echo ""
+          echo "This runner does not permit unprivileged user namespaces, so the image"
+          echo "cannot be run here without a container runtime. The job does not change"
+          echo "host policy. The image build's own check and the container consumer job"
+          echo "remain the gate."
+        } >> "$GITHUB_STEP_SUMMARY"
+        echo "::warning::runner does not permit unprivileged user namespaces; no-runtime check skipped"
+    - name: Fetch and check the image with no container runtime
+      if: steps.runtime.outputs.supported == 'true'
+      env:
+        IMAGE: ${{ github.repository_owner }}/sage
+        IMAGE_TAG: ${{ needs.publish.outputs.image_tag }}
+      run: |
+        ./docker/sage-image.py --image "$IMAGE" --reference "$IMAGE_TAG" fetch
+        ./docker/sage-image.py --image "$IMAGE" --reference "$IMAGE_TAG" check
 
   # Whether recompressing the research image to zstd would pay is a question about
   # the runner, not about the build: BuildKit exports zstd through an isolated
@@ -639,35 +643,35 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push a zstd-compressed probe
-        env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/sage:zstd-probe
-        run: |
-          set -eu
-          printf 'FROM debian:trixie\nRUN printf "zstd probe ok\\n" > /probe.txt\n' > "${RUNNER_TEMP}/Dockerfile.zstd-probe"
-          cat "${RUNNER_TEMP}/Dockerfile.zstd-probe"
-          docker buildx build \
-            --file "${RUNNER_TEMP}/Dockerfile.zstd-probe" \
-            --tag "${IMAGE}" \
-            --output type=image,push=true,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true \
-            "${RUNNER_TEMP}"
-      - name: Show the layer media types it published
-        env:
-          IMAGE: ghcr.io/${{ github.repository_owner }}/sage:zstd-probe
-        run: |
-          set -eu
-          # The digest a runner would pull, and the compression it would meet.
-          digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${IMAGE}")"
-          echo "manifest ${digest}"
-          docker buildx imagetools inspect --raw "${IMAGE}@${digest}" | tr ',' '\n' | grep -E 'mediaType|"size"'
-          docker buildx imagetools inspect --raw "${IMAGE}@${digest}" | grep -q 'tar\+zstd'
-          echo "a zstd layer was published"
+    - uses: docker/setup-buildx-action@v3
+    - uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build and push a zstd-compressed probe
+      env:
+        IMAGE: ghcr.io/${{ github.repository_owner }}/sage:zstd-probe
+      run: |
+        set -eu
+        printf 'FROM debian:trixie\nRUN printf "zstd probe ok\\n" > /probe.txt\n' > "${RUNNER_TEMP}/Dockerfile.zstd-probe"
+        cat "${RUNNER_TEMP}/Dockerfile.zstd-probe"
+        docker buildx build \
+          --file "${RUNNER_TEMP}/Dockerfile.zstd-probe" \
+          --tag "${IMAGE}" \
+          --output type=image,push=true,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true \
+          "${RUNNER_TEMP}"
+    - name: Show the layer media types it published
+      env:
+        IMAGE: ghcr.io/${{ github.repository_owner }}/sage:zstd-probe
+      run: |
+        set -eu
+        # The digest a runner would pull, and the compression it would meet.
+        digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${IMAGE}")"
+        echo "manifest ${digest}"
+        docker buildx imagetools inspect --raw "${IMAGE}@${digest}" | tr ',' '\n' | grep -E 'mediaType|"size"'
+        docker buildx imagetools inspect --raw "${IMAGE}@${digest}" | grep -q 'tar\+zstd'
+        echo "a zstd layer was published"
 
   zstd-pull:
     needs: zstd-probe
@@ -683,8 +687,8 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - name: Read the probe file from inside a container of the zstd image
-        run: |
-          set -eu
-          test "$(cat /probe.txt)" = "zstd probe ok"
-          echo "the runner pulled a zstd-compressed layer and started a container from it"
+    - name: Read the probe file from inside a container of the zstd image
+      run: |
+        set -eu
+        test "$(cat /probe.txt)" = "zstd probe ok"
+        echo "the runner pulled a zstd-compressed layer and started a container from it"
