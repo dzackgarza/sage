@@ -494,12 +494,19 @@ jobs:
         ( cd "${checkout}" && git diff -- failures.yaml exceeded.yaml | head -200 ) || true
         echo "certify is evidence, not a gate: exit ${status} is reported above"
 
+    # The certificates alone cannot show what they certify: their hashes commit to card values,
+    # and the card a run writes lives in the container and dies with it. Run 42407502517's
+    # artifact listed new 6JRR certificate keys against the locked revision while carrying
+    # neither the card they were computed from nor the child's own exit status. Both travel here.
     - name: Upload the certificates the run wrote
       if: always()
       uses: actions/upload-artifact@v4
       with:
         name: latticedb-certificates-6JRR
-        path: /repos/lattice-database/certificates/
+        path: |
+          /repos/lattice-database/certificates/
+          /repos/lattice-database/lattices/6JRR.md
+          /tmp/certify-6JRR.log
         if-no-files-found: warn
 
       # The stage-1 research records, reproduced inside the image. Each record is a
