@@ -1,0 +1,30 @@
+............                                                             [100%]
+============================== slowest durations ===============================
+190.45s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_primitive_orbit_series_counts_primitive_isotropic_lines
+67.38s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_positive_a2_genus_and_orthogonal_group_are_owned_by_the_lattice
+1.94s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_integral_hyperbolic_index_is_owned_by_the_lattice
+1.26s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_spinor_genus_counts_and_class_numbers_are_owned_by_the_lattice
+0.42s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_root_and_theta_catalogue_invariants_are_owned_by_the_lattice
+0.10s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_a2_orbit_and_discriminant_certification_data_are_owned_by_the_lattice
+0.10s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_balanced_even_unimodular_lattice_recognizes_its_hyperbolic_plane_power
+0.09s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_rational_definite_orthogonal_group_is_owned_by_the_lattice
+0.09s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_discriminant_sequence_retains_a_nontrivial_pointed_coset_quotient
+0.02s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_discriminant_orbit_series_under_the_eichler_hypothesis_is_owned_by_the_lattice
+0.01s call     tests/lattices/test_lattice_database_owner_contracts.sage::test_lattice_isotropy_is_owned_by_the_quadratic_space
+
+(25 durations < 0.005s hidden.  Use -vv to show these durations.)
+12 passed in 264.00s (0:04:23)
+[peakrss] owner-240c: child waited=0 shell_code=0 samples=138
+[peakrss] peak tree RSS      : 4283 MiB
+[peakrss] low-water MemAvail : 4277 MiB
+[peakrss] peak single VmHWM  : 4396 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   julia                      3346 MiB peak
+[peakrss]   python                     1024 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   t=   266.2s procs=  5 rss=  4283 MiB hwm=  4396 MiB avail=  6151 MiB
+[peakrss]   t=   264.2s procs=  5 rss=  4282 MiB hwm=  4395 MiB avail=  6154 MiB
+[peakrss]   t=   262.2s procs=  5 rss=  4272 MiB hwm=  4385 MiB avail=  6160 MiB
+[peakrss]   t=   260.2s procs=  5 rss=  4268 MiB hwm=  4381 MiB avail=  6172 MiB
+[peakrss]   t=   258.2s procs=  5 rss=  4265 MiB hwm=  4377 MiB avail=  6174 MiB

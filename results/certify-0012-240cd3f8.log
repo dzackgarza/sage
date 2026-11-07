@@ -1,0 +1,18 @@
+0012 derive
+0012 {'integer_valued': True}
+0012 {'elementary_primes': [3]}
+[peakrss] STOPPED_AT_MEMORY_LIMIT: tree RSS 6210 MiB exceeded 6144 MiB
+[peakrss] certify-0012-240c: child waited=-15 shell_code=143 samples=26
+[peakrss] peak tree RSS      : 6210 MiB
+[peakrss] low-water MemAvail : 4597 MiB
+[peakrss] peak single VmHWM  : 6271 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   julia                      3157 MiB peak
+[peakrss]   python                      419 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   t=    50.1s procs=  8 rss=  6210 MiB hwm=  6271 MiB avail=  4597 MiB
+[peakrss]   t=    48.1s procs=  8 rss=  6054 MiB hwm=  6120 MiB avail=  4830 MiB
+[peakrss]   t=    46.1s procs=  8 rss=  5863 MiB hwm=  5994 MiB avail=  5004 MiB
+[peakrss]   t=    44.1s procs=  8 rss=  5712 MiB hwm=  5845 MiB avail=  5190 MiB
+[peakrss]   t=    42.1s procs=  8 rss=  5677 MiB hwm=  5845 MiB avail=  5210 MiB

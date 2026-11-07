@@ -57,22 +57,23 @@ A complete graph on eight vertices — the 7-simplex — is not the record's cha
 nine walls. This record is not a CoxIter graph either: its Gram rows are plain indented numbers,
 its prose lines are not edges, and none of them matches the edge grammar.
 
-### Provenance of these measurements — read this before quoting them
+### Runs under unusual provenance, and what the local image actually is
 
-These runs are a **local unpacked image with a research checkout bound over `/repos/research`**,
-which is not the same thing as the published-image workflow run:
+The CoxIter measurements, and the certification run below, are a **local unpacked rootfs with
+checkouts bound over `/repos/*`**, not a published-image run:
 
-| what | value | how it was established |
+| what | value | evidence, and its limit |
 | --- | --- | --- |
-| image | `sha256:220293469c53eef012ce94ed52795216ff5b27f65a1f401a41864f45967d3851` (index), source `6a1d6d9f` | the recorded adoption of this rootfs; `SAGE_IMAGE_DIGEST` in the test |
-| the image's own research tree | `ec1333eeb0747240bf67990831c98abd47439e7e` — **no `computations/` directory** | read from the image with nothing bound |
-| research actually read | `dbf178cf30c1d26e5f98753c1d9cdbcc16ee3d25` | a checkout bound over `/repos/research` for the run |
+| rootfs | `~/sage-image/rootfs` | the tree that ran; `docker/sage-image.py --rootfs` points at it directly |
+| image identity | OCI config `sha256:2d6a4754b6f1518af356dd28ac6ec2e7678c7fe4ab0d70c2e7c9ecbc2c605eca`, 18 layers | `~/sage-image/config.json`, read now |
+| index digest | `sha256:220293469c53…`, source `6a1d6d9f` | **cited** from results/runtime-adoption-220293469c53-acceptance.md; not re-verified in this turn — the cache carries no stamp (`sage-image.py info --cache ~/sage-image` reports none), so it is a recorded value, not something read off the tree |
+| image's own /repos, none bound | sage-extensions `7b222e86`, lattice-database `230d41ae`, research `ec1333ee` (no `computations/`) | read from the image with nothing bound |
 
-So the record is **not present in that image**; it is supplied by the bind. The next image, which
-carries the pinned research revision, would not need it. `docker/tests/test_coxiter_chamber_input.py`
-reads both revisions at run time, reports them, and fails if the image's own tree already carries
-the record — which is how the difference stays visible instead of being assumed away. The red and
-the green run use the **same** explicit checkout, `dbf178cf30`.
+The bindings each run used are stated where the run is: for the CoxIter check, research
+`dbf178cf30`; for the certification and owner-contract calls, provider `240cd3f8`, lattice-database
+`d1711db05f`, research `dbf178cf30`, port `991b88b0`. An image that already carried these
+revisions would behave the same way; the bind is a statement about this rootfs, not a requirement
+on the published image.
 
 ### The parser path, reproduced rather than inferred
 
@@ -146,3 +147,30 @@ The claim this carries is corpus loading for a small real card. **It is not a ce
 6JRR**, which remains unmade and is separate. Asking `0012` to recompute fails further up, in
 sage_genus.py -> records.derive -> reflective_root_system_components, i.e. sage-extensions#291 —
 the provider result this unit needs and cannot supply.
+
+## After the provider repair (sage-extensions#291 at `240cd3f8`)
+
+Provider `240cd3f845fe2b2d5a46501ae628ccbbb9708c2a` bound over `/repos/sage-extensions`, everything
+else as above. Two calls that were blocked now run.
+
+**The owner-contract call, which is what #15 was waiting on: 12 passed in 264.00 s** — every
+assertion in `tests/lattices/test_lattice_database_owner_contracts.sage`, including
+`test_positive_a2_genus_and_orthogonal_group_are_owned_by_the_lattice`, which had been failing at
+`definite_lattices.py:294` on `'int' object has no attribute 'parent'`.
+
+**The ordinary certification path on `0012`, which had died in the same place**: it now computes.
+The card's `form.integer_valued` was removed from an isolated one-card corpus to force the
+recomputation, and the run printed
+
+    0012 derive
+    0012 {'integer_valued': True}
+    0012 {'elementary_primes': [3]}
+
+and wrote both values back with their certification hashes — 19 certifications on that card by the
+time it stopped. It stopped on **my 6144 MiB guard at 6210 MiB**, not on a provider failure, so
+what it establishes is that the blocker is gone and the path computes; it does **not** establish a
+completed certificate, and this run is not a published-image result.
+
+The E8 enumeration's cold cost remains an unresolved check in the provider's own test-call
+performance gate; nothing here speaks to it.
+
