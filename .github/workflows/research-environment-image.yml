@@ -18,32 +18,36 @@ on:
   push:
     branches: [develop]
     paths:
-    - 'pyproject.toml'
-    - 'uv.lock'
-    - 'justfile'
-    - 'meson.build'
-    - 'src/**'
-    - 'build/pkgs/**'
-    - 'docker/research-environment.Dockerfile'
-    - 'docker/research-environment-incremental.Dockerfile'
-    - 'docker/relock-research-packages.sh'
-    - 'docker/research-environment-check.py'
-    - 'docker/install-research-repositories.sh'
-    - 'docker/research-repositories.txt'
+    - pyproject.toml
+    - uv.lock
+    - justfile
+    - meson.build
+    - src/**
+    - build/pkgs/**
+    - docker/research-environment.Dockerfile
+    - docker/research-environment-incremental.Dockerfile
+    - docker/relock-research-packages.sh
+    - docker/research-environment-check.py
+    - docker/install-research-repositories.sh
+    - docker/research-repositories.txt
     - .github/workflows/research-environment-image.yml
   workflow_dispatch:
     inputs:
       sage_source_sha:
-        description: Exact maintained Sage PR commit whose genus.py correction is applied to current develop for an isolated image; omit for ordinary develop image
+        description: Exact maintained Sage PR commit whose genus.py correction 
+          is applied to current develop for an isolated image; omit for ordinary
+          develop image
         required: false
         type: string
       relock:
-        description: Lock every git-sourced research package at its head, build the image on that lock, and commit it
+        description: Lock every git-sourced research package at its head, build 
+          the image on that lock, and commit it
         required: false
         type: boolean
         default: false
       zstd_probe:
-        description: Build a tiny zstd-compressed image and pull it in a container job, to prove the runner can read zstd layers
+        description: Build a tiny zstd-compressed image and pull it in a 
+          container job, to prove the runner can read zstd layers
         required: false
         type: boolean
         default: false
@@ -138,7 +142,8 @@ jobs:
       id: image-tag
       env:
         SAGE_SOURCE_SHA: ${{ inputs.sage_source_sha || github.sha }}
-        IS_DEVELOP: ${{ github.ref == 'refs/heads/develop' && !inputs.sage_source_sha }}
+        IS_DEVELOP: ${{ github.ref == 'refs/heads/develop' && 
+          !inputs.sage_source_sha }}
       run: |
         if [ "$IS_DEVELOP" = "true" ]; then
           echo "tag=develop" >> "$GITHUB_OUTPUT"
@@ -190,17 +195,23 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: sage-source
-        file: sage-source/docker/research-environment${{ steps.build-kind.outputs.kind == 'incremental' && '-incremental' || '' }}.Dockerfile
+        file: sage-source/docker/research-environment${{ 
+          steps.build-kind.outputs.kind == 'incremental' && '-incremental' || ''
+          }}.Dockerfile
         build-args: |
           BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
           RELOCK=${{ inputs.relock && 'true' || 'false' }}
         push: true
-        tags: ghcr.io/${{ github.repository_owner }}/sage:${{ steps.image-tag.outputs.tag }}
-        labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || github.sha }}
+        tags: ghcr.io/${{ github.repository_owner }}/sage:${{ 
+          steps.image-tag.outputs.tag }}
+        labels: org.opencontainers.image.revision=${{ inputs.sage_source_sha || 
+          github.sha }}
           # Layers go to the registry: the Actions cache is capped at 10 GB
           # per repository, which a Sage image's layers exceed.
-        cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
-        cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache,mode=max
+        cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner 
+          }}/sage:buildcache
+        cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner 
+          }}/sage:buildcache,mode=max
       # Back out of the builder into `ccache/`, which actions/cache saves at job end.
       # It runs on failure too: a build that dies after compiling still warmed the
       # cache, and that is what makes the next full build cheap.
@@ -218,12 +229,15 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: sage-source
-        file: sage-source/docker/research-environment${{ steps.build-kind.outputs.kind == 'incremental' && '-incremental' || '' }}.Dockerfile
+        file: sage-source/docker/research-environment${{ 
+          steps.build-kind.outputs.kind == 'incremental' && '-incremental' || ''
+          }}.Dockerfile
         target: lock
         build-args: |
           BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
           RELOCK=true
-        cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
+        cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner 
+          }}/sage:buildcache
         outputs: type=local,dest=relock
     - name: Commit the lock
       if: inputs.relock
@@ -256,7 +270,8 @@ jobs:
       contents: read
       packages: read
     container:
-      image: ghcr.io/${{ github.repository_owner }}/sage:${{ needs.publish.outputs.image_tag }}
+      image: ghcr.io/${{ github.repository_owner }}/sage:${{ 
+        needs.publish.outputs.image_tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -291,9 +306,11 @@ jobs:
     - name: Run the unchanged published four-spinor-genus assertion
       if: inputs.sage_source_sha != ''
       env:
-        PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
+        PYTHONPATH: ${{ github.workspace 
+          }}/.qc-infra/tool-artifacts/pytest_plugins
       run: >-
-        /sage/.venv/bin/python -m pytest -p qc_sage_session tests/lattices/test_genus.sage -k test_published_four_spinor_genus_is_counted_from_all_generators
+        /sage/.venv/bin/python -m pytest -p qc_sage_session tests/lattices/test_genus.sage
+        -k test_published_four_spinor_genus_is_counted_from_all_generators
       # sage#14's consumer statement: an image in which sage_indefinite_port imports
       # and T_Co's O(T_Co) generator computation returns. The construction and the
       # call are taken verbatim from the research record
@@ -337,7 +354,8 @@ jobs:
       # image, not on a PYTHONPATH binding to a working tree. The module is run from the
       # installed sage-extensions checkout, which is what the environment check asserts
       # is installed from /repos/sage-extensions.
-    - name: Run sage-extensions' isotropic-line-orbit suite from the installed checkout
+    - name: Run sage-extensions' isotropic-line-orbit suite from the installed 
+        checkout
       run: |
         set -eu
         checkout=/repos/sage-extensions
@@ -357,7 +375,8 @@ jobs:
       # not gate on the exit status. --minutes bounds the run; a computation still
       # running at the deadline stays in the checkout's exceeded.yaml.
       env:
-        PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
+        PYTHONPATH: ${{ github.workspace 
+          }}/.qc-infra/tool-artifacts/pytest_plugins
     - name: Certify lattice-database card 6JRR
       run: |
         set -uo pipefail
@@ -510,7 +529,7 @@ jobs:
     - name: Run lattice-database's owner contracts against the image's packages
       run: |
         set -uo pipefail
-        checkout=/repos/lattice-database
+        checkout=/repos/sage-extensions
         git -C "${checkout}" rev-parse HEAD
         module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
         test -f "${module}"
@@ -531,7 +550,8 @@ jobs:
       # a chain, which is the claim this log lets the research chat check. It prints and
       # does not gate: CoxIter's verdict on the diagram is evidence, not an image defect.
       env:
-        PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
+        PYTHONPATH: ${{ github.workspace 
+          }}/.qc-infra/tool-artifacts/pytest_plugins
     - name: Read the I_{1,8} chamber with CoxIter
       run: |
         set -uo pipefail
