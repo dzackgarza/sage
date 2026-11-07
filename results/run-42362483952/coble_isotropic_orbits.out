@@ -1,0 +1,10 @@
+T_Co: rank 11, det -2048, A has 2048 classes
+|Orth(A_{T_Co}, q)| = 46998591897600
+   claimed 2^21*3^5*5^2*7*17*31 = 46998591897600   AGREE
+the maintained orbit partition materialised in 56.0s: 6 orbits, sizes [1, 1, 496, 496, 527, 527]
+orbit (size, q): [(1, '0'), (1, '1/2'), (496, '1'), (496, '3/2'), (527, '0'), (527, '1/2')]
+isotropic classes: 528
+orbits contained in the isotropic classes: 2, of sizes [1, 527]
+   {0} and one orbit of 527, whose union is exactly D.isotropic_elements()   AGREE
+   the other 527-orbit carries q = ['1/2'] and is NOT isotropic
+T_Co two_elementary_invariants: (11, 11, 1)
