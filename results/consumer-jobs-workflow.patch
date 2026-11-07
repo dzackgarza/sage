@@ -1,0 +1,303 @@
+diff --git a/.github/workflows/research-environment-image.yml b/.github/workflows/research-environment-image.yml
+index 78184f404d4..5125a87d4fa 100644
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -33,6 +33,11 @@ on:
+     - .github/workflows/research-environment-image.yml
+   workflow_dispatch:
+     inputs:
++      image:
++        description: Exact published image reference whose consumer calls to run;
++          the build is skipped and nothing is published
++        required: false
++        type: string
+       sage_source_sha:
+         description: Exact maintained Sage PR commit whose genus.py correction 
+           is applied to current develop for an isolated image; omit for ordinary
+@@ -56,6 +61,7 @@ concurrency:
+   cancel-in-progress: false
+ jobs:
+   publish:
++    if: inputs.image == ''
+     runs-on: ubuntu-latest
+     timeout-minutes: 360
+     permissions:
+@@ -262,16 +268,20 @@ jobs:
+   # the limit is raised rather than estimated: the step prints
+   # `O(T_Co) generators: N in T s` and the record reproductions print their own times,
+   # and those are what a later tightening should be based on.
+-  consumer-acceptance:
++# The consumer calls that compute: the T_Co generator call and the isotropic-line-orbit
++# suite. Bounded on its own so a slow neighbour cannot take their time.
++  consumer-mathematics:
+     needs: publish
++    # `always()` with the guard: a named image needs no build, and a publish that failed
++    # must not silently turn a consumer run into a skip.
++    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
+     runs-on: ubuntu-latest
+-    timeout-minutes: 60
++    timeout-minutes: 45
+     permissions:
+       contents: read
+       packages: read
+     container:
+-      image: ghcr.io/${{ github.repository_owner }}/sage:${{ 
+-        needs.publish.outputs.image_tag }}
++      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
+       credentials:
+         username: ${{ github.actor }}
+         password: ${{ secrets.GITHUB_TOKEN }}
+@@ -466,6 +476,52 @@ jobs:
+       env:
+         PYTHONPATH: ${{ github.workspace 
+           }}/.qc-infra/tool-artifacts/pytest_plugins
++
++# Card 6JRR, its certificates and -- from this change -- the card and the child's log, so a
++# certificate hash can be checked against the values that produced it.
++  consumer-certify:
++    needs: publish
++    # `always()` with the guard: a named image needs no build, and a publish that failed
++    # must not silently turn a consumer run into a skip.
++    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
++    runs-on: ubuntu-latest
++    timeout-minutes: 45
++    permissions:
++      contents: read
++      packages: read
++    container:
++      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
++      credentials:
++        username: ${{ github.actor }}
++        password: ${{ secrets.GITHUB_TOKEN }}
++    steps:
++    - name: Verify the image embeds the requested patch and base revisions
++      env:
++        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++      run: |
++        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
++        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
++        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
++        "$SAGE_BIN" --version
++    - name: Check out public consumer assertions
++      uses: actions/checkout@v4
++      with:
++        repository: dzackgarza/sage-extensions
++        ref: main
++    - name: Install the checked-out sage-extensions source
++      run: >-
++        uv pip install --python /sage/.venv/bin/python --no-deps -e .
++    - name: Install the Sage pytest collector plugin
++      uses: actions/checkout@v4
++      with:
++        repository: dzackgarza/ai-review-ci
++        ref: main
++        path: .qc-infra
++      # The spinor assertion is about the isolated image built from a Sage PR commit:
++      # it pins a sage-extensions `main` checkout and a test whose subject is that
++      # commit's genus correction. An ordinary develop image has no such patch to
++      # assert, so the step keeps its original scope and the rest of the job runs
++      # everywhere.
+     - name: Certify lattice-database card 6JRR
+       run: |
+         set -uo pipefail
+@@ -494,12 +550,19 @@ jobs:
+         ( cd "${checkout}" && git diff -- failures.yaml exceeded.yaml | head -200 ) || true
+         echo "certify is evidence, not a gate: exit ${status} is reported above"
+ 
++    # The certificates alone cannot show what they certify: their hashes commit to card values,
++    # and the card a run writes lives in the container and dies with it. Run 42407502517's
++    # artifact listed new 6JRR certificate keys against the locked revision while carrying
++    # neither the card they were computed from nor the child's own exit status. Both travel here.
+     - name: Upload the certificates the run wrote
+       if: always()
+       uses: actions/upload-artifact@v4
+       with:
+         name: latticedb-certificates-6JRR
+-        path: /repos/lattice-database/certificates/
++        path: |
++          /repos/lattice-database/certificates/
++          /repos/lattice-database/lattices/6JRR.md
++          /tmp/certify-6JRR.log
+         if-no-files-found: warn
+ 
+       # The stage-1 research records, reproduced inside the image. Each record is a
+@@ -510,6 +573,52 @@ jobs:
+       # opening `provenance` to the first blank line -- and holds every non-blank line
+       # after it, right-trimmed, to the committed file. A differing result line fails
+       # the job and prints the diff.
++
++# The research records reproduced inside the image. Independent of the calls above: run
++# 42407502517 lost these to the serial one-hour budget, not to a failure in them.
++  consumer-records:
++    needs: publish
++    # `always()` with the guard: a named image needs no build, and a publish that failed
++    # must not silently turn a consumer run into a skip.
++    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
++    runs-on: ubuntu-latest
++    timeout-minutes: 40
++    permissions:
++      contents: read
++      packages: read
++    container:
++      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
++      credentials:
++        username: ${{ github.actor }}
++        password: ${{ secrets.GITHUB_TOKEN }}
++    steps:
++    - name: Verify the image embeds the requested patch and base revisions
++      env:
++        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++      run: |
++        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
++        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
++        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
++        "$SAGE_BIN" --version
++    - name: Check out public consumer assertions
++      uses: actions/checkout@v4
++      with:
++        repository: dzackgarza/sage-extensions
++        ref: main
++    - name: Install the checked-out sage-extensions source
++      run: >-
++        uv pip install --python /sage/.venv/bin/python --no-deps -e .
++    - name: Install the Sage pytest collector plugin
++      uses: actions/checkout@v4
++      with:
++        repository: dzackgarza/ai-review-ci
++        ref: main
++        path: .qc-infra
++      # The spinor assertion is about the isolated image built from a Sage PR commit:
++      # it pins a sage-extensions `main` checkout and a test whose subject is that
++      # commit's genus correction. An ordinary develop image has no such patch to
++      # assert, so the step keeps its original scope and the rest of the job runs
++      # everywhere.
+     - name: Reproduce the stage-1 research records
+       run: |
+         set -uo pipefail
+@@ -695,6 +804,68 @@ jobs:
+       # at 60 s on a GitHub runner inside the Julia bridge's stderr drain
+       # (sage_julia_bridge/interface.py:279); sage-extensions#300 is that defect and its
+       # acceptance is this module returning here.
++    - name: Upload the reproduced record outputs
++      if: always()
++      uses: actions/upload-artifact@v4
++      with:
++        name: research-stage1-records
++        path: |
++          /tmp/coble_isotropic_orbits.out
++          /tmp/coble_plane-half-f2.out
++          /tmp/coble_I18_vinberg-chamber.out
++          /tmp/coxiter-I18.out
++        if-no-files-found: warn
++
++  # The image is also the environment for hosts that cannot run Docker, chroot
++  # or PRoot, which docker/sage-image.py provides by unpacking the image and
++  # running it under bubblewrap. This job is the only place that path runs on a
++  # host it was not developed on; a regression there is invisible to every
++  # consumer that uses the container.
++
++# The provider's owner contracts against the image's packages (#15).
++  consumer-contracts:
++    needs: publish
++    # `always()` with the guard: a named image needs no build, and a publish that failed
++    # must not silently turn a consumer run into a skip.
++    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
++    runs-on: ubuntu-latest
++    timeout-minutes: 30
++    permissions:
++      contents: read
++      packages: read
++    container:
++      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
++      credentials:
++        username: ${{ github.actor }}
++        password: ${{ secrets.GITHUB_TOKEN }}
++    steps:
++    - name: Verify the image embeds the requested patch and base revisions
++      env:
++        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++      run: |
++        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
++        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
++        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
++        "$SAGE_BIN" --version
++    - name: Check out public consumer assertions
++      uses: actions/checkout@v4
++      with:
++        repository: dzackgarza/sage-extensions
++        ref: main
++    - name: Install the checked-out sage-extensions source
++      run: >-
++        uv pip install --python /sage/.venv/bin/python --no-deps -e .
++    - name: Install the Sage pytest collector plugin
++      uses: actions/checkout@v4
++      with:
++        repository: dzackgarza/ai-review-ci
++        ref: main
++        path: .qc-infra
++      # The spinor assertion is about the isolated image built from a Sage PR commit:
++      # it pins a sage-extensions `main` checkout and a test whose subject is that
++      # commit's genus correction. An ordinary develop image has no such patch to
++      # assert, so the step keeps its original scope and the rest of the job runs
++      # everywhere.
+     - name: Run lattice-database's owner contracts against the image's packages
+       run: |
+         set -uo pipefail
+@@ -721,6 +892,33 @@ jobs:
+       env:
+         PYTHONPATH: ${{ github.workspace 
+           }}/.qc-infra/tool-artifacts/pytest_plugins
++
++# CoxIter on the I_{1,8} chamber (#18): seconds of work that a serial job put last, where
++# two runs in a row never reached it.
++  consumer-chamber:
++    needs: publish
++    # `always()` with the guard: a named image needs no build, and a publish that failed
++    # must not silently turn a consumer run into a skip.
++    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
++    runs-on: ubuntu-latest
++    timeout-minutes: 20
++    permissions:
++      contents: read
++      packages: read
++    container:
++      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
++      credentials:
++        username: ${{ github.actor }}
++        password: ${{ secrets.GITHUB_TOKEN }}
++    steps:
++    - name: Verify the image embeds the requested patch and base revisions
++      env:
++        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++      run: |
++        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
++        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
++        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
++        "$SAGE_BIN" --version
+     - name: Read the I_{1,8} chamber with CoxIter
+       run: |
+         # -e matters here: the acceptance below is a Python assertion, and without it a failing
+@@ -809,23 +1007,6 @@ jobs:
+         grep -q "Guessed dimension: 8" /tmp/coxiter-I18.out
+         echo "CoxIter read the nine-wall chamber of ${record}: labelled adjacencies equal to its edge list"
+ 
+-    - name: Upload the reproduced record outputs
+-      if: always()
+-      uses: actions/upload-artifact@v4
+-      with:
+-        name: research-stage1-records
+-        path: |
+-          /tmp/coble_isotropic_orbits.out
+-          /tmp/coble_plane-half-f2.out
+-          /tmp/coble_I18_vinberg-chamber.out
+-          /tmp/coxiter-I18.out
+-        if-no-files-found: warn
+-
+-  # The image is also the environment for hosts that cannot run Docker, chroot
+-  # or PRoot, which docker/sage-image.py provides by unpacking the image and
+-  # running it under bubblewrap. This job is the only place that path runs on a
+-  # host it was not developed on; a regression there is invisible to every
+-  # consumer that uses the container.
+   no-runtime:
+     needs: publish
+     runs-on: ubuntu-latest
