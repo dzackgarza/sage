@@ -44,3 +44,51 @@ Both will be rerun unchanged once repaired. **The ordinary `latticedb certify --
 --phase fields` has not completed yet** — it was admitted once and stopped before its first
 work unit while the host was at load 16 with ~1.2 GB free; it needs one clear window. The
 recovery verifier is being held for your next revision, per instruction.
+
+---
+
+## Follow-up on `9fa82dcb` — the suites pass, and the old verifier rejects valid data
+
+Executed at `9fa82dcb80f273d47184ca56671edb85b1fc4b21` on a real checkout in the supported
+image, with the provider at the lock pin and the retained artifacts of run 42326648686 copied
+unmodified into `attachments/you-work-the-github-s6pa/extracted/` (60 tag directories; the old
+verifier's SHA256 matches the copy in the lattice-database project's attachments).
+
+**Your storage and persistence modules are green: 13 passed in 31.08 s** —
+`tests/test_failures.py tests/test_merge.py tests/test_persist.py`. Both fixtures that failed at
+`33534455` and again at `ca17c53e` now pass: `0012`'s two computations stay together in shard
+`2f` while a misplaced duplicate is still rejected, and `failure_attempt()` supplies a real
+`datetime`.
+
+**The recovery regression passes with the revision's own verifier**:
+
+    results/regression-recovery-defects.py        → exit 0, PASS
+    # original attempt removed from a copy:
+      0066 integral.primitive_orbits: original failure attempt d75a9ad628461d9f is missing
+    # on-card derive deleted in a second copy:
+      0066: certifications.derive missing
+      0066 derive: on-card certification is missing although the artifact supplies the
+                   corresponding certificate
+
+Both rejections name what they object to, and the preserved-later attempt survives the first
+mutation. `tests/test_verify_recovery.py` passes too (1 test, 110 s), and
+`results/recover-42326648686.py` reconciles every artifact with 0 conflicts across all 60 tags.
+
+**The old verifier, on unmodified recovered data, rejects it** — which is the defect 9fa
+corrects, and it is why the runner cannot reach its mutation stages with that verifier:
+
+    $ verify-recovered-old.py artifacts
+    1 recovered artifacts verified against their own patches
+    1 problems found
+       0066 integral.primitive_orbits: original failure attempt d75a9ad628461d9f is missing
+    the actual recovered data should verify; exit 1
+
+(An earlier attempt of mine passed that verifier as a relative path, which the runner resolves
+from its temporary copy; that failed on a missing file and says nothing about the verifier. The
+transcript here is the absolute-path run.)
+
+**What I did not complete:** the verifier over all 60 tags. It ran under a 1800 s bound and
+reached it (`exit 124`, 17:25 CPU, one thread, RSS 1.35 GB), and the verifier prints only at the
+end, so there is no partial finding. That establishes neither agreement nor disagreement and does
+not imply a longer run would pass — which is why the full verification is yours to run in the
+supported image, and I am not starting a duplicate. #17 stays open on it.
