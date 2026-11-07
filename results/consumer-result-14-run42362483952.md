@@ -87,3 +87,22 @@ difference. A generating set's size is not a machine property, so either
 one of those two runs ran a path this comparison has not identified. It is reported to the
 port's owner as an open question and is not resolved here; no record of it exists in
 `results/` before this file.
+
+## Closed: the comparator fix landed, and the run's records reproduce under it
+
+The extension landed on `develop` at `db3364790c0fdae052b81cbc297cb59312ecdc20` (the workflow
+commit `4b8fadfb651` and its documentation child). Rerun against the landed file:
+
+    docker/tests/test_record_comparison.py          21 passed
+
+and the three retained outputs of run 42362483952, compared with the comparator read out of that
+landed workflow, all reproduce:
+
+    coble_isotropic_orbits        reproduced, 10 result lines match
+    coble_plane-half-f2           reproduced, 26 result lines match
+    coble_I18_vinberg-chamber     reproduced, 28 result lines match
+
+The only differences the comparator reports are elapsed annotations (`in 29.8s` vs `in 56.0s`;
+three `(NNN s)` on f2), and every mathematical line is compared unchanged. With that, sage#16's
+actual-record result is: all three records this run compared reproduce in that image, and the two
+failures it displayed were the annotation form the comparator now recognises.
