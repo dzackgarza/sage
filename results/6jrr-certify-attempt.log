@@ -1,0 +1,14 @@
+[peakrss] STOPPED_AT_MEMORY_LIMIT: tree RSS 6171 MiB exceeded 6144 MiB
+[peakrss] 6jrr-certify: child waited=-15 shell_code=143 samples=154
+[peakrss] peak tree RSS      : 6171 MiB
+[peakrss] low-water MemAvail : 2366 MiB
+[peakrss] peak single VmHWM  : 6178 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   python                     6152 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   t=   306.2s procs=  4 rss=  6171 MiB hwm=  6178 MiB avail=  2648 MiB
+[peakrss]   t=   304.2s procs=  4 rss=  6126 MiB hwm=  6134 MiB avail=  2366 MiB
+[peakrss]   t=   302.2s procs=  4 rss=  6081 MiB hwm=  6089 MiB avail=  2446 MiB
+[peakrss]   t=   300.2s procs=  4 rss=  6039 MiB hwm=  6047 MiB avail=  2490 MiB
+[peakrss]   t=   298.2s procs=  4 rss=  5998 MiB hwm=  6006 MiB avail=  2534 MiB

@@ -1,0 +1,6 @@
+revisions:
+  lattice-database d1711db05f11405a05269315d6b204b56b527e3d
+  provider         3e4812618ce0d5f67dc88959a161ac6ebeb75da2
+  port             991b88b095a42a1e3679569ea42328c900c120f6
+  research         dbf178cf30c1d26e5f98753c1d9cdbcc16ee3d25
+command: latticedb certify --tag 6JRR --minutes 20 --root /repos/lattice-database  (cwd /repos/lattice-database)
