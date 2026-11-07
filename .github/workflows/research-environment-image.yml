@@ -33,6 +33,11 @@ on:
     - .github/workflows/research-environment-image.yml
   workflow_dispatch:
     inputs:
+      image:
+        description: Exact published image reference whose consumer calls to run;
+          the build is skipped and nothing is published
+        required: false
+        type: string
       sage_source_sha:
         description: Exact maintained Sage PR commit whose genus.py correction 
           is applied to current develop for an isolated image; omit for ordinary
@@ -56,6 +61,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
+    if: inputs.image == ''
     runs-on: ubuntu-latest
     timeout-minutes: 360
     permissions:
@@ -266,13 +272,16 @@ jobs:
 # suite. Bounded on its own so a slow neighbour cannot take their time.
   consumer-mathematics:
     needs: publish
+    # `always()` with the guard: a named image needs no build, and a publish that failed
+    # must not silently turn a consumer run into a skip.
+    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
       packages: read
     container:
-      image: ghcr.io/${{ github.repository_owner }}/sage:${{ needs.publish.outputs.image_tag }}
+      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -472,13 +481,16 @@ jobs:
 # certificate hash can be checked against the values that produced it.
   consumer-certify:
     needs: publish
+    # `always()` with the guard: a named image needs no build, and a publish that failed
+    # must not silently turn a consumer run into a skip.
+    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: read
       packages: read
     container:
-      image: ghcr.io/${{ github.repository_owner }}/sage:${{ needs.publish.outputs.image_tag }}
+      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -566,13 +578,16 @@ jobs:
 # 42407502517 lost these to the serial one-hour budget, not to a failure in them.
   consumer-records:
     needs: publish
+    # `always()` with the guard: a named image needs no build, and a publish that failed
+    # must not silently turn a consumer run into a skip.
+    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 40
     permissions:
       contents: read
       packages: read
     container:
-      image: ghcr.io/${{ github.repository_owner }}/sage:${{ needs.publish.outputs.image_tag }}
+      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -810,13 +825,16 @@ jobs:
 # The provider's owner contracts against the image's packages (#15).
   consumer-contracts:
     needs: publish
+    # `always()` with the guard: a named image needs no build, and a publish that failed
+    # must not silently turn a consumer run into a skip.
+    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
       packages: read
     container:
-      image: ghcr.io/${{ github.repository_owner }}/sage:${{ needs.publish.outputs.image_tag }}
+      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -879,13 +897,16 @@ jobs:
 # two runs in a row never reached it.
   consumer-chamber:
     needs: publish
+    # `always()` with the guard: a named image needs no build, and a publish that failed
+    # must not silently turn a consumer run into a skip.
+    if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       packages: read
     container:
-      image: ghcr.io/${{ github.repository_owner }}/sage:${{ needs.publish.outputs.image_tag }}
+      image: ${{ inputs.image || format('ghcr.io/{0}/sage:{1}', github.repository_owner, needs.publish.outputs.image_tag) }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
