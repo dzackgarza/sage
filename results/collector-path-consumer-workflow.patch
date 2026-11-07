@@ -1,34 +1,43 @@
+diff --git a/.github/workflows/research-environment-image.yml b/.github/workflows/research-environment-image.yml
+index c119dde2d8a..8b8d30cde99 100644
 --- a/.github/workflows/research-environment-image.yml
 +++ b/.github/workflows/research-environment-image.yml
-@@ -336,9 +336,15 @@
-       # Stage-1 acceptance is that the published counts reproduce inside the published
+@@ -291,7 +291,7 @@ jobs:
+       - name: Run the unchanged published four-spinor-genus assertion
+         if: inputs.sage_source_sha != ''
+         env:
+-          PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
++          PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
+         run: >-
+           /sage/.venv/bin/python -m pytest -p qc_sage_session tests/lattices/test_genus.sage -k test_published_four_spinor_genus_is_counted_from_all_generators
+       # sage#14's consumer statement: an image in which sage_indefinite_port imports
+@@ -337,7 +337,14 @@ jobs:
        # image, not on a PYTHONPATH binding to a working tree. The module is run from the
        # installed sage-extensions checkout, which is what the environment check asserts
        # is installed from /repos/sage-extensions.
-+      # -p qc_sage_session imports a plugin the image does not install; the job already
-+      # checks the collector out at .qc-infra and this is the path the four-spinor step
-+      # uses. Without it pytest exits before collection:
-+      # `ModuleNotFoundError: No module named 'qc_sage_session'` (run 42327313317).
++      # -p qc_sage_session imports a plugin the image does not install. The job
++      # already checks the collector out at .qc-infra, and the plugins in it live at
++      # tool-artifacts/pytest_plugins; without that on PYTHONPATH pytest exits before
++      # collection: `Error importing plugin "qc_sage_session": No module named
++      # 'qc_sage_session'` (run 42327313317).
        - name: Run sage-extensions' isotropic-line-orbit suite from the installed checkout
 +        env:
-+          PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
++          PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
          run: |
            set -eu
            checkout=/repos/sage-extensions
-           test -d "${checkout}/tests/lattices"
-@@ -504,9 +510,15 @@
-       # (test_positive_a2_genus_and_orthogonal_group_are_owned_by_the_lattice) times out
+@@ -505,7 +512,14 @@ jobs:
        # at 60 s on a GitHub runner inside the Julia bridge's stderr drain
        # (sage_julia_bridge/interface.py:279); sage-extensions#300 is that defect and its
        # acceptance is this module returning here.
-+      # -p qc_sage_session imports a plugin the image does not install; the job already
-+      # checks the collector out at .qc-infra and this is the path the four-spinor step
-+      # uses. Without it pytest exits before collection:
-+      # `ModuleNotFoundError: No module named 'qc_sage_session'` (run 42327313317).
++      # -p qc_sage_session imports a plugin the image does not install. The job
++      # already checks the collector out at .qc-infra, and the plugins in it live at
++      # tool-artifacts/pytest_plugins; without that on PYTHONPATH pytest exits before
++      # collection: `Error importing plugin "qc_sage_session": No module named
++      # 'qc_sage_session'` (run 42327313317).
        - name: Run lattice-database's owner contracts against the image's packages
 +        env:
-+          PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
++          PYTHONPATH: ${{ github.workspace }}/.qc-infra/tool-artifacts/pytest_plugins
          run: |
            set -uo pipefail
            checkout=/repos/lattice-database
-           git -C "${checkout}" rev-parse HEAD
