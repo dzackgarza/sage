@@ -1,0 +1,516 @@
+consumer-acceptance	UNKNOWN STEP	﻿2026-11-07T15:03:04.6204594Z Current runner version: '2.338.2'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6241155Z ##[group]Runner Image Provisioner
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6242827Z Hosted Compute Agent
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6243828Z Version: 20261028.624
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6245017Z Commit: 54898b74c23fde5556c9b3c3a2290865feef0dfe
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6246444Z Build Date: 2026-10-28T21:51:42Z
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6247739Z Worker ID: {3d45fee9-883c-4bf0-ae77-d7847ef21581}
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6248965Z Region: eastus
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6249963Z Cloud: Azure
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6250978Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6253650Z ##[group]Operating System
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6254859Z Ubuntu
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6255898Z 26.04.1
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6256758Z LTS
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6257689Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6258703Z ##[group]Runner Image
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6259733Z Image: ubuntu-26.04
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6260690Z Version: 20261101.186.1
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6263188Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261101.186/images/ubuntu/Ubuntu2604-Readme.md
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6265955Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261101.186
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6267646Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6269843Z ##[group]GITHUB_TOKEN Permissions
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6272908Z Contents: read
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6274041Z Metadata: read
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6275128Z Packages: read
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6276229Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6279621Z Secret source: Actions
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6281333Z Cache mode: write
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.6282735Z Prepare workflow directory
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.7147676Z Prepare all required actions
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.7198028Z Getting action download info
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.8752051Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:04.9836731Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.1886405Z Complete job name: consumer-acceptance
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.2506573Z ##[group]Checking docker version
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.2519404Z ##[command]/usr/bin/docker version --format '{{.Server.APIVersion}}'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3499677Z '1.54'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3516387Z Docker daemon API version: '1.54'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3517260Z ##[command]/usr/bin/docker version --format '{{.Client.APIVersion}}'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3697011Z '1.54'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3714299Z Docker client API version: '1.54'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3719070Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3723034Z ##[group]Clean up resources from previous jobs
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3728449Z ##[command]/usr/bin/docker ps --all --quiet --no-trunc --filter "label=e45cd8"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.3896202Z ##[command]/usr/bin/docker network prune --force --filter "label=e45cd8"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.4053353Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.4053889Z ##[group]Create local container network
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.4064062Z ##[command]/usr/bin/docker network create --label e45cd8 github_network_2970d8b8088648209bbf10be22d956db
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.4522413Z af71e6195e849b19ca82caa596eeb85b4dc08fc618d0a3c2d264fa9447e2e342
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.4547428Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.4571802Z ##[group]Starting job container
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.4595009Z ##[command]/usr/bin/docker --config /home/runner/work/_temp/.docker_48c01979-67f9-45da-922b-e3c0336cf1fc login ghcr.io -u open-math-os[bot] --password-stdin
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.6083486Z ##[command]/usr/bin/docker --config /home/runner/work/_temp/.docker_48c01979-67f9-45da-922b-e3c0336cf1fc pull ghcr.io/dzackgarza/sage:develop
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.8227532Z develop: Pulling from dzackgarza/sage
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9225026Z 7216d2a19a31: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9226149Z 2303f84fc580: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9227117Z 45b2fe52d256: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9228055Z 656b2fa34f2f: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9229015Z 054c4a74b91a: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9229945Z 4069da7218d9: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9230898Z ad62dbeee0b3: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9232348Z 11af64657471: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9233125Z a6dd1c05fbba: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9233756Z de367c2da109: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9234418Z 92d8276edb78: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9235076Z 6aaf6a093b61: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9235636Z 0aa989215d35: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9236243Z 570695923e57: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9236885Z 8c0dbd7df66e: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9237529Z f7b886ad514d: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9238045Z 0b982fe4ce99: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9238690Z 71ccadd96bbd: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9239323Z 4f4fb700ef54: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9239943Z 45fce44f4e16: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9240449Z 27b079b04ec7: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9241153Z 9c94a67ca533: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9241977Z 7a0827147e80: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9242628Z 4f4fb700ef54: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9243166Z 96ba0bb4b025: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9243805Z 2a8e144d93f4: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9244440Z 4f4fb700ef54: Pulling fs layer
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:05.9295177Z 4f4fb700ef54: Already exists
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.0442573Z 054c4a74b91a: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.0529652Z 7a0827147e80: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.0552724Z 44136fa355b3: Already exists
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.1353352Z 2303f84fc580: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.1359284Z 27b079b04ec7: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.1369279Z 9a4aa3b039c0: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.1409555Z 570695923e57: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.2336568Z ad62dbeee0b3: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.2341043Z 96ba0bb4b025: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.3323945Z 92d8276edb78: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:06.6356679Z 4069da7218d9: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:07.0372412Z 71ccadd96bbd: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:07.2326483Z 7216d2a19a31: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:07.3307846Z a6dd1c05fbba: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:07.5362059Z 0aa989215d35: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:08.3344494Z 45fce44f4e16: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:08.5426632Z 9c94a67ca533: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:10.9572730Z a6dd1c05fbba: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:10.9718342Z f7b886ad514d: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:10.9763352Z 11af64657471: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:10.9783062Z 2a8e144d93f4: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:12.9310600Z 45b2fe52d256: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:14.3860835Z 7216d2a19a31: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:16.0323250Z 6aaf6a093b61: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:17.4522124Z 0aa989215d35: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:17.9304708Z 0b982fe4ce99: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:17.9343380Z 656b2fa34f2f: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:18.9410645Z ad62dbeee0b3: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:19.5363624Z 570695923e57: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:21.3294257Z de367c2da109: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:03:41.7663089Z 6aaf6a093b61: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:01.3514629Z 656b2fa34f2f: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:01.4309612Z 7a0827147e80: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:13.6472451Z 0b982fe4ce99: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:13.7318259Z 27b079b04ec7: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:13.7327338Z 96ba0bb4b025: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:13.8365593Z 2303f84fc580: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:21.0316868Z 054c4a74b91a: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:21.0504568Z 45b2fe52d256: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:25.9282525Z 8c0dbd7df66e: Download complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:04:59.2429006Z de367c2da109: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:05:01.8405989Z 11af64657471: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:05:01.9312723Z 92d8276edb78: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:07.4378206Z 8c0dbd7df66e: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:08.9232476Z 9c94a67ca533: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:09.7334799Z 71ccadd96bbd: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:12.4353289Z 2a8e144d93f4: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:13.2310973Z 4f4fb700ef54: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:13.2344801Z f7b886ad514d: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:15.6305847Z 45fce44f4e16: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:15.8765397Z 4069da7218d9: Pull complete
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:15.8768791Z Digest: sha256:17d7828dec0c86125ecabd9720344fa9eb2ef225c6216610c5eafeedafdeb2df
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:15.8772890Z Status: Downloaded newer image for ghcr.io/dzackgarza/sage:develop
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:15.8774447Z ghcr.io/dzackgarza/sage:develop
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:15.8977058Z ##[command]/usr/bin/docker create --name 24e161c30b2747209611a16df8372138_ghcriodzackgarzasagedevelop_a1834b --label e45cd8 --workdir /__w/sage/sage --network github_network_2970d8b8088648209bbf10be22d956db  -e "HOME=/github/home" -e GITHUB_ACTIONS=true -e CI=true -v "/var/run/docker.sock":"/var/run/docker.sock" -v "/home/runner/work":"/__w" -v "/home/runner/actions-runner/cached/2.338.2/externals":"/__e":ro -v "/home/runner/work/_temp":"/__w/_temp" -v "/home/runner/work/_actions":"/__w/_actions" -v "/opt/hostedtoolcache":"/__t" -v "/home/runner/work/_temp/_github_home":"/github/home" -v "/home/runner/work/_temp/_github_workflow":"/github/workflow" --entrypoint "tail" ghcr.io/dzackgarza/sage:develop "-f" "/dev/null"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.6861993Z 666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.6909999Z ##[command]/usr/bin/docker start 666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.8903600Z 666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.8935844Z ##[command]/usr/bin/docker ps --all --filter id=666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4 --filter status=running --no-trunc --format "{{.ID}} {{.Status}}"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9203711Z 666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4 Up Less than a second
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9227223Z ##[command]/usr/bin/docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" 666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9372613Z HOME=/github/home
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9373179Z GITHUB_ACTIONS=true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9373546Z CI=true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9374254Z PATH=/sage/.venv/bin:/opt/elan/bin:/sage/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9375095Z DEBIAN_FRONTEND=noninteractive
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9375537Z GIT_CEILING_DIRECTORIES=/sage/subprojects
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9376001Z UV_INSTALL_DIR=/usr/local/bin
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9376414Z UV_PYTHON_INSTALL_DIR=/opt/uv-python
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9376859Z UV_PYTHON_BIN_DIR=/usr/local/bin
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9377274Z UV_NO_MODIFY_PATH=1
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9377653Z PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9378130Z JULIA_DEPOT_PATH=/opt/julia-depot:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9378554Z JULIA_CPU_TARGET=generic
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9378930Z JULIA_BINDIR=/opt/julia/bin
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9379345Z PYTHON_JULIAPKG_EXE=/opt/julia/bin/julia
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9379801Z SAGE_BIN=/sage/.venv/bin/sage
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9380214Z CCACHE_DIR=/ccache
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9380548Z ELAN_HOME=/opt/elan
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9398082Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9407456Z ##[group]Waiting for all services to be ready
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9409159Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9661262Z ##[group]Run test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9662067Z ^[[36;1mtest "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9662599Z ^[[36;1mprintf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9663164Z ^[[36;1mprintf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9663612Z ^[[36;1m"$SAGE_BIN" --version^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9667052Z shell: sh -e {0}
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9667644Z env:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9667919Z   SAGE_SOURCE_SHA: 552169cece839c4cc7b2409de9e4886731eeba1a
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:18.9668318Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:19.0372765Z spinor patch revision: 552169cece839c4cc7b2409de9e4886731eeba1a
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:19.0373891Z Sage build base revision: 552169cece839c4cc7b2409de9e4886731eeba1a
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.3742446Z 11.0.beta5
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6017572Z ##[group]Run actions/checkout@v4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6017866Z with:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6018088Z   repository: dzackgarza/sage-extensions
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6018354Z   ref: main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6020873Z   token: ***
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6021085Z   ssh-strict: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6021293Z   ssh-user: git
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6021809Z   persist-credentials: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6022049Z   clean: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6022279Z   sparse-checkout-cone-mode: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6022539Z   fetch-depth: 1
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6022758Z   fetch-tags: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6022981Z   show-progress: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6023192Z   lfs: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6023381Z   submodules: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6023589Z   set-safe-directory: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6023858Z   allow-unsafe-pr-checkout: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6024153Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.6070604Z ##[command]/usr/bin/docker exec  666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4 sh -c "cat /etc/*release | grep ^ID"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.9942269Z Syncing repository: dzackgarza/sage-extensions
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.9944066Z ##[group]Getting Git version info
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.9944560Z Working directory is '/__w/sage/sage'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.9945300Z [command]/usr/bin/git version
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.9953467Z git version 2.47.3
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.9977983Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:20.9998327Z Temporarily overriding HOME='/__w/_temp/fb248209-fa17-44fb-a5b8-08ea7e7734f0' before making global git config changes
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0003926Z Adding repository directory to the temporary git global config as a safe directory
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0005214Z [command]/usr/bin/git config --global --add safe.directory /__w/sage/sage
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0076540Z Deleting the contents of '/__w/sage/sage'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0082651Z ##[group]Initializing the repository
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0090645Z [command]/usr/bin/git init /__w/sage/sage
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0170694Z hint: Using 'master' as the name for the initial branch. This default branch name
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0171775Z hint: is subject to change. To configure the initial branch name to use in all
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0172624Z hint: of your new repositories, which will suppress this warning, call:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0173267Z hint:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0173806Z hint: 	git config --global init.defaultBranch <name>
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0174337Z hint:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0174823Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0175651Z hint: 'development'. The just-created branch can be renamed via this command:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0176280Z hint:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0176615Z hint: 	git branch -m <name>
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0180677Z Initialized empty Git repository in /__w/sage/sage/.git/
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0190252Z [command]/usr/bin/git remote add origin https://github.com/dzackgarza/sage-extensions
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0237214Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0238056Z ##[group]Disabling automatic garbage collection
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0240779Z [command]/usr/bin/git config --local gc.auto 0
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0276351Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0277156Z ##[group]Setting up auth
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0284285Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0321034Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0718672Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.0759985Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.1020403Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.1062785Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.1314138Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.1360978Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.1361917Z ##[group]Fetching the repository
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.1373780Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/main*:refs/remotes/origin/main* +refs/tags/main*:refs/tags/main*
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9378574Z From https://github.com/dzackgarza/sage-extensions
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9379532Z  * [new branch]      main       -> origin/main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9407533Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9407987Z ##[group]Determining the checkout info
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9446053Z [command]/usr/bin/git branch --list --remote origin/main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9460712Z   origin/main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9473304Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9473685Z [command]/usr/bin/git sparse-checkout disable
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9526332Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9565157Z ##[group]Checking out the ref
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:21.9570851Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0654067Z Switched to a new branch 'main'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0654673Z branch 'main' set up to track 'origin/main'.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0664061Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0723598Z [command]/usr/bin/git log -1 --format=%H
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0758126Z 146addeb6adda77d32bf3990dee383bd798bdbd6
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0952512Z ##[group]Run uv pip install --python /sage/.venv/bin/python --no-deps -e .
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0953087Z ^[[36;1muv pip install --python /sage/.venv/bin/python --no-deps -e .^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0953577Z shell: sh -e {0}
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.0953777Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.7058629Z Using Python 3.14.10 environment at: /sage/.venv
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.7374473Z Resolved 1 package in 6ms
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:22.7418746Z    Building sage-extensions @ file:///__w/sage/sage
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5720245Z       Built sage-extensions @ file:///__w/sage/sage
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5742061Z Prepared 1 package in 836ms
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5756487Z Uninstalled 1 package in 1ms
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5762065Z warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5763288Z          If the cache and target directories are on different filesystems, hardlinking may not be supported.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5764350Z          If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5779158Z Installed 1 package in 2ms
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5784707Z  - sage-extensions==0.1.0 (from file:///repos/sage-extensions)
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.5785399Z  + sage-extensions==0.1.0 (from file:///__w/sage/sage)
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6033384Z ##[group]Run actions/checkout@v4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6033666Z with:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6033869Z   repository: dzackgarza/ai-review-ci
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6034131Z   ref: main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6034314Z   path: .qc-infra
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6036812Z   token: ***
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6037005Z   ssh-strict: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6037199Z   ssh-user: git
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6037399Z   persist-credentials: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6037627Z   clean: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6037837Z   sparse-checkout-cone-mode: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6038085Z   fetch-depth: 1
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6038276Z   fetch-tags: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6038481Z   show-progress: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6038685Z   lfs: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6038870Z   submodules: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6039071Z   set-safe-directory: true
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6039310Z   allow-unsafe-pr-checkout: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6039745Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.6047937Z ##[command]/usr/bin/docker exec  666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4 sh -c "cat /etc/*release | grep ^ID"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.7952772Z Syncing repository: dzackgarza/ai-review-ci
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.7970918Z ##[group]Getting Git version info
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.7978551Z Working directory is '/__w/sage/sage/.qc-infra'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8010078Z [command]/usr/bin/git version
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8057572Z git version 2.47.3
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8112704Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8129353Z Temporarily overriding HOME='/__w/_temp/f5c6316e-1a89-4032-8197-e95929344221' before making global git config changes
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8130776Z Adding repository directory to the temporary git global config as a safe directory
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8138345Z [command]/usr/bin/git config --global --add safe.directory /__w/sage/sage/.qc-infra
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8176505Z ##[group]Initializing the repository
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8184307Z [command]/usr/bin/git init /__w/sage/sage/.qc-infra
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8234532Z hint: Using 'master' as the name for the initial branch. This default branch name
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8235780Z hint: is subject to change. To configure the initial branch name to use in all
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8236881Z hint: of your new repositories, which will suppress this warning, call:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8237630Z hint:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8237927Z hint: 	git config --global init.defaultBranch <name>
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8238233Z hint:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8238588Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8239128Z hint: 'development'. The just-created branch can be renamed via this command:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8239714Z hint:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8240160Z hint: 	git branch -m <name>
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8240837Z Initialized empty Git repository in /__w/sage/sage/.qc-infra/.git/
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8249207Z [command]/usr/bin/git remote add origin https://github.com/dzackgarza/ai-review-ci
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8299657Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8305552Z ##[group]Disabling automatic garbage collection
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8306134Z [command]/usr/bin/git config --local gc.auto 0
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8338864Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8339660Z ##[group]Setting up auth
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8346874Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8380486Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8654115Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8732921Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.8987541Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.9032978Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.9281243Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.9329350Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.9330007Z ##[group]Fetching the repository
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:23.9340211Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/heads/main*:refs/remotes/origin/main* +refs/tags/main*:refs/tags/main*
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.2880187Z From https://github.com/dzackgarza/ai-review-ci
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.2880821Z  * [new branch]      main       -> origin/main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.2912443Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.2913097Z ##[group]Determining the checkout info
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.2913649Z [command]/usr/bin/git branch --list --remote origin/main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.2947836Z   origin/main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.2957970Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.2958609Z [command]/usr/bin/git sparse-checkout disable
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3007758Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3045550Z ##[group]Checking out the ref
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3050115Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3274776Z Switched to a new branch 'main'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3278112Z branch 'main' set up to track 'origin/main'.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3284741Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3333586Z [command]/usr/bin/git log -1 --format=%H
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3370283Z 14816b70524ddddbead51200253c0d3b99ed8f5b
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3566917Z ##[group]Run /sage/.venv/bin/python - <<'PY'
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3567325Z ^[[36;1m/sage/.venv/bin/python - <<'PY'^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3567644Z ^[[36;1mimport json, subprocess, time, tomllib^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3567998Z ^[[36;1mfrom importlib.metadata import distribution^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3568309Z ^[[36;1mfrom pathlib import Path^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3568677Z ^[[36;1mfrom sage.all import CartanMatrix, ZZ, block_diagonal_matrix, matrix^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3569094Z ^[[36;1mfrom sage_extensions.all import Lattices^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3569392Z ^[[36;1mimport sage_extensions^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3569640Z ^[[36;1mimport sage_indefinite_port^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3569881Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3570072Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3570254Z ^[[36;1mdef checkout_of(module):^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3570559Z ^[[36;1m    """The git checkout the imported module lives in."""^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3570924Z ^[[36;1m    path = Path(module.__file__).resolve()^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3571271Z ^[[36;1m    for parent in path.parents:^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3571845Z ^[[36;1m        if (parent / ".git").exists():^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3572131Z ^[[36;1m            return parent^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3572449Z ^[[36;1m    raise AssertionError(f"no checkout holds {path}")^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3572761Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3572933Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3573110Z ^[[36;1mdef head(checkout):^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3573349Z ^[[36;1m    return subprocess.run(^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3573662Z ^[[36;1m        ["git", "-C", str(checkout), "rev-parse", "HEAD"],^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3574035Z ^[[36;1m        capture_output=True, text=True, check=True,^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3574347Z ^[[36;1m    ).stdout.strip()^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3574561Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3574723Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3574890Z ^[[36;1mheld = {^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3575173Z ^[[36;1m    package["name"]: package["source"]["git"].rsplit("#", 1)[-1]^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3575637Z ^[[36;1m    for package in tomllib.load(open("/sage/uv.lock", "rb"))["package"]^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3576209Z ^[[36;1m    if isinstance(package.get("source"), dict) and isinstance(package["source"].get("git"), str)^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3576666Z ^[[36;1m}^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3576840Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3577182Z ^[[36;1m# An editable install's direct_url.json carries no vcs_info, so its commit_id reads^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3577771Z ^[[36;1m# None and says nothing about what ran -- both are printed below because the record^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3578332Z ^[[36;1m# needs the reader to see that. The revision that ran is the checkout the imported^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3578872Z ^[[36;1m# module lives in, held against the image's own lock (not the caller's): the port^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3579405Z ^[[36;1m# whose generator call this step asserts, and the provider it declares in^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3579909Z ^[[36;1m# pyproject.toml's dependency-metadata, sage-extensions.^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3580509Z ^[[36;1mfor name, module in (("sage-indefinite-port", sage_indefinite_port), ("sage-extensions", sage_extensions)):^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3581080Z ^[[36;1m    raw = distribution(name).read_text("direct_url.json")^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3582107Z ^[[36;1m    print(f"{name}: direct_url.json commit_id {json.loads(raw).get('vcs_info', {}).get('commit_id') if raw else None}")^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3582650Z ^[[36;1m    checkout = checkout_of(module)^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3582929Z ^[[36;1m    found = head(checkout)^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3583230Z ^[[36;1m    print(f"{name}: imported from {module.__file__}")^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3583645Z ^[[36;1m    print(f"{name}: checkout {checkout} at {found}, held {held[name]}")^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3584193Z ^[[36;1m    assert found == held[name], f"{name}: the checkout is {found}, the lock holds {held[name]}"^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3584608Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3585044Z ^[[36;1m# T_Co = <2> + U(2) + E8(2): rank 11, determinant -2048, signature (2, 9).^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3585408Z ^[[36;1mU = matrix(ZZ, [[0, 1], [1, 0]])^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3585676Z ^[[36;1mE8 = -CartanMatrix(["E", 8])^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3586018Z ^[[36;1mgram = block_diagonal_matrix(matrix(ZZ, [[2]]), 2 * U, 2 * E8)^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3586426Z ^[[36;1mL = Lattices(ZZ)([list(row) for row in gram.rows()])^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3586927Z ^[[36;1mprint(f"T_Co: rank {L.rank()}, determinant {L.determinant()}, signature {L.signature_pair()}")^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3587364Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3587546Z ^[[36;1mstarted = time.time()^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3587816Z ^[[36;1mgenerators = L.Aut().group_generators()^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3588116Z ^[[36;1melapsed = time.time() - started^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3588392Z ^[[36;1mgenerators = list(generators)^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3588772Z ^[[36;1massert generators, "the O(T_Co) generator computation returned nothing"^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3589332Z ^[[36;1mprint(f"O(T_Co) generators: {len(generators)} in {elapsed:.1f}s")^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3589697Z ^[[36;1m^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3589881Z ^[[36;1mstarted = time.time()^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3590214Z ^[[36;1massert L.discriminant_representation_is_surjective() is True^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3590767Z ^[[36;1mprint(f"discriminant_representation_is_surjective(): True in {time.time() - started:.1f}s")^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3591215Z ^[[36;1mPY^[[0m
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3591707Z shell: sh -e {0}
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:24.3591909Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1682725Z sage-indefinite-port: direct_url.json commit_id None
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1683362Z sage-indefinite-port: imported from /repos/sage-indefinite-port/src/sage_indefinite_port/__init__.py
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1684251Z sage-indefinite-port: checkout /repos/sage-indefinite-port at 991b88b095a42a1e3679569ea42328c900c120f6, held 991b88b095a42a1e3679569ea42328c900c120f6
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1684951Z sage-extensions: direct_url.json commit_id None
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1690393Z Traceback (most recent call last):
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1692596Z   File "<stdin>", line 42, in <module>
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1693009Z   File "<stdin>", line 20, in head
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1693820Z   File "/opt/uv-python/cpython-3.14.10-linux-x86_64-gnu/lib/python3.14/subprocess.py", line 578, in run
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1695067Z     raise CalledProcessError(retcode, process.args,
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1695691Z                              output=stdout, stderr=stderr)
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.1696660Z subprocess.CalledProcessError: Command '['git', '-C', '/__w/sage/sage', 'rev-parse', 'HEAD']' returned non-zero exit status 128.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5023220Z ##[error]Process completed with exit code 1.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5156615Z ##[group]Run actions/upload-artifact@v4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5156923Z with:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5157136Z   name: latticedb-certificates-6JRR
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5157441Z   path: /repos/lattice-database/certificates/
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5157748Z   if-no-files-found: warn
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5157976Z   compression-level: 6
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5158183Z   overwrite: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5158389Z   include-hidden-files: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5158625Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.5162391Z ##[command]/usr/bin/docker exec  666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4 sh -c "cat /etc/*release | grep ^ID"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.7866100Z (node:332) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.7866835Z (Use `node --trace-deprecation ...` to show where the warning was created)
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.8652535Z With the provided path, there will be 256 files uploaded
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.8660555Z Artifact name is valid!
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:27.8661940Z Root directory input is valid!
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:28.0939092Z Beginning upload of artifact content to blob storage
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:28.7054212Z (node:332) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:28.9477788Z Uploaded bytes 8388608
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:29.4785526Z Uploaded bytes 16777216
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:29.9714491Z Uploaded bytes 25165824
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:30.5724193Z Uploaded bytes 33554432
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:31.1073053Z Uploaded bytes 41943040
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:31.6562255Z Uploaded bytes 50331648
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:32.2456851Z Uploaded bytes 58720256
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:32.7228050Z Uploaded bytes 67108864
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:33.3408848Z Uploaded bytes 75497472
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:33.9337194Z Uploaded bytes 83886080
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:34.5748011Z Uploaded bytes 92274688
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.1783675Z Uploaded bytes 100663296
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.2499801Z Uploaded bytes 102714743
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.2647765Z Finished uploading artifact content to blob storage!
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.2652405Z SHA256 digest of uploaded artifact zip is b79c4a2c402a8c9e6d55d03661c236446a6a1d3edaf86c4cf0ef8d74d4bebb22
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.2655552Z Finalizing artifact upload
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6489570Z Artifact latticedb-certificates-6JRR.zip successfully finalized. Artifact ID 13578942607
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6490968Z Artifact latticedb-certificates-6JRR has been successfully uploaded! Final size is 102714743 bytes. Artifact ID is 13578942607
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6499297Z Artifact download URL: https://github.com/dzackgarza/sage/actions/runs/42379122786/artifacts/13578942607
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6781978Z ##[group]Run actions/upload-artifact@v4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6782756Z with:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6783139Z   name: research-stage1-records
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6784117Z   path: /tmp/coble_isotropic_orbits.out
+consumer-acceptance	UNKNOWN STEP	/tmp/coble_plane-half-f2.out
+consumer-acceptance	UNKNOWN STEP	/tmp/coble_I18_vinberg-chamber.out
+consumer-acceptance	UNKNOWN STEP	/tmp/coxiter-I18.out
+consumer-acceptance	UNKNOWN STEP	
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6785135Z   if-no-files-found: warn
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6785554Z   compression-level: 6
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6785916Z   overwrite: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6786283Z   include-hidden-files: false
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6786709Z ##[endgroup]
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.6793355Z ##[command]/usr/bin/docker exec  666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4 sh -c "cat /etc/*release | grep ^ID"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.9807014Z (node:357) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.9808250Z (Use `node --trace-deprecation ...` to show where the warning was created)
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.9873916Z Multiple search paths detected. Calculating the least common ancestor of all paths
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.9881364Z The least common ancestor is /tmp. This will be the root directory of the artifact
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:35.9918460Z ##[warning]No files were found with the provided path: /tmp/coble_isotropic_orbits.out
+consumer-acceptance	UNKNOWN STEP	/tmp/coble_plane-half-f2.out
+consumer-acceptance	UNKNOWN STEP	/tmp/coble_I18_vinberg-chamber.out
+consumer-acceptance	UNKNOWN STEP	/tmp/coxiter-I18.out. No artifacts will be uploaded.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.0198278Z Post job cleanup.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.0206081Z ##[command]/usr/bin/docker exec  666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4 sh -c "cat /etc/*release | grep ^ID"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.2409964Z [command]/usr/bin/git version
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.2470824Z git version 2.47.3
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.2550066Z Temporarily overriding HOME='/__w/_temp/086c59a2-16ce-4fdf-ab9d-7c1687ece658' before making global git config changes
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.2552109Z Adding repository directory to the temporary git global config as a safe directory
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.2553281Z [command]/usr/bin/git config --global --add safe.directory /__w/sage/sage/.qc-infra
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.2589907Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.2674518Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.3083763Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.3133334Z http.https://github.com/.extraheader
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.3153420Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.3197893Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.3514321Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.3564129Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.4055549Z Post job cleanup.
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.4063393Z ##[command]/usr/bin/docker exec  666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4 sh -c "cat /etc/*release | grep ^ID"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6212216Z [command]/usr/bin/git version
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6240951Z git version 2.47.3
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6305781Z Temporarily overriding HOME='/__w/_temp/7b7e1b0e-69d6-47bf-b329-5bff177aa022' before making global git config changes
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6307283Z Adding repository directory to the temporary git global config as a safe directory
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6317934Z [command]/usr/bin/git config --global --add safe.directory /__w/sage/sage
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6362742Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6404515Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6734543Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6783116Z http.https://github.com/.extraheader
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6795148Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.6848523Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.7173714Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.7217913Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.7646200Z Stop and remove container: 24e161c30b2747209611a16df8372138_ghcriodzackgarzasagedevelop_a1834b
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.7650825Z ##[command]/usr/bin/docker rm --force 666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.9247608Z 666b3dbfd9518063d71a8f12533b5a5e17cf88b1c4973becd1047ee58f442ea4
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.9280468Z Remove container network: github_network_2970d8b8088648209bbf10be22d956db
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.9285833Z ##[command]/usr/bin/docker network rm github_network_2970d8b8088648209bbf10be22d956db
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:36.9931594Z github_network_2970d8b8088648209bbf10be22d956db
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:37.0010644Z Cleaning up orphan processes
+consumer-acceptance	UNKNOWN STEP	2026-11-07T15:10:37.0457859Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
