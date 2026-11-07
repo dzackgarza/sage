@@ -478,15 +478,17 @@ jobs:
 
         expected_path, actual_path, name = sys.argv[1:4]
 
-        # Several records print the wall-clock cost of a step beside its result, as a
-        # trailing `(152 s)`, and a rerun changes that annotation: on
-        # coble_plane-half-f2 three of them moved while every mathematical value matched,
-        # and the comparison reported the second run's timing as a defect in the first
-        # (sage#16). The annotation describes the machine, not the mathematics, so it is
-        # removed before the lines are compared and printed separately as a diagnostic.
-        # Nothing else is relaxed: every other character is still compared, and a changed
-        # mathematical value fails the step with its diff.
+        # Several records print the wall-clock cost of a step beside its result, and a rerun
+        # changes it: on coble_plane-half-f2 three trailing `(152 s)` annotations moved while
+        # every mathematical value matched, and the comparison reported the second run's timing
+        # as a defect in the first (sage#16). Two forms occur across the compared records and
+        # both are elapsed time rather than mathematics -- a trailing `(152 s)`, and prose such
+        # as `materialised in 29.8s` or `built in 295 s`, which run 42362483952 moved on
+        # coble_isotropic_orbits. Both are removed before the lines are compared and printed
+        # separately as diagnostics. Nothing else is relaxed: every other character is still
+        # compared, and a changed mathematical value fails the step with its diff.
         TIMING = re.compile(r"\s*\(\s*\d+(?:\.\d+)?\s*s\s*\)")
+        INLINE_TIMING = re.compile(r"\bin \d+(?:\.\d+)?\s*s\b")
 
 
         def lines_of(path):
@@ -501,14 +503,19 @@ jobs:
 
 
         def annotation(line):
-            found = TIMING.search(line)
-            return found.group(0).strip() if found else None
+            """Whatever elapsed-time annotation the line carries, for the diagnostics."""
+            found = [match.group(0).strip() for match in (TIMING.search(line), INLINE_TIMING.search(line)) if match]
+            return ", ".join(found) if found else None
+
+
+        def without_timing(line):
+            return INLINE_TIMING.sub("in <elapsed>", TIMING.sub("", line))
 
 
         committed = lines_of(expected_path)
         printed = lines_of(actual_path)
-        want = [TIMING.sub("", line) for line in committed]
-        got = [TIMING.sub("", line) for line in printed]
+        want = [without_timing(line) for line in committed]
+        got = [without_timing(line) for line in printed]
 
         if want == got:
             print(f"{name}: reproduced, {len(got)} result lines match")
@@ -562,15 +569,17 @@ jobs:
 
         expected_path, actual_path, name = sys.argv[1:4]
 
-        # Several records print the wall-clock cost of a step beside its result, as a
-        # trailing `(152 s)`, and a rerun changes that annotation: on
-        # coble_plane-half-f2 three of them moved while every mathematical value matched,
-        # and the comparison reported the second run's timing as a defect in the first
-        # (sage#16). The annotation describes the machine, not the mathematics, so it is
-        # removed before the lines are compared and printed separately as a diagnostic.
-        # Nothing else is relaxed: every other character is still compared, and a changed
-        # mathematical value fails the step with its diff.
+        # Several records print the wall-clock cost of a step beside its result, and a rerun
+        # changes it: on coble_plane-half-f2 three trailing `(152 s)` annotations moved while
+        # every mathematical value matched, and the comparison reported the second run's timing
+        # as a defect in the first (sage#16). Two forms occur across the compared records and
+        # both are elapsed time rather than mathematics -- a trailing `(152 s)`, and prose such
+        # as `materialised in 29.8s` or `built in 295 s`, which run 42362483952 moved on
+        # coble_isotropic_orbits. Both are removed before the lines are compared and printed
+        # separately as diagnostics. Nothing else is relaxed: every other character is still
+        # compared, and a changed mathematical value fails the step with its diff.
         TIMING = re.compile(r"\s*\(\s*\d+(?:\.\d+)?\s*s\s*\)")
+        INLINE_TIMING = re.compile(r"\bin \d+(?:\.\d+)?\s*s\b")
 
 
         def lines_of(path):
@@ -585,14 +594,19 @@ jobs:
 
 
         def annotation(line):
-            found = TIMING.search(line)
-            return found.group(0).strip() if found else None
+            """Whatever elapsed-time annotation the line carries, for the diagnostics."""
+            found = [match.group(0).strip() for match in (TIMING.search(line), INLINE_TIMING.search(line)) if match]
+            return ", ".join(found) if found else None
+
+
+        def without_timing(line):
+            return INLINE_TIMING.sub("in <elapsed>", TIMING.sub("", line))
 
 
         committed = lines_of(expected_path)
         printed = lines_of(actual_path)
-        want = [TIMING.sub("", line) for line in committed]
-        got = [TIMING.sub("", line) for line in printed]
+        want = [without_timing(line) for line in committed]
+        got = [without_timing(line) for line in printed]
 
         if want == got:
             print(f"{name}: reproduced, {len(got)} result lines match")
