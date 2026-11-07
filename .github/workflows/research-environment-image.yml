@@ -397,6 +397,7 @@ jobs:
             else:
                 print(f"{name}: the import is the consumer checkout {checkout} at {found}")
 
+        PY
         # The generator call is a statement about the image's own components, so it runs where
         # those are the imports. The step above installs the workflow's sage-extensions checkout
         # editable for the separate owner-contract observation, and in run 42379122786 that

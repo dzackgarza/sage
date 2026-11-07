@@ -1,0 +1,85 @@
+sage-indefinite-port: direct_url.json commit_id None
+sage-indefinite-port: image checkout /repos/sage-indefinite-port at 4f0ee50c3ef432681ecdbbd7a5a7f5adb244d83b, held 4f0ee50c3ef432681ecdbbd7a5a7f5adb244d83b
+sage-indefinite-port: imported from /repos/sage-indefinite-port/src/sage_indefinite_port/__init__.py
+sage-indefinite-port: the import is the image's copy
+sage-extensions: direct_url.json commit_id None
+sage-extensions: image checkout /repos/sage-extensions at 7b222e86214524a53802350f3cfda9c513707600, held 7b222e86214524a53802350f3cfda9c513707600
+sage-extensions: imported from /__w/sage/sage/src/sage_extensions/__init__.py
+sage-extensions: the import is the consumer checkout /__w/sage/sage at 240cd3f845fe2b2d5a46501ae628ccbbb9708c2a
+sage_extensions: /repos/sage-extensions/src/sage_extensions/__init__.py
+sage_indefinite_port: /repos/sage-indefinite-port/src/sage_indefinite_port/__init__.py
+T_Co: rank 11, determinant -2048, signature (2, 9)
+Traceback (most recent call last):
+  File "<stdin>", line 24, in <module>
+  File "/repos/sage-extensions/src/sage_extensions/categories/group/groups.py", line 5431, in group_generators
+    return self.selected_group_resolution().generators(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/repos/sage-extensions/src/sage_extensions/categories/group/groups.py", line 5409, in selected_group_resolution
+    return self.selected_resolution(OwnedGroups())
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/repos/sage-extensions/src/sage_extensions/categories/abstract_categories/objects.py", line 383, in selected_resolution
+    resolution = selected.realize()
+  File "/repos/sage-extensions/src/sage_extensions/categories/abstract_categories/objects.py", line 116, in realize
+    return self._resolution_factory()
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/repos/sage-extensions/src/sage_extensions/categories/group/groups.py", line 999, in selected_resolution
+    generators = generating_set()
+  File "/repos/sage-extensions/src/sage_extensions/categories/abstract_categories/arrow_categories.py", line 2379, in <lambda>
+    lambda: self.core_category().base_category()._core_automorphism_generators(self)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/repos/sage-extensions/src/sage_extensions/categories/lattices.py", line 1849, in _core_automorphism_generators
+    return core_mor._computed_group_generators()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "sage/misc/cachefunc.pyx", line 2328, in sage.misc.cachefunc.CachedMethodCallerNoArgs.__call__
+    self.cache = f(self._instance)
+  File "/repos/sage-extensions/src/sage_extensions/categories/lattice_morphisms.py", line 3590, in _computed_group_generators
+    for generator in automorphism_group_generators(category, lattice)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/marked_lattices.py", line 111, in automorphism_group_generators
+    generators = RECURSION.orthogonal_group_generators(marked)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/recursive.py", line 356, in orthogonal_group_generators
+    generators = self._generation_step(profile.signed_view)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/recursive.py", line 370, in _generation_step
+    vector = model.splitting_vector()
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 1040, in splitting_vector
+    representative = self.one_representative(square)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 965, in one_representative
+    for coset in envelope.right_coset_transversal():
+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "sage/misc/cachefunc.pyx", line 2328, in sage.misc.cachefunc.CachedMethodCallerNoArgs.__call__
+    self.cache = f(self._instance)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 488, in right_coset_transversal
+    coset_space = self.stabilizer_of_lattice().right_cosets()
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "sage/misc/cachefunc.pyx", line 2328, in sage.misc.cachefunc.CachedMethodCallerNoArgs.__call__
+    self.cache = f(self._instance)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 464, in stabilizer_of_lattice
+    generators = tuple(_isometry_from_row_matrix(rational_envelope, generator) for generator in OrbitCoverModel.source_generator_matrices(self.model))
+                 ^^^^^
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 464, in <genexpr>
+    generators = tuple(_isometry_from_row_matrix(rational_envelope, generator) for generator in OrbitCoverModel.source_generator_matrices(self.model))
+                       ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 74, in _isometry_from_row_matrix
+    return checked_row_isometry(lattice, lattice, rows)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/recursive.py", line 154, in _isometry_from_row_matrix
+    source_coordinates = tuple(int(coordinates(label)) for label in source_labels)
+                         ^^^^^
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/recursive.py", line 154, in <genexpr>
+    source_coordinates = tuple(int(coordinates(label)) for label in source_labels)
+                               ~~~^^^^^^^^^^^^^^^^^^^^
+TypeError: int() argument must be a string, a bytes-like object or a real number, not 'OwnedJoinCategory.element_class'
+[peakrss] whole-step: child waited=1 shell_code=1 samples=44
+[peakrss] peak tree RSS      : 3482 MiB
+[peakrss] low-water MemAvail : 1687 MiB
+[peakrss] peak single VmHWM  : 3550 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   julia                      3106 MiB peak
+[peakrss]   python                      413 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   bash                          3 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   t=    42.1s procs=  6 rss=  3482 MiB hwm=  3482 MiB avail=  2463 MiB
+[peakrss]   t=    44.1s procs=  6 rss=  3478 MiB hwm=  3550 MiB avail=  2227 MiB
+[peakrss]   t=    52.1s procs=  6 rss=  3381 MiB hwm=  3550 MiB avail=  2243 MiB
+[peakrss]   t=    50.1s procs=  6 rss=  3378 MiB hwm=  3550 MiB avail=  2297 MiB
+[peakrss]   t=    46.1s procs=  6 rss=  3377 MiB hwm=  3550 MiB avail=  2379 MiB
