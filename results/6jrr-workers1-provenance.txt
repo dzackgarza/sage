@@ -1,0 +1,8 @@
+revisions in force:
+  lattice-database d1711db05f11405a05269315d6b204b56b527e3d (bound)
+  sage-extensions  240cd3f845fe2b2d5a46501ae628ccbbb9708c2a (bound; repaired provider)
+  sage-indefinite-port 991b88b095a42a1e3679569ea42328c900c120f6 (bound, held)
+  research         dbf178cf30c1d26e5f98753c1d9cdbcc16ee3d25 (bound)
+command: latticedb certify --tag 6JRR --minutes 20 --workers 1 --root /repos/lattice-database
+workers: 1, as the production certification workflow uses; the consumer step's default is os.cpu_count()
+guard: 6144 MiB (unchanged); fields: none dropped

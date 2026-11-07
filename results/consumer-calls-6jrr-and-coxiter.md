@@ -174,3 +174,17 @@ completed certificate, and this run is not a published-image result.
 The E8 enumeration's cold cost remains an unresolved check in the provider's own test-call
 performance gate; nothing here speaks to it.
 
+## The single-worker certification attempt, at the repaired provider
+
+`latticedb certify --tag 6JRR --minutes 20 --workers 1 --root /repos/lattice-database`, with
+provider `240cd3f8`, corpus `d1711db05f`, research `dbf178cf30`, port `991b88b0`, working
+directory `/tmp`, guard 6144 MiB, no field dropped (results/6jrr-workers1-provenance.txt).
+
+It computed for **356 s** and was stopped by the guard at **tree RSS 6173 MiB**, of which the
+certify process alone was 6155 MiB — so one worker, not several, is what reached the bound here.
+No certificate was written and nothing entered the owner's `failures/`.
+
+What that means, and no more: on this machine under this guard, 6JRR's certification does not fit.
+It is not a statement about the card, not a memory requirement of the computation in general, and
+not a certificate. Log: results/6jrr-workers1-attempt.log.
+
