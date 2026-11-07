@@ -1,0 +1,8 @@
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -510,4 +510,4 @@
+           set -uo pipefail
+-          checkout=/repos/lattice-database
++          checkout=/repos/sage-extensions
+           git -C "${checkout}" rev-parse HEAD
+           module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
