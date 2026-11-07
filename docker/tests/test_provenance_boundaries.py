@@ -165,7 +165,9 @@ def test_the_whole_step_runs_as_shell_and_imports_the_images_copies(tmp_path: Pa
 
     An earlier version of this step opened the provenance heredoc and never closed it, so the
     shell command that follows was parsed as Python. Asserting on slices of the block could not
-    catch that; running the block can. The step is allowed to fail here -- this image's port is
+    catch that; running the block can -- and it runs with `bash -e -o pipefail`, as GitHub
+    runs a step, so a provenance assertion that fails cannot fall through into the computation and
+    still satisfy the printed-output assertions below. The step is allowed to fail here -- this image's port is
     older than the pin and its `group_generators` raises -- but it must fail *inside* the
     computation, after the shell boundary, with the image's copies imported.
     """
@@ -175,7 +177,7 @@ def test_the_whole_step_runs_as_shell_and_imports_the_images_copies(tmp_path: Pa
         [sys.executable, str(RUNNER), "--rootfs", str(ROOTFS), "run",
          "--bind", f"{script}:/step.sh", "--bind", f"{CHECKOUT}:/__w/sage/sage",
          "--env", "PYTHONPATH=/__w/sage/sage/src", "--chdir", "/tmp", "--",
-         "timeout", "-s", "TERM", "600", "/bin/bash", "/step.sh"],
+         "timeout", "-s", "TERM", "600", "/bin/bash", "-e", "-o", "pipefail", "/step.sh", ],
         capture_output=True, text=True, timeout=900, check=False,
     )
     output = finished.stdout + finished.stderr
