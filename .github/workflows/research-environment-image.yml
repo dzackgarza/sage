@@ -418,8 +418,15 @@ jobs:
         checkout=/repos/lattice-database
         git -C "${checkout}" rev-parse HEAD
         set +e
+        # `--root` is not optional here. The CLI's root defaults to `Path()`, the process's
+        # working directory, and this step runs in the job's workspace -- a sage-extensions
+        # checkout -- so `corpus.load` looks for `families.yaml` there and dies before any
+        # computation (run 42362483952, 12:28:20Z: `FileNotFoundError: [Errno 2] No such file
+        # or directory: 'families.yaml'`, exit 1, no card diff, no certificate written). The
+        # corpus is the lattice-database checkout, wherever the step happens to stand.
         PYTHONPATH="/repos/research/src:${checkout}/src" \
           /sage/.venv/bin/python -m latticedb certify --tag 6JRR --minutes 20 \
+          --root "${checkout}" \
           > /tmp/certify-6JRR.log 2>&1
         status=$?
         set -e
