@@ -30,9 +30,15 @@ applying it to that exact file, which reproduces this repository's local copy by
   `certificates/`, so the seven new certificate keys root found in artifact 13590945084 can be
   checked against the card values that produced them, and the child's exit read directly. The step
   still does not gate on that exit, by design — it reports, and now the report travels.
-* **A named image, no rebuild.** `workflow_dispatch` gains an `image` input; when it is given,
-  `publish` is skipped (`if: inputs.image == ''`) and each consumer job runs in that image,
-  guarded by `if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}`.
+* **A named image, no rebuild.** `workflow_dispatch` gains `image` and
+  `expected_source_revision`; when an image is given, `publish` is skipped
+  (`if: inputs.image == ''`) and each consumer job runs in that image, guarded by
+  `if: ${{ always() && (inputs.image != '' || needs.publish.result == 'success') }}`. The
+  published-image assertion needs a source revision, and with no publish there is no output to
+  read: `expected_source_revision` supplies it (`087adc21c8…` for the image above, which its
+  `/sage/.spinor-source-revision` records), and the step fails with that sentence rather than
+  comparing against an empty string. It stays distinct from `sage_source_sha`, which applies an
+  isolated patch and enables the four-spinor test.
 
 ## The dispatch
 
@@ -41,10 +47,12 @@ Against the image this repository already published
 the digest `develop` resolved to after run 42407502517):
 
     gh workflow run research-environment-image.yml --ref develop \
-      -f image=ghcr.io/dzackgarza/sage@sha256:0fe2ebf4e6ffb4a55117d379ff0e9de3028f106023aceb4518d813aec69d1d7e
+      -f image=ghcr.io/dzackgarza/sage@sha256:0fe2ebf4e6ffb4a55117d379ff0e9de3028f106023aceb4518d813aec69d1d7e \
+      -f expected_source_revision=087adc21c8068e8f68e500cd21e41e9b62074f6a
 
 or, equivalently, `POST /repos/dzackgarza/sage/actions/workflows/research-environment-image.yml/dispatches`
-with `{"ref": "develop", "inputs": {"image": "ghcr.io/dzackgarza/sage@sha256:0fe2ebf4…"}}`.
+with `{"ref": "develop", "inputs": {"image": "ghcr.io/dzackgarza/sage@sha256:0fe2ebf4…",
+"expected_source_revision": "087adc21c8068e8f68e500cd21e41e9b62074f6a"}}`.
 
 Nothing is built, nothing is published, and the five jobs run independently: a failure or a slow
 call in one no longer skips or delays the others.

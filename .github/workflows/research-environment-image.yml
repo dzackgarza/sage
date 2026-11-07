@@ -38,6 +38,13 @@ on:
           the build is skipped and nothing is published
         required: false
         type: string
+      expected_source_revision:
+        description: Source revision the named image was built from, asserted
+          against its /sage/.spinor-source-revision; required when image is given.
+          Distinct from sage_source_sha, which applies an isolated patch and
+          enables the four-spinor test
+        required: false
+        type: string
       sage_source_sha:
         description: Exact maintained Sage PR commit whose genus.py correction 
           is applied to current develop for an isolated image; omit for ordinary
@@ -288,8 +295,15 @@ jobs:
     steps:
     - name: Verify the image embeds the requested patch and base revisions
       env:
-        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+        # With no publish (an `image` was named) this output is empty, so the expected revision
+        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
+        # isolated patch and enables the four-spinor test.
+        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
       run: |
+        test -n "$SAGE_SOURCE_SHA" || {
+          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
+          exit 1
+        }
         test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
         printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
         printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
@@ -497,8 +511,15 @@ jobs:
     steps:
     - name: Verify the image embeds the requested patch and base revisions
       env:
-        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+        # With no publish (an `image` was named) this output is empty, so the expected revision
+        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
+        # isolated patch and enables the four-spinor test.
+        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
       run: |
+        test -n "$SAGE_SOURCE_SHA" || {
+          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
+          exit 1
+        }
         test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
         printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
         printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
@@ -594,8 +615,15 @@ jobs:
     steps:
     - name: Verify the image embeds the requested patch and base revisions
       env:
-        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+        # With no publish (an `image` was named) this output is empty, so the expected revision
+        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
+        # isolated patch and enables the four-spinor test.
+        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
       run: |
+        test -n "$SAGE_SOURCE_SHA" || {
+          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
+          exit 1
+        }
         test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
         printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
         printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
@@ -841,8 +869,15 @@ jobs:
     steps:
     - name: Verify the image embeds the requested patch and base revisions
       env:
-        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+        # With no publish (an `image` was named) this output is empty, so the expected revision
+        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
+        # isolated patch and enables the four-spinor test.
+        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
       run: |
+        test -n "$SAGE_SOURCE_SHA" || {
+          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
+          exit 1
+        }
         test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
         printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
         printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
@@ -913,8 +948,15 @@ jobs:
     steps:
     - name: Verify the image embeds the requested patch and base revisions
       env:
-        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+        # With no publish (an `image` was named) this output is empty, so the expected revision
+        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
+        # isolated patch and enables the four-spinor test.
+        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
       run: |
+        test -n "$SAGE_SOURCE_SHA" || {
+          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
+          exit 1
+        }
         test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
         printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
         printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
