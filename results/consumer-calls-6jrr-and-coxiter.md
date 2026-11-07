@@ -57,6 +57,23 @@ A complete graph on eight vertices — the 7-simplex — is not the record's cha
 nine walls. This record is not a CoxIter graph either: its Gram rows are plain indented numbers,
 its prose lines are not edges, and none of them matches the edge grammar.
 
+### Provenance of these measurements — read this before quoting them
+
+These runs are a **local unpacked image with a research checkout bound over `/repos/research`**,
+which is not the same thing as the published-image workflow run:
+
+| what | value | how it was established |
+| --- | --- | --- |
+| image | `sha256:220293469c53eef012ce94ed52795216ff5b27f65a1f401a41864f45967d3851` (index), source `6a1d6d9f` | the recorded adoption of this rootfs; `SAGE_IMAGE_DIGEST` in the test |
+| the image's own research tree | `ec1333eeb0747240bf67990831c98abd47439e7e` — **no `computations/` directory** | read from the image with nothing bound |
+| research actually read | `dbf178cf30c1d26e5f98753c1d9cdbcc16ee3d25` | a checkout bound over `/repos/research` for the run |
+
+So the record is **not present in that image**; it is supplied by the bind. The next image, which
+carries the pinned research revision, would not need it. `docker/tests/test_coxiter_chamber_input.py`
+reads both revisions at run time, reports them, and fails if the image's own tree already carries
+the record — which is how the difference stays visible instead of being assumed away. The red and
+the green run use the **same** explicit checkout, `dbf178cf30`.
+
 ### The parser path, reproduced rather than inferred
 
 Changing **only** the number in the record's opening line, `initial roots: 8` to

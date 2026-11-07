@@ -34,10 +34,13 @@ ROOTFS = Path(os.environ.get("SAGE_IMAGE_ROOTFS", Path.home() / "sage-image" / "
 RUNNER = REPOSITORY / "docker" / "sage-image.py"
 STEP = "Read the I_{1,8} chamber with CoxIter"
 BOUND = 300
-# The published image predates the record: its own /repos/research is at ec1333ee and has no
-# `computations/` directory. Point this at a checkout of the pinned research revision and it is
-# bound over /repos/research for the run; the next image carries the record natively.
+# The record is **not in the published image**: that image's own /repos/research is at ec1333ee
+# and has no `computations/` directory. This test therefore binds a checkout of the pinned
+# research revision over /repos/research, and says so: a local image with a bound checkout is not
+# a published-image workflow run. The same checkout is used for the red and the green run, and
+# both the image's own revision and the bound one are read at run time and reported.
 RESEARCH = Path(os.environ.get("RESEARCH_CHECKOUT", REPOSITORY / ".scratch" / "wt-research"))
+DIGEST = os.environ.get("SAGE_IMAGE_DIGEST", "sha256:220293469c53eef012ce94ed52795216ff5b27f65a1f401a41864f45967d3851")
 
 COMPARE = r"""
 set -u
@@ -83,6 +86,17 @@ PY
 """
 
 
+def image_research_revision() -> str:
+    """The research revision the image itself carries, read with nothing bound over it."""
+    finished = subprocess.run(
+        [sys.executable, str(RUNNER), "--rootfs", str(ROOTFS), "run", "--chdir", "/tmp", "--",
+         "git", "-C", "/repos/research", "rev-parse", "HEAD"],
+        capture_output=True, text=True, timeout=BOUND, check=False,
+    )
+    assert finished.returncode == 0, finished.stdout + finished.stderr
+    return finished.stdout.strip()
+
+
 def step_body() -> str:
     document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
     steps = [step for step in document["jobs"]["consumer-acceptance"]["steps"] if step.get("name") == STEP]
@@ -112,3 +126,25 @@ def test_the_engine_parses_the_records_labelled_adjacencies(tmp_path: Path) -> N
     output = finished.stdout + finished.stderr
     assert finished.returncode == 0, output[-4000:]
     assert "the engine's parsed adjacencies equal the record's edge list" in output, output[-4000:]
+
+    bound = subprocess.run(["git", "-C", str(RESEARCH), "rev-parse", "HEAD"],
+                           capture_output=True, text=True, check=True).stdout.strip()
+    assert len(bound) == 40, bound
+    inside = image_research_revision()
+    assert inside != bound, (
+        "this test is meant to run a checkout bound over an image that does not carry the record; "
+        f"the image's own /repos/research is already {inside}"
+    )
+
+
+@requires_image
+def test_the_provenance_is_reported_with_the_check(tmp_path: Path) -> None:
+    """A bound checkout over a local image is not a published-image run; say which is which."""
+    bound = subprocess.run(["git", "-C", str(RESEARCH), "rev-parse", "HEAD"],
+                           capture_output=True, text=True, check=True).stdout.strip()
+    print(f"image digest:      {DIGEST}")
+    print(f"image research:    {image_research_revision()}  (the record is not in that tree)")
+    print(f"bound research:    {bound}  ({RESEARCH} over /repos/research)")
+    print(f"image rootfs:      {ROOTFS}")
+    assert DIGEST.startswith("sha256:") and len(DIGEST) == len("sha256:") + 64
+    assert len(bound) == 40
