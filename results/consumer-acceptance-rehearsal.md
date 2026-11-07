@@ -118,3 +118,26 @@ The 6JRR certification, the research record reproductions and the CoxIter readin
 separate runs; this file says nothing about them. The record steps' cost is not in the
 table above, so the job's 60-minute budget against 8:12 + 4:16 + ~11 min for T_Co plus a
 certify bounded at 20 minutes has not been added up with them in it.
+
+## Run 42362483952's record diffs are sage#16, not a new defect
+
+That run published successfully and failed consumer acceptance with record diffs that are
+elapsed seconds only — `coble_isotropic_orbits` and `coble_plane-half-f2`, while Vinberg's 28
+result lines matched. Its workflow revision is `b6b4590f` (the collector-path commit), and
+that revision's `.github/workflows/research-environment-image.yml` contains **no** timing
+strip at all:
+
+    git show b6b4590f7e9:…/research-environment-image.yml | grep -c "TIMING = re.compile"   -> 0
+    git show c5e1ae6e099:…/research-environment-image.yml | grep -c "TIMING = re.compile"   -> 2
+    git merge-base --is-ancestor b6b4590f c5e1ae6e09   ->  true
+
+`c5e1ae6e09` is the later commit that removes exactly the annotation this run tripped over, so
+the two diffs are the class sage#16 already fixed, observed before the fix: nothing new to
+diagnose and no work to repeat. Both `b533ed187f` (the owner-contract module's repository) and
+`f836a1dce1` (the T_Co provenance) also landed after that revision, so it could not have
+reached the corrected owner-contract invocation either.
+
+The `coble_plane-half-f2` case is preserved as a genuine rerun fixture and a regression in
+`docker/tests/test_record_comparison.py`; the `coble_isotropic_orbits` case needs no separate
+fixture because the strip is applied to every line of every record by both comparators, which
+is why that record's difference reduced to the same three-annotations class.

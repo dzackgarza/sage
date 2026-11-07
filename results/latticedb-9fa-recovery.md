@@ -38,8 +38,10 @@ Both fixtures that failed at `33534455` and again at `ca17c53e` now pass: the le
 The run was bounded at 1800 s and reached that bound (`exit 124` at 30:01, 17:25 CPU, one
 thread, RSS 1.35 GB); the verifier prints only at the end, so no partial finding exists.
 Recomputing every certificate of 60 cards through `genus.certified_value` needs a longer
-bounded window than this pass allowed. This is a limit of my invocation, not a result about
-the verifier: nothing here says the values disagree.
+bounded window than this pass allowed. This is a limit of my invocation, and it establishes
+neither agreement nor disagreement: nothing here says the values disagree, and equally
+nothing here says a longer run would succeed. The next full verification will be run with the
+owner's corrected revision rather than by repeating this verifier on a longer clock.
 
 **3. The revision's own verifier against the defect cases — PASS.**
 
