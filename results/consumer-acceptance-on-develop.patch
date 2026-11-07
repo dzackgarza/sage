@@ -1,0 +1,42 @@
+--- a/.github/workflows/research-environment-image.yml
++++ b/.github/workflows/research-environment-image.yml
+@@ -218,13 +218,22 @@
+           git config user.name github-actions
+           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+           git commit -m "build: lock the research packages at their heads" -- uv.lock
+           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:develop
++  # Runs on the published image of every image this workflow builds, the develop one
++  # included: the consumer statements it makes -- the T_Co generator call, the
++  # lattice-database contracts, the stage-1 record reproductions -- are claims about the
++  # develop image, and `if: image_tag != 'develop'` meant none of them had ever run
++  # against it.
++  #
++  # 30 minutes does not cover them. No run of the T_Co step exists on this image yet, so
++  # the limit is raised rather than estimated: the step prints
++  # `O(T_Co) generators: N in T s` and the record reproductions print their own times,
++  # and those are what a later tightening should be based on.
+   consumer-acceptance:
+-    if: needs.publish.outputs.image_tag != 'develop'
+     needs: publish
+     runs-on: ubuntu-latest
+-    timeout-minutes: 30
++    timeout-minutes: 60
+     permissions:
+       contents: read
+       packages: read
+@@ -254,9 +263,16 @@
+         with:
+           repository: dzackgarza/ai-review-ci
+           ref: main
+           path: .qc-infra
++      # The spinor assertion is about the isolated image built from a Sage PR commit:
++      # it pins a sage-extensions `main` checkout and a test whose subject is that
++      # commit's genus correction. An ordinary develop image has no such patch to
++      # assert, so the step keeps its original scope and the rest of the job runs
++      # everywhere.
+       - name: Run the unchanged published four-spinor-genus assertion
++        if: inputs.sage_source_sha != ''
+         env:
+           PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
+         run: >-
+           /sage/.venv/bin/python -m pytest -p qc_sage_session tests/lattices/test_genus.sage -k test_published_four_spinor_genus_is_counted_from_all_generators

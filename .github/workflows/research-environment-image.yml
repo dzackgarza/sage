@@ -109,10 +109,16 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           df -h /
       - uses: docker/setup-buildx-action@v3
-      # The Dockerfile's ccache mount lives in BuildKit, which each runner
-      # starts empty; carry it through the Actions cache between runs.
+        id: setup-buildx
+      # The Dockerfile's ccache mount lives in BuildKit, which each runner starts
+      # empty; carry it through the Actions cache between runs. Restoring and
+      # injecting is half the round trip: cache-dance only writes into the builder,
+      # and the cache comes back to `ccache/` through a second invocation with
+      # `extract: true` after the builds. Without that step nothing ever writes the
+      # directory, so every run restored an empty cache.
       - name: Restore the Sage compiler cache
         uses: actions/cache@v4
+        id: ccache
         with:
           path: ccache
           key: sage-ccache-${{ github.sha }}
@@ -120,7 +126,9 @@ jobs:
       - name: Inject the compiler cache into BuildKit
         uses: reproducible-containers/buildkit-cache-dance@v3.4.0
         with:
+          builder: ${{ steps.setup-buildx.outputs.name }}
           cache-map: '{"ccache": "/ccache"}'
+          skip-extraction: ${{ steps.ccache.outputs.cache-hit == 'true' }}
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -193,6 +201,17 @@ jobs:
           # per repository, which a Sage image's layers exceed.
           cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/sage:buildcache,mode=max
+      # Back out of the builder into `ccache/`, which actions/cache saves at job end.
+      # It runs on failure too: a build that dies after compiling still warmed the
+      # cache, and that is what makes the next full build cheap.
+      - name: Extract the compiler cache from BuildKit
+        if: always()
+        uses: reproducible-containers/buildkit-cache-dance@v3.4.0
+        with:
+          builder: ${{ steps.setup-buildx.outputs.name }}
+          cache-map: '{"ccache": "/ccache"}'
+          extract: true
+
       # The lock stage reuses the build above from the BuildKit cache.
       - name: Export the lock the image was built on
         if: inputs.relock
@@ -219,11 +238,20 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git commit -m "build: lock the research packages at their heads" -- uv.lock
           git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:develop
+  # Runs on the published image of every image this workflow builds, the develop one
+  # included: the consumer statements it makes -- the T_Co generator call, the
+  # lattice-database contracts, the stage-1 record reproductions -- are claims about the
+  # develop image, and `if: image_tag != 'develop'` meant none of them had ever run
+  # against it.
+  #
+  # 30 minutes does not cover them. No run of the T_Co step exists on this image yet, so
+  # the limit is raised rather than estimated: the step prints
+  # `O(T_Co) generators: N in T s` and the record reproductions print their own times,
+  # and those are what a later tightening should be based on.
   consumer-acceptance:
-    if: needs.publish.outputs.image_tag != 'develop'
     needs: publish
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: read
@@ -255,7 +283,13 @@ jobs:
           repository: dzackgarza/ai-review-ci
           ref: main
           path: .qc-infra
+      # The spinor assertion is about the isolated image built from a Sage PR commit:
+      # it pins a sage-extensions `main` checkout and a test whose subject is that
+      # commit's genus correction. An ordinary develop image has no such patch to
+      # assert, so the step keeps its original scope and the rest of the job runs
+      # everywhere.
       - name: Run the unchanged published four-spinor-genus assertion
+        if: inputs.sage_source_sha != ''
         env:
           PYTHONPATH: ${{ github.workspace }}/.qc-infra/scripts/pytest_plugins
         run: >-
@@ -365,7 +399,11 @@ jobs:
           checkout=/repos/research
           git -C "${checkout}" rev-parse HEAD
           status=0
-          for record in coble_isotropic_orbits coble_plane-half-f2; do
+          # coble_I18_vinberg-chamber is the stage-2 record: Vinberg's algorithm on
+          # I_{1,8} with candidates k_0 >= 1, nine walls, and its printed Gram matrix is
+          # the comparison target -- the whole post-provenance body is compared, as for
+          # the stage-1 records.
+          for record in coble_isotropic_orbits coble_plane-half-f2 coble_I18_vinberg-chamber; do
             script="${checkout}/computations/reports/${record}.py"
             expected="${checkout}/computations/reports/${record}-run.txt"
             actual="/tmp/${record}.out"
@@ -406,6 +444,106 @@ jobs:
           done
           exit "${status}"
 
+      # The other stage-1 records, compared by the same rule: the provenance block is
+      # dropped and every non-blank line after it, right-trimmed, is held to the
+      # committed run file. A missing run file fails the step and says so -- a record
+      # with no committed run has nothing to reproduce against, and is not skipped.
+      - name: Reproduce the stage-1 known-family records
+        run: |
+          set -uo pipefail
+          checkout=/repos/research
+          git -C "${checkout}" rev-parse HEAD
+          status=0
+          for record in coble_plane-half-index coble_TEn-dictionaries coble_TEn-sandwich coble_TEn-opplus-split; do
+            script="${checkout}/computations/reports/${record}.py"
+            expected="${checkout}/computations/reports/${record}-run.txt"
+            actual="/tmp/${record}.out"
+            if [ ! -f "${script}" ]; then
+              echo "${record}: no script in this checkout"; status=1; continue
+            fi
+            if [ ! -f "${expected}" ]; then
+              echo "${record}: no committed run file beside it; nothing to compare against"
+              status=1; continue
+            fi
+            PYTHONPATH="${checkout}/src" \
+              /sage/.venv/bin/python "${script}" > "${actual}" 2>&1 || {
+                echo "${record}: the script exited non-zero; its output follows"
+                cat "${actual}"; status=1; continue
+              }
+            /sage/.venv/bin/python - "${expected}" "${actual}" "${record}" <<'COMPARE' || status=1
+          import difflib
+          import sys
+
+          expected_path, actual_path, name = sys.argv[1:4]
+
+
+          def results(path):
+              lines = open(path, encoding="utf-8").read().splitlines()
+              if lines and lines[0].strip() == "provenance":
+                  while lines and lines[0].strip():
+                      lines.pop(0)
+                  while lines and not lines[0].strip():
+                      lines.pop(0)
+              return [line.rstrip() for line in lines if line.strip()]
+
+
+          want, got = results(expected_path), results(actual_path)
+          if want == got:
+              print(f"{name}: reproduced, {len(got)} result lines match")
+              raise SystemExit(0)
+          print(f"{name}: differs")
+          print("\n".join(difflib.unified_diff(want, got, "committed", "run here", lineterm="", n=2)))
+          raise SystemExit(1)
+          COMPARE
+          done
+          exit "${status}"
+
+      # lattice-database's owner contracts, run inside the image against the image's own
+      # sage_extensions and sage_julia_bridge -- no PYTHONPATH binding to a checkout, so
+      # what is observed is the published pair. The A2 contract
+      # (test_positive_a2_genus_and_orthogonal_group_are_owned_by_the_lattice) times out
+      # at 60 s on a GitHub runner inside the Julia bridge's stderr drain
+      # (sage_julia_bridge/interface.py:279); sage-extensions#300 is that defect and its
+      # acceptance is this module returning here.
+      - name: Run lattice-database's owner contracts against the image's packages
+        run: |
+          set -uo pipefail
+          checkout=/repos/lattice-database
+          git -C "${checkout}" rev-parse HEAD
+          module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
+          test -f "${module}"
+          /sage/.venv/bin/python -c 'import sage_extensions, sage_julia_bridge; print(sage_extensions.__file__); print(sage_julia_bridge.__file__)'
+          set +e
+          timeout 1500 /sage/.venv/bin/python -m pytest -o addopts= \
+            --durations=0 -q -p qc_sage_session "${module}"
+          status=$?
+          set -e
+          if [ "${status}" -eq 124 ]; then
+            echo "the owner contracts did not finish within 1500 s"
+          fi
+          echo "owner contracts exited ${status}"
+          exit "${status}"
+
+      # The same record's chamber read by the other engine: CoxIter on the nine-node
+      # diagram the Vinberg run prints. The in-tree row for (9, 9, 1) calls that diagram
+      # a chain, which is the claim this log lets the research chat check. It prints and
+      # does not gate: CoxIter's verdict on the diagram is evidence, not an image defect.
+      - name: Read the I_{1,8} chamber with CoxIter
+        run: |
+          set -uo pipefail
+          record=/repos/research/computations/reports/coble_I18_vinberg-chamber-run.txt
+          test -f "${record}"
+          coxiter="$(command -v coxiter)"
+          echo "coxiter: ${coxiter}"
+          "${coxiter}" -h > /tmp/coxiter-usage.txt 2>&1 || true
+          head -20 /tmp/coxiter-usage.txt
+          set +e
+          "${coxiter}" -v < "${record}" > /tmp/coxiter-I18.out 2>&1
+          status=$?
+          set -e
+          echo "coxiter exited ${status}"
+          cat /tmp/coxiter-I18.out
+
       - name: Upload the reproduced record outputs
         if: always()
         uses: actions/upload-artifact@v4
@@ -414,6 +552,8 @@ jobs:
           path: |
             /tmp/coble_isotropic_orbits.out
             /tmp/coble_plane-half-f2.out
+            /tmp/coble_I18_vinberg-chamber.out
+            /tmp/coxiter-I18.out
           if-no-files-found: warn
 
   # The image is also the environment for hosts that cannot run Docker, chroot
