@@ -23,8 +23,10 @@ database_revision)`:
 
 From the run's own job records, every shard (0–15) passed steps 1–9 — including **"Compute and
 certify uncertified card values"** — and failed step 10, **"Commit completed computations to
-main"**. That is a Git-integration failure in the owner's workflow (sixteen shards pushing to one
-branch), not a computation failure, and it is why the ledger gained no entries from it.
+main"**. Per lattice-database#20, which owns it, the failure is **computed-value integration
+conflicts after successful computation**, not a computation failure and not simply a push race;
+the patches that run uploaded are its recovery inputs. That distinction is why the ledger gained
+no entries from it: nothing computed there failed — the values could not be integrated.
 
 ## The historical defects, each checked against current code
 
@@ -71,5 +73,6 @@ frames are exact and that is what an owning issue needs.
 **The rest, without a cause claimed:** 223 entries carry no stderr (runner losses and budget ends),
 142 record `worker or runner lost (recovered from exceeded)`, 43 record `certification budget
 exhausted` (35 recovered), and about 28 are `numpy._ArrayMemoryError` for single allocations of
-21.7–326 GiB — a computation's own size rather than a defect. None of these says anything about
-whether a value is correct, and none is promoted to a defect here.
+21.7–326 GiB, which is **unclassified**: a large-allocation error alone establishes neither an
+implementation defect nor its absence, and nothing here says whether the requested computation is
+the right one or the value would be correct. None of these is promoted to a defect.
