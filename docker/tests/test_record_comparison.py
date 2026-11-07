@@ -6,20 +6,18 @@ a `run:` block in `.github/workflows/research-environment-image.yml`, so these t
 extract it from there and run it as the job does. A test carrying its own copy of the
 comparison would keep passing while the job's own drifted away from it.
 
-The fixtures are the bodies the job actually compared for `coble_plane-half-f2` on the
+The fixtures are the bodies the comparison saw for `coble_plane-half-f2`, both from the
 pinned image (`research dbf178cf30`, sage-extensions `3e4812618c`, port `991b88b0`):
 
     fixtures/coble_plane-half-f2-run.txt     the committed record, as the comparison sees it
                                              (its provenance block already dropped)
-    fixtures/coble_plane-half-f2-rerun.txt   the same body as the image printed it
+    fixtures/coble_plane-half-f2-rerun.txt   a rerun of it inside the image
 
-The rerun's own output file was written inside the sandbox at `/tmp` and is gone; its body
-is the committed body with the three annotations its diff reported as moved -- `(49 s)` to
-`(61 s)`, `(152 s)` to `(179 s)`, `(0 s)` to `(1 s)`. The diff carried two lines of context
-on each side, so every other line of the two bodies is identical, and
-`test_the_fixtures_differ_only_in_timing_annotations` asserts that rather than trusting it.
-
-That run is sage#16: the comparison failed a record whose every mathematical value
+The rerun printed the identical 26 result lines and three different annotations: `(49 s)`
+became `(77 s)`, `(2 s)` became `(1 s)` and `(152 s)` became `(154 s)`. An earlier rerun in
+the consumer-acceptance job moved the same record's annotations to `(61 s)`, `(179 s)` and
+`(1 s)` -- different again, so what moves is the timing and not one particular line. That
+earlier run is sage#16: the comparison failed a record whose every mathematical value
 reproduced, because a rerun on a busier machine spends a different number of seconds.
 """
 
@@ -119,7 +117,8 @@ def test_a_changed_mathematical_value_is_rejected(name: str, tmp_path: Path) -> 
 
 @pytest.mark.parametrize("name", sorted(COMPARATORS))
 def test_a_changed_value_is_rejected_even_beside_a_moved_annotation(name: str, tmp_path: Path) -> None:
-    changed = rewritable(tmp_path, "value-and-timing.txt", "|O(q)| = 46998591897600   (61 s)", "|O(q)| = 46998591897601   (61 s)")
+    """The anchor stops at the annotation so the test does not depend on its value."""
+    changed = rewritable(tmp_path, "value-and-timing.txt", "|O(q)| = 46998591897600   (", "|O(q)| = 46998591897601   (")
     finished = compare(COMPARATORS[name], COMMITTED, changed)
     assert finished.returncode == 1, finished.stdout + finished.stderr
     assert "46998591897601" in finished.stdout
