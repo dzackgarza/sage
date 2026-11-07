@@ -669,7 +669,9 @@ jobs:
           }}/.qc-infra/tool-artifacts/pytest_plugins
     - name: Read the I_{1,8} chamber with CoxIter
       run: |
-        set -uo pipefail
+        # -e matters here: the acceptance below is a Python assertion, and without it a failing
+        # comparison would fall through to the greps and the closing echo and leave the step green.
+        set -euo pipefail
         record=/repos/research/computations/reports/coble_I18_vinberg-chamber-run.txt
         test -f "${record}"
         coxiter="$(command -v coxiter)"
@@ -708,8 +710,13 @@ jobs:
         GRAPH
         echo "--- the graph handed to CoxIter"
         cat "${graph}"
+        # The engine's own verdict -- cocompactness, covolume, the characteristic -- is evidence,
+        # not a gate, so this one invocation is allowed to report a non-zero status.
+        set +e
         "${coxiter}" -v < "${graph}" > /tmp/coxiter-I18.out 2>&1
-        echo "coxiter exited $?"
+        verdict_status=$?
+        set -e
+        echo "coxiter exited ${verdict_status} (its verdict is evidence, not a gate)"
         cat /tmp/coxiter-I18.out
         # Acceptance is the reading, not the exit status: the graph read must be the nine-wall
         # chamber this record states. CoxIter's verdict on it stays evidence, not a gate.
@@ -718,6 +725,8 @@ jobs:
         # no edge -- and that matrix is held to the one the record's edge list defines, entry by
         # entry. A vertex count and a field of definition cannot do this: a different graph can
         # have both.
+        # This one feeds the acceptance: the engine must print a matrix for the graph it was
+        # given, and a non-zero status here is an input failure that must fail the step.
         "${coxiter}" -pcm < "${graph}" > /tmp/coxiter-I18-matrix.out 2>&1
         cat /tmp/coxiter-I18-matrix.out
         /sage/.venv/bin/python - "${record}" /tmp/coxiter-I18-matrix.out ./coxiter-matrix.checked <<'MATRIX'

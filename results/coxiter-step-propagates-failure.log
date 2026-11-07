@@ -1,0 +1,24 @@
+coxiter: /usr/local/bin/coxiter
+--- the graph handed to CoxIter
+9
+1 2 3
+2 3 3
+3 4 3
+3 9 3
+4 5 3
+5 6 3
+6 7 3
+7 10 4
+coxiter exited 0 (its verdict is evidence, not a gate)
+Error while reading graph: The following vertex is unknown: 10
+Error while reading graph: The following vertex is unknown: 10
+Traceback (most recent call last):
+  File "<stdin>", line 11, in <module>
+IndexError: list assignment index out of range
+[peakrss] coxiter-broken: child waited=1 shell_code=1 samples=1
+[peakrss] peak tree RSS      : 5 MiB
+[peakrss] low-water MemAvail : 8182 MiB
+[peakrss] peak single VmHWM  : 5 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   python3                       5 MiB peak
+[peakrss]   t=     0.0s procs=  1 rss=     5 MiB hwm=     5 MiB avail=  8182 MiB
