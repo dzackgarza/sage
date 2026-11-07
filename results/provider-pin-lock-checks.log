@@ -1,0 +1,20 @@
+=== lock
+   Building sagemath @ file:///work
+      Built sagemath @ file:///work
+Resolved 317 packages in 4.68s
+Updated sage-extensions v0.1.0 (3e481261) -> v0.1.0 (240cd3f8)
+lock_exit=0
+=== check
+Resolved 317 packages in 1.53s
+check_exit=0
+=== idempotence
+Resolved 317 packages in 1.74s
+second_exit=0
+=== sync dry run
+ + typing-extensions==4.16.0
+ + urllib3==2.8.0
+ + uv==0.13.4
+ + virtualenv==21.14.13
+ + wcwidth==0.9.3
+ + widgetsnbextension==4.0.16
+sync_exit=0
