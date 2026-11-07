@@ -1,0 +1,21 @@
+artifact: /repos/lattice-database/attachments/recovery-check-nglphcad/artifacts/certification-42326648686-1-shard-0-0066
+command: /repos/lattice-database/attachments/regression-old-verify/verify-recovered-old.py
+$ /sage/.venv/bin/python /repos/lattice-database/attachments/regression-old-verify/verify-recovered-old.py artifacts
+1 recovered artifacts verified against their own patches
+1 problems found
+   0066 integral.primitive_orbits: original failure attempt d75a9ad628461d9f is missing
+ 
+the actual recovered data should verify; exit 1
+[peakrss] regression-old-abs: child waited=1 shell_code=1 samples=17
+[peakrss] peak tree RSS      : 1249 MiB
+[peakrss] low-water MemAvail : 8008 MiB
+[peakrss] peak single VmHWM  : 1249 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   python                     1114 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   t=    32.0s procs=  5 rss=  1249 MiB hwm=  1249 MiB avail=  8169 MiB
+[peakrss]   t=    30.0s procs=  5 rss=  1159 MiB hwm=  1159 MiB avail=  8294 MiB
+[peakrss]   t=    28.0s procs=  5 rss=  1124 MiB hwm=  1124 MiB avail=  8370 MiB
+[peakrss]   t=    26.0s procs=  5 rss=  1087 MiB hwm=  1087 MiB avail=  8403 MiB
+[peakrss]   t=    24.0s procs=  5 rss=  1045 MiB hwm=  1045 MiB avail=  8794 MiB

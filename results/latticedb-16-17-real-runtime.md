@@ -123,21 +123,13 @@ share one shard file by construction, as `save` writes them.
   latticedb certify --tag 026E --phase fields --minutes 30 --workers 1` under a 6144 MiB
   guard and a 2700 s timeout. It was **killed by SIGKILL at 270 s** (`child waited=137
   shell_code=137`): not the timeout (270 of 2700 s elapsed), not the guard (peak tree RSS
-  5035 MiB, below 6144), with MemAvailable at 1.08 GB at the time and no other explanation
-  readable from inside — `dmesg` is denied and the cgroup's `memory.events` cannot be read,
-  so a kernel OOM kill on this shared, swapless host is the consistent but unproven cause.
-  The CLI printed nothing and wrote nothing: the checkout is unchanged
-  (`git status --porcelain` empty). This is an environment kill, not a check failure, and the
-  consumer path is **not** accepted until a run completes. It needs one window with the host
-  quiet (MemAvailable in the ~10 GB range); no other conclusion follows from it.
-- **The recovery verifier was not run.** `results/verify-recovered-values.py` and
-  `results/reverify.sh` are for the next owner revision: at `ca17c53e` the verifier still has
-  the derive-branch parsing defect and the unused failure-history data the owner is fixing,
-  and running it now would measure those rather than the artifacts.
-- **#15 stays blocked** by sage-extensions#291: the owner-contract suite fails
-  `test_root_and_theta_catalogue_invariants_are_owned_by_the_lattice` at
-  `definite_lattices.py:294` (`'int' object has no attribute 'parent'`), which is the
-  provider's, not the image's (results/consumer-acceptance-rehearsal.md).
+  5035 MiB, below 6144), with MemAvailable at 1.08 GB at the time. **The cause is
+  unresolved**: exit 137 records that the process was killed by signal 9, and the memory
+  figures record the conditions it ran under, but nothing readable from inside establishes who
+  sent the signal — `dmesg` is denied and the cgroup's `memory.events` cannot be read, so an
+  environment kill is a hypothesis, not a finding. The CLI printed nothing and wrote nothing:
+  the checkout is unchanged (`git status --porcelain` empty). The consumer path is **not**
+  accepted until a run completes, and no other conclusion follows from this attempt.
 - **The recovery verifier was not run.** `results/verify-recovered-values.py` and
   `results/reverify.sh` are for the next owner revision: at `ca17c53e` the verifier still has
   the derive-branch parsing defect and the unused failure-history data the owner is fixing,

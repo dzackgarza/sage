@@ -1,0 +1,18 @@
+.............                                                            [100%]
+13 passed in 31.08s
+[peakrss] ldb-9fa-tests: child waited=0 shell_code=0 samples=17
+[peakrss] peak tree RSS      : 844 MiB
+[peakrss] low-water MemAvail : 5215 MiB
+[peakrss] peak single VmHWM  : 856 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   python                      422 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   git                           4 MiB peak
+[peakrss]   bash                          3 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   sh                            1 MiB peak
+[peakrss]   t=    20.0s procs=  5 rss=   844 MiB hwm=   856 MiB avail=  5248 MiB
+[peakrss]   t=    22.0s procs=  5 rss=   844 MiB hwm=   856 MiB avail=  5256 MiB
+[peakrss]   t=    18.0s procs=  5 rss=   832 MiB hwm=   844 MiB avail=  5224 MiB
+[peakrss]   t=    16.0s procs=  5 rss=   816 MiB hwm=   826 MiB avail=  5229 MiB
+[peakrss]   t=    14.0s procs=  5 rss=   665 MiB hwm=   693 MiB avail=  5220 MiB
