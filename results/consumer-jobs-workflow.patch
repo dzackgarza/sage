@@ -1,8 +1,8 @@
 diff --git a/.github/workflows/research-environment-image.yml b/.github/workflows/research-environment-image.yml
-index 78184f404d4..5125a87d4fa 100644
+index 78184f404d4..ac9838f7405 100644
 --- a/.github/workflows/research-environment-image.yml
 +++ b/.github/workflows/research-environment-image.yml
-@@ -33,6 +33,11 @@ on:
+@@ -33,6 +33,18 @@ on:
      - .github/workflows/research-environment-image.yml
    workflow_dispatch:
      inputs:
@@ -11,10 +11,17 @@ index 78184f404d4..5125a87d4fa 100644
 +          the build is skipped and nothing is published
 +        required: false
 +        type: string
++      expected_source_revision:
++        description: Source revision the named image was built from, asserted
++          against its /sage/.spinor-source-revision; required when image is given.
++          Distinct from sage_source_sha, which applies an isolated patch and
++          enables the four-spinor test
++        required: false
++        type: string
        sage_source_sha:
          description: Exact maintained Sage PR commit whose genus.py correction 
            is applied to current develop for an isolated image; omit for ordinary
-@@ -56,6 +61,7 @@ concurrency:
+@@ -56,6 +68,7 @@ concurrency:
    cancel-in-progress: false
  jobs:
    publish:
@@ -22,7 +29,7 @@ index 78184f404d4..5125a87d4fa 100644
      runs-on: ubuntu-latest
      timeout-minutes: 360
      permissions:
-@@ -262,16 +268,20 @@ jobs:
+@@ -262,24 +275,35 @@ jobs:
    # the limit is raised rather than estimated: the step prints
    # `O(T_Co) generators: N in T s` and the record reproductions print their own times,
    # and those are what a later tightening should be based on.
@@ -47,7 +54,23 @@ index 78184f404d4..5125a87d4fa 100644
        credentials:
          username: ${{ github.actor }}
          password: ${{ secrets.GITHUB_TOKEN }}
-@@ -466,6 +476,52 @@ jobs:
+     steps:
+     - name: Verify the image embeds the requested patch and base revisions
+       env:
+-        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++        # With no publish (an `image` was named) this output is empty, so the expected revision
++        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
++        # isolated patch and enables the four-spinor test.
++        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
+       run: |
++        test -n "$SAGE_SOURCE_SHA" || {
++          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
++          exit 1
++        }
+         test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
+         printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
+         printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
+@@ -466,6 +490,59 @@ jobs:
        env:
          PYTHONPATH: ${{ github.workspace 
            }}/.qc-infra/tool-artifacts/pytest_plugins
@@ -72,8 +95,15 @@ index 78184f404d4..5125a87d4fa 100644
 +    steps:
 +    - name: Verify the image embeds the requested patch and base revisions
 +      env:
-+        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++        # With no publish (an `image` was named) this output is empty, so the expected revision
++        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
++        # isolated patch and enables the four-spinor test.
++        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
 +      run: |
++        test -n "$SAGE_SOURCE_SHA" || {
++          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
++          exit 1
++        }
 +        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
 +        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
 +        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
@@ -100,7 +130,7 @@ index 78184f404d4..5125a87d4fa 100644
      - name: Certify lattice-database card 6JRR
        run: |
          set -uo pipefail
-@@ -494,12 +550,19 @@ jobs:
+@@ -494,12 +571,19 @@ jobs:
          ( cd "${checkout}" && git diff -- failures.yaml exceeded.yaml | head -200 ) || true
          echo "certify is evidence, not a gate: exit ${status} is reported above"
  
@@ -121,7 +151,7 @@ index 78184f404d4..5125a87d4fa 100644
          if-no-files-found: warn
  
        # The stage-1 research records, reproduced inside the image. Each record is a
-@@ -510,6 +573,52 @@ jobs:
+@@ -510,6 +594,59 @@ jobs:
        # opening `provenance` to the first blank line -- and holds every non-blank line
        # after it, right-trimmed, to the committed file. A differing result line fails
        # the job and prints the diff.
@@ -146,8 +176,15 @@ index 78184f404d4..5125a87d4fa 100644
 +    steps:
 +    - name: Verify the image embeds the requested patch and base revisions
 +      env:
-+        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++        # With no publish (an `image` was named) this output is empty, so the expected revision
++        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
++        # isolated patch and enables the four-spinor test.
++        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
 +      run: |
++        test -n "$SAGE_SOURCE_SHA" || {
++          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
++          exit 1
++        }
 +        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
 +        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
 +        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
@@ -174,7 +211,7 @@ index 78184f404d4..5125a87d4fa 100644
      - name: Reproduce the stage-1 research records
        run: |
          set -uo pipefail
-@@ -695,6 +804,68 @@ jobs:
+@@ -695,6 +832,75 @@ jobs:
        # at 60 s on a GitHub runner inside the Julia bridge's stderr drain
        # (sage_julia_bridge/interface.py:279); sage-extensions#300 is that defect and its
        # acceptance is this module returning here.
@@ -215,8 +252,15 @@ index 78184f404d4..5125a87d4fa 100644
 +    steps:
 +    - name: Verify the image embeds the requested patch and base revisions
 +      env:
-+        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++        # With no publish (an `image` was named) this output is empty, so the expected revision
++        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
++        # isolated patch and enables the four-spinor test.
++        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
 +      run: |
++        test -n "$SAGE_SOURCE_SHA" || {
++          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
++          exit 1
++        }
 +        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
 +        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
 +        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
@@ -243,7 +287,7 @@ index 78184f404d4..5125a87d4fa 100644
      - name: Run lattice-database's owner contracts against the image's packages
        run: |
          set -uo pipefail
-@@ -721,6 +892,33 @@ jobs:
+@@ -721,6 +927,40 @@ jobs:
        env:
          PYTHONPATH: ${{ github.workspace 
            }}/.qc-infra/tool-artifacts/pytest_plugins
@@ -268,8 +312,15 @@ index 78184f404d4..5125a87d4fa 100644
 +    steps:
 +    - name: Verify the image embeds the requested patch and base revisions
 +      env:
-+        SAGE_SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
++        # With no publish (an `image` was named) this output is empty, so the expected revision
++        # has to be given explicitly. It stays distinct from `sage_source_sha`, which applies an
++        # isolated patch and enables the four-spinor test.
++        SAGE_SOURCE_SHA: ${{ inputs.expected_source_revision || needs.publish.outputs.source_sha }}
 +      run: |
++        test -n "$SAGE_SOURCE_SHA" || {
++          echo "consumer checks on a named image need expected_source_revision: no publish ran to supply the source revision"
++          exit 1
++        }
 +        test "$(cat /sage/.spinor-source-revision)" = "$SAGE_SOURCE_SHA"
 +        printf 'spinor patch revision: %s\n' "$(cat /sage/.spinor-source-revision)"
 +        printf 'Sage build base revision: %s\n' "$(cat /sage/.spinor-base-revision)"
@@ -277,7 +328,7 @@ index 78184f404d4..5125a87d4fa 100644
      - name: Read the I_{1,8} chamber with CoxIter
        run: |
          # -e matters here: the acceptance below is a Python assertion, and without it a failing
-@@ -809,23 +1007,6 @@ jobs:
+@@ -809,23 +1049,6 @@ jobs:
          grep -q "Guessed dimension: 8" /tmp/coxiter-I18.out
          echo "CoxIter read the nine-wall chamber of ${record}: labelled adjacencies equal to its edge list"
  
