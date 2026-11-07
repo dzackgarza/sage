@@ -320,16 +320,51 @@ jobs:
     - name: Construct T_Co and compute its O(T_Co) generators
       run: |
         /sage/.venv/bin/python - <<'PY'
-        import json, time
+        import json, subprocess, time, tomllib
         from importlib.metadata import distribution
+        from pathlib import Path
         from sage.all import CartanMatrix, ZZ, block_diagonal_matrix, matrix
         from sage_extensions.all import Lattices
+        import sage_extensions
         import sage_indefinite_port
 
-        for name in ("sage-indefinite-port", "sage-extensions"):
-            commit = json.loads(distribution(name).read_text("direct_url.json")).get("vcs_info", {}).get("commit_id")
-            print(f"{name}: {commit}")
-        print(f"sage_indefinite_port: {sage_indefinite_port.__file__}")
+
+        def checkout_of(module):
+            """The git checkout the imported module lives in."""
+            path = Path(module.__file__).resolve()
+            for parent in path.parents:
+                if (parent / ".git").exists():
+                    return parent
+            raise AssertionError(f"no checkout holds {path}")
+
+
+        def head(checkout):
+            return subprocess.run(
+                ["git", "-C", str(checkout), "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+
+
+        held = {
+            package["name"]: package["source"]["git"].rsplit("#", 1)[-1]
+            for package in tomllib.load(open("/sage/uv.lock", "rb"))["package"]
+            if isinstance(package.get("source"), dict) and isinstance(package["source"].get("git"), str)
+        }
+
+        # An editable install's direct_url.json carries no vcs_info, so its commit_id reads
+        # None and says nothing about what ran -- both are printed below because the record
+        # needs the reader to see that. The revision that ran is the checkout the imported
+        # module lives in, held against the image's own lock (not the caller's): the port
+        # whose generator call this step asserts, and the provider it declares in
+        # pyproject.toml's dependency-metadata, sage-extensions.
+        for name, module in (("sage-indefinite-port", sage_indefinite_port), ("sage-extensions", sage_extensions)):
+            raw = distribution(name).read_text("direct_url.json")
+            print(f"{name}: direct_url.json commit_id {json.loads(raw).get('vcs_info', {}).get('commit_id') if raw else None}")
+            checkout = checkout_of(module)
+            found = head(checkout)
+            print(f"{name}: imported from {module.__file__}")
+            print(f"{name}: checkout {checkout} at {found}, held {held[name]}")
+            assert found == held[name], f"{name}: the checkout is {found}, the lock holds {held[name]}"
 
         # T_Co = <2> + U(2) + E8(2): rank 11, determinant -2048, signature (2, 9).
         U = matrix(ZZ, [[0, 1], [1, 0]])
@@ -712,3 +747,4 @@ jobs:
         set -eu
         test "$(cat /probe.txt)" = "zstd probe ok"
         echo "the runner pulled a zstd-compressed layer and started a container from it"
+
