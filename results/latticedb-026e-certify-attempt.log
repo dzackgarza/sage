@@ -1,0 +1,13 @@
+[peakrss] ldb-026e-certify: child waited=137 shell_code=137 samples=136
+[peakrss] peak tree RSS      : 5035 MiB
+[peakrss] low-water MemAvail : 1080 MiB
+[peakrss] peak single VmHWM  : 5050 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   python                     5024 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   t=   260.6s procs=  4 rss=  5035 MiB hwm=  5050 MiB avail=  1090 MiB
+[peakrss]   t=   262.6s procs=  4 rss=  5035 MiB hwm=  5050 MiB avail=  1137 MiB
+[peakrss]   t=   258.4s procs=  4 rss=  5034 MiB hwm=  5050 MiB avail=  1119 MiB
+[peakrss]   t=   264.7s procs=  4 rss=  5034 MiB hwm=  5050 MiB avail=  1083 MiB
+[peakrss]   t=   266.7s procs=  4 rss=  5034 MiB hwm=  5050 MiB avail=  1100 MiB
