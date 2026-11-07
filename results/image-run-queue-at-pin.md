@@ -34,3 +34,10 @@ The consumer-acceptance job of that run performs both calls, on the image it pub
 #15 and #18 stay open until those two results come back from a published image. The queued run is
 also the first image to carry the provider pin, so its `certify` step and its lock are the pin's
 real test.
+
+## Superseded by the run's own result
+
+`42379122786` finished: `publish` success, `no-runtime` success, `consumer-acceptance` failure at
+step 8 (T_Co), with the owner-contract and CoxIter steps **skipped**, not failed. The queued-state
+table above is history; results/run-results-and-corrections.md carries what happened.
+
