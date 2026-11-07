@@ -281,25 +281,32 @@ COPY --chmod=0755 docker/julia-launcher.sh /usr/local/bin/julia
 
 # Package caches must load on both the CI CPU and the host CPU.
 # https://docs.julialang.org/en/v1.12/manual/environment-variables/#JULIA_CPU_TARGET
-# Two bindirs, because two callers derive Julia's location differently.
+# Two variables, for two mechanisms, and the distinction cost a build each way.
 #
-# JULIA_BINDIR is Julia's own: it fixes a julia process started as a child, which is
-# what juliapkg's resolve step runs (juliapkg/deps.py copies the environment it is
-# given) and what the launcher states for itself.
+# JULIA_BINDIR is Julia's own: it tells a julia *process* where it lives, which is what
+# juliapkg's resolve step runs (juliapkg/deps.py copies the environment it is given) and
+# what the launcher states for itself.
 #
-# PYTHON_JULIACALL_BINDIR is juliacall's, and it is the one that matters for the
-# failure: juliacall loads libjulia INTO the Python process and passes bindir to
-# jl_init_with_image (juliacall/__init__.py:264-270). It takes bindir from
-# PYTHON_JULIACALL_BINDIR when set (…:164, envkey='PYTHON_JULIACALL_BINDIR'), and
-# otherwise from os.path.dirname(exepath) (…:231-232) -- the directory of the name it
-# resolved, which is /usr/local/bin when juliapkg found the launcher script, giving
-# /usr/local/lib/julia/sys.so. dirname of a path is not a symlink resolution, so
-# replacing the launcher with a symlink would not change it; stating the bindir does,
-# and with bindir set juliacall also takes exepath = bindir/julia (…:190-192).
+# PYTHON_JULIAPKG_EXE is what makes the load that fails find the right tree. juliapkg
+# reads every option from PYTHON_JULIAPKG_<NAME> (juliapkg/state.py:15) and takes
+# STATE["override_executable"] from `get_config("exe")` (:51); find_julia.py:45 uses
+# that override first, and only without it falls back to shutil.which("julia") (:81) --
+# which finds this image's launcher at /usr/local/bin/julia. juliacall then loads
+# libjulia into the Python process and, with no bindir stated, takes
+# os.path.dirname(exepath) (juliacall :231-232) as the bindir it hands to
+# jl_init_with_image (:264-270) -- /usr/local/bin for the launcher, hence
+# /usr/local/lib/julia/sys.so. Naming the real binary makes that dirname
+# /opt/julia/bin.
+#
+# Not PYTHON_JULIACALL_BINDIR: juliacall :190-192 turns a stated bindir into exepath,
+# and :193-219 then refuses because the matching project is unset -- measured in run
+# 75412165bc as "Both PYTHON_JULIACALL_PROJECT and PYTHON_JULIACALL_EXE must be set
+# together". Not a symlink either: :231-232 takes the dirname of the path string, which
+# a symlink does not change.
 ENV JULIA_DEPOT_PATH=/opt/julia-depot: \
     JULIA_CPU_TARGET=generic \
     JULIA_BINDIR=/opt/julia/bin \
-    PYTHON_JULIACALL_BINDIR=/opt/julia/bin
+    PYTHON_JULIAPKG_EXE=/opt/julia/bin/julia
 
 RUN set -eu; \
     julia --startup-file=no --color=no -e ' \
