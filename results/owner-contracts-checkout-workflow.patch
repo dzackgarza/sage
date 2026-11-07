@@ -1,8 +1,13 @@
+diff --git a/.github/workflows/research-environment-image.yml b/.github/workflows/research-environment-image.yml
+index b72977620ae..c6a3ae10df9 100644
 --- a/.github/workflows/research-environment-image.yml
 +++ b/.github/workflows/research-environment-image.yml
-@@ -510,4 +510,4 @@
-           set -uo pipefail
--          checkout=/repos/lattice-database
-+          checkout=/repos/sage-extensions
-           git -C "${checkout}" rev-parse HEAD
-           module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
+@@ -510,7 +510,7 @@ jobs:
+     - name: Run lattice-database's owner contracts against the image's packages
+       run: |
+         set -uo pipefail
+-        checkout=/repos/lattice-database
++        checkout=/repos/sage-extensions
+         git -C "${checkout}" rev-parse HEAD
+         module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
+         test -f "${module}"
