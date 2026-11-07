@@ -90,11 +90,24 @@ that file, and requires the reading to be the chamber rather than accepting exit
         Number of vertices at infinity: 1
         Euler characteristic: 17/1393459200
 
-`Q[sqrt(2)]` is the graph-level check, not a count: every edge but one is order 3, so the field
-is Q unless the order-4 edge of the list was read. Dimension 8 and nine vertices come from
-`walls: 9`. CoxIter's own verdict — cocompactness, covolume, the characteristic — stays evidence,
-not a gate, and the record's numerical claims keep their own evidence class: this step says which
-chamber was read, never that the research record certifies it.
+A vertex count, or the field of the Gram entries, does not establish which graph was read: two
+different graphs can share both. The acceptance is therefore CoxIter's `-pcm` output — the Coxeter
+matrix of the graph it parsed, `m_ij` being 2 where there is no edge — held entry by entry to the
+matrix the record's `edges (i, j, label)` list defines. On the repaired input the engine prints
+
+    1,3,2,2,2,2,2,2,2   3,1,3,2,2,2,2,2,2   2,3,1,3,2,2,2,2,3   ...   2,2,2,2,2,3,1,4,2   ...
+
+which is exactly the record's list: order-3 edges along the chain, `3–9` closing it, and the
+order-4 edge `7–8` appearing as the 4 in row 7.
+
+`docker/tests/test_coxiter_chamber_input.py` keeps this honest: it runs the step's own block in
+the image, takes the input the step says it handed over, asks the engine for its matrix, and
+holds that to the record. Against the repaired step it passes in 0.97 s; against the pre-fix step,
+whose input is the record itself, the same assertion fails with "the parsed labelled adjacencies
+are not the record's edge list". CoxIter's own verdict — cocompactness, covolume, the
+characteristic — stays evidence, not a gate, and the record's numerical claims keep their own
+evidence class: this step says which chamber was read, never that the research record certifies
+it.
 
 ## The regression that guards it, as finally contracted
 
