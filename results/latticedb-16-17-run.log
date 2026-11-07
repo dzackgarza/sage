@@ -1,0 +1,90 @@
+########## revisions in force  11:14:21
+lattice-database (bound)  33534455ab8147dbace2eba4a8757e2f255e028b
+sage-extensions (bound)   3e4812618ce0d5f67dc88959a161ac6ebeb75da2
+sage-indefinite-port      991b88b095a42a1e3679569ea42328c900c120f6
+research (bound)          231be7d6bf863910df870c49a79ba8969c13387d
+image rootfs              /workspace/nucleus/work/home/sage-image/rootfs
+########## A. the database's own tests  11:14:21
+.......F....F                                                            [100%]
+=================================== FAILURES ===================================
+___________ test_a_ledger_entry_must_be_in_the_shard_of_its_own_tag ____________
+tests/test_failures.py:212: in test_a_ledger_entry_must_be_in_the_shard_of_its_own_tag
+    with pytest.raises(ValueError, match="belongs to the shard"):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+____ test_shards_push_progress_repeatedly_without_touching_their_worktrees _____
+tests/test_persist.py:81: in test_shards_push_progress_repeatedly_without_touching_their_worktrees
+    assert set(failures.load(main)) == {"0001 integral.genus_symbol", "0002 integral.genus_symbol"}
+               ^^^^^^^^^^^^^^^^^^^
+src/latticedb/failures.py:57: in load
+    shard = TypeAdapter(Failures).validate_python(yaml.load(path.read_text(), Loader=yaml.CSafeLoader) or {})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/sage/.venv/lib/python3.14/site-packages/pydantic/type_adapter.py:410: in validate_python
+    return self.validator.validate_python(
+E   pydantic_core._pydantic_core.ValidationError: 8 validation errors for dict[str,Failure]
+E   `0001 integral.genus_symbol`.attempts.0.hash
+E     Field required [type=missing, input_value={'reason': 'memory exhausted'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/missing
+E   `0001 integral.genus_symbol`.attempts.0.gram_tensor
+E     Field required [type=missing, input_value={'reason': 'memory exhausted'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/missing
+E   `0001 integral.genus_symbol`.attempts.0.stderr
+E     Field required [type=missing, input_value={'reason': 'memory exhausted'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/missing
+E   `0001 integral.genus_symbol`.attempts.0.seconds
+E     Field required [type=missing, input_value={'reason': 'memory exhausted'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/missing
+E   `0001 integral.genus_symbol`.attempts.0.recorded_at
+E     Field required [type=missing, input_value={'reason': 'memory exhausted'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/missing
+E   `0001 integral.genus_symbol`.attempts.0.run_url
+E     Field required [type=missing, input_value={'reason': 'memory exhausted'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/missing
+E   `0001 integral.genus_symbol`.attempts.0.database_revision
+E     Field required [type=missing, input_value={'reason': 'memory exhausted'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/missing
+E   `0001 integral.genus_symbol`.attempts.0.research_revision
+E     Field required [type=missing, input_value={'reason': 'memory exhausted'}, input_type=dict]
+E       For further information visit https://errors.pydantic.dev/2.14/v/missing
+=========================== short test summary info ============================
+FAILED tests/test_failures.py::test_a_ledger_entry_must_be_in_the_shard_of_its_own_tag
+FAILED tests/test_persist.py::test_shards_push_progress_repeatedly_without_touching_their_worktrees
+2 failed, 11 passed in 43.55s
+[peakrss] ldb-tests: child waited=1 shell_code=1 samples=23
+[peakrss] peak tree RSS      : 840 MiB
+[peakrss] low-water MemAvail : 4667 MiB
+[peakrss] peak single VmHWM  : 856 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   python                      422 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   git                           4 MiB peak
+[peakrss]   bash                          3 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   sh                            1 MiB peak
+[peakrss]   t=    26.0s procs=  5 rss=   840 MiB hwm=   856 MiB avail=  4667 MiB
+[peakrss]   t=    30.0s procs=  5 rss=   839 MiB hwm=   856 MiB avail=  5110 MiB
+[peakrss]   t=    28.0s procs=  5 rss=   835 MiB hwm=   856 MiB avail=  5162 MiB
+[peakrss]   t=    24.0s procs=  5 rss=   834 MiB hwm=   845 MiB avail=  4699 MiB
+[peakrss]   t=    20.0s procs=  5 rss=   805 MiB hwm=   825 MiB avail=  4809 MiB
+########## A exited 1  11:15:07
+########## B. the 026E adapter request  11:15:07
+{"tag": "026E", "by": "research preamble", "primitive_orbits": {"O": {"constant": 1, "z": [], "w": []}, "SO": {"constant": 1, "z": [], "w": []}, "Otilde": {"constant": 1, "z": [], "w": []}, "SOtilde": {"constant": 1, "z": [], "w": []}, "O+": {"constant": 1, "z": [], "w": []}, "SO+": {"constant": 1, "z": [], "w": []}, "Otilde+": {"constant": 1, "z": [], "w": []}, "SOtilde+": {"constant": 1, "z": [], "w": []}}}
+EMITTED_JSON {"tag": "026E", "by": "research preamble", "primitive_orbits": {"O": {"constant": 1, "z": [], "w": []}, "SO": {"constant": 1, "z": [], "w": []}, "Otilde": {"constant": 1, "z": [], "w": []}, "SOtilde": {"constant": 1, "z": [], "w": []}, "O+": {"constant": 1, "z": [], "w": []}, "SO+": {"constant": 1, "z": [], "w": []}, "Otilde+": {"constant": 1, "z": [], "w": []}, "SOtilde+": {"constant": 1, "z": [], "w": []}}}
+CONSTANT_IS_FINITE 1
+NONFINITE_CONVERSION aleph0 (the owner's own API for an infinite cardinality; not a lattice assertion)
+[peakrss] ldb-026e-request: child waited=0 shell_code=0 samples=786
+[peakrss] peak tree RSS      : 3418 MiB
+[peakrss] low-water MemAvail : 1083 MiB
+[peakrss] peak single VmHWM  : 3586 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   julia                      2972 MiB peak
+[peakrss]   python                     1004 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   t=   204.2s procs=  5 rss=  3418 MiB hwm=  3564 MiB avail=  2837 MiB
+[peakrss]   t=   202.2s procs=  5 rss=  3416 MiB hwm=  3562 MiB avail=  2840 MiB
+[peakrss]   t=   200.2s procs=  5 rss=  3413 MiB hwm=  3559 MiB avail=  2840 MiB
+[peakrss]   t=   196.2s procs=  5 rss=  3412 MiB hwm=  3558 MiB avail=  2883 MiB
+[peakrss]   t=   194.2s procs=  5 rss=  3410 MiB hwm=  3556 MiB avail=  2895 MiB
+########## B exited 0  11:44:23
+########## C. certify --tag 026E --phase fields  11:44:23
