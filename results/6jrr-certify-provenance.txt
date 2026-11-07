@@ -3,4 +3,9 @@ revisions:
   provider         3e4812618ce0d5f67dc88959a161ac6ebeb75da2
   port             991b88b095a42a1e3679569ea42328c900c120f6
   research         dbf178cf30c1d26e5f98753c1d9cdbcc16ee3d25
-command: latticedb certify --tag 6JRR --minutes 20 --root /repos/lattice-database  (cwd /repos/lattice-database)
+command: latticedb certify --tag 6JRR --minutes 20 --root /repos/lattice-database
+working directory: /tmp -- deliberately not the checkout, so that the corpus could only come
+  from --root. The step in the workflow runs in the job's workspace (a sage-extensions
+  checkout), which is the same situation: a directory that is not the corpus.
+outcome: killed by the 6144 MiB consumer guard at 306 s, tree RSS 6171 MiB, before a
+  certificate was written; it had got past corpus.load, which is what the fix restores.
