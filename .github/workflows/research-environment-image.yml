@@ -339,22 +339,26 @@ jobs:
 
 
         def head(checkout):
-            """The checkout's revision, or the reason git would not say.
+            """The checkout's revision and git's stderr, or None.
 
-            Not every checkout in this job is this image's: the step above installs the
-            workflow's own sage-extensions checkout editable, so the provider is imported from
-            `${{ github.workspace }}`, not from /repos. `git -C` there answers 128 -- in run
-            42379122786 that ended the step (exit 128, uncaught) before the T_Co call it exists
-            to guard. git's own words are returned here instead of raised, and the caller decides
-            what the revision means for the checkout it came from.
+            `safe.directory` is stated for the path being read, and it is a trust decision this
+            job is entitled to make: the checkout is the job's own, created by its runner minutes
+            earlier, and the ownership mismatch is an artifact of the container mount. The run's
+            log shows the runner adding exactly this on the host
+            (`git config --global --add safe.directory /__w/sage/sage`) and creating the workspace
+            `.git` there, while `git -C /repos/...` succeeds in the same container -- so a
+            container-side read of that path is the condition git 128 names. Stating it here is
+            not a skipped check: the revision is still read and still verified below, and an
+            unreadable one still fails the step.
             """
             finished = subprocess.run(
-                ["git", "-C", str(checkout), "rev-parse", "HEAD"],
+                ["git", "-c", f"safe.directory={checkout}", "-C", str(checkout), "rev-parse", "HEAD"],
                 capture_output=True, text=True, check=False,
             )
+            stderr = (finished.stderr or "").strip()
             if finished.returncode != 0:
-                return None, (finished.stderr or "").strip().splitlines()[-1:] or ["git gave no reason"]
-            return finished.stdout.strip(), []
+                return None, stderr
+            return finished.stdout.strip(), stderr
 
 
         held = {
@@ -369,29 +373,28 @@ jobs:
         # module lives in, held against the image's own lock (not the caller's): the port
         # whose generator call this step asserts, and the provider it declares in
         # pyproject.toml's dependency-metadata, sage-extensions.
+        # Two boundaries, two observations, and neither stands in for the other: the image's own
+        # copy (what the image ships, held to its lock) and the checkout the import actually came
+        # from (what this job installed). The step above installs the workflow's sage-extensions
+        # checkout editable, so for that package they are different trees.
         for name, module in (("sage-indefinite-port", sage_indefinite_port), ("sage-extensions", sage_extensions)):
             raw = distribution(name).read_text("direct_url.json")
             print(f"{name}: direct_url.json commit_id {json.loads(raw).get('vcs_info', {}).get('commit_id') if raw else None}")
+            shipped = Path("/repos") / name
+            if shipped.is_dir():
+                found, complaint = head(shipped)
+                assert found is not None, f"{name}: the image's {shipped} is unreadable: {complaint}"
+                print(f"{name}: image checkout {shipped} at {found}, held {held[name]}")
+                assert found == held[name], f"{name}: the image's checkout is {found}, the lock holds {held[name]}"
             print(f"{name}: imported from {module.__file__}")
             checkout = checkout_of(module)
-            if checkout is None:
-                print(f"{name}: no checkout holds that path")
-                continue
+            assert checkout is not None, f"{name}: no checkout holds {module.__file__}"
             found, complaint = head(checkout)
-            if found is None:
-                print(f"{name}: checkout {checkout}, revision unreadable here: {complaint[0]}")
+            assert found is not None, f"{name}: the imported checkout {checkout} is unreadable: {complaint}"
+            if shipped.is_dir() and checkout == shipped:
+                print(f"{name}: the import is the image's copy")
             else:
-                print(f"{name}: checkout {checkout} at {found}, held {held[name]}")
-            # The lock's pin is asserted for the copies this image installs, which live under
-            # /repos. A checkout elsewhere is the job's own -- installed by the step above to
-            # test the published image against live consumer code -- and its revision is
-            # reported as what ran, not held to the image's pin.
-            if str(checkout).startswith("/repos/"):
-                assert found == held[name], (
-                    f"{name}: the image's checkout is {found or 'unreadable'}, the lock holds {held[name]}"
-                )
-            else:
-                print(f"{name}: {checkout} is the job's checkout, not the image's; reported, not asserted")
+                print(f"{name}: the import is the consumer checkout {checkout} at {found}")
 
         # T_Co = <2> + U(2) + E8(2): rank 11, determinant -2048, signature (2, 9).
         U = matrix(ZZ, [[0, 1], [1, 0]])
