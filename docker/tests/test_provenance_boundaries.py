@@ -105,3 +105,40 @@ def test_an_unreadable_required_revision_fails_the_step(tmp_path: Path) -> None:
     assert finished.returncode != 0, output[-3000:]
     assert "unreadable" in output, output[-3000:]
     assert "fatal" in output or "git" in output.lower(), output[-3000:]
+
+
+def compute_imports() -> str:
+    """The compute block's import preamble: the part that decides which copies are imported."""
+    document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+    steps = [step for step in document["jobs"]["consumer-acceptance"]["steps"] if step.get("name") == STEP]
+    body = steps[0]["run"]
+    assert "<<'COMPUTE'" in body, "the step no longer computes in its own process"
+    block = body.split("<<'COMPUTE'", 1)[1]
+    lines = []
+    for line in block.splitlines():
+        lines.append(line)
+        if 'print(f"{module.__name__}: {path}")' in line:
+            break
+    return "\n".join(lines).lstrip("\n") + "\n"
+
+
+@requires_image
+def test_the_generator_call_imports_the_images_pinned_copies() -> None:
+    """The job installs a workspace provider for the owner-contract observation; it must not
+    shadow the copies this call is a statement about."""
+    script = (
+        "import sys\n"
+        "sys.path[:0] = ['/repos/sage-extensions/src', '/repos/sage-indefinite-port/src']\n"
+        + compute_imports()
+    )
+    finished = subprocess.run(
+        [sys.executable, str(RUNNER), "--rootfs", str(ROOTFS), "run",
+         "--bind", f"{CHECKOUT}:/__w/sage/sage", "--chdir", "/tmp", "--",
+         "/sage/.venv/bin/python", "-c", script],
+        capture_output=True, text=True, timeout=BOUND, check=False,
+    )
+    output = finished.stdout + finished.stderr
+    assert finished.returncode == 0, output[-3000:]
+    assert "sage_extensions: /repos/sage-extensions/src/" in output, output[-3000:]
+    assert "sage_indefinite_port: /repos/sage-indefinite-port/src/" in output, output[-3000:]
+    assert "/__w/sage/sage" not in output, output[-3000:]

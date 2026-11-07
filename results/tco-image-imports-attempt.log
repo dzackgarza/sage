@@ -1,0 +1,77 @@
+sage_extensions: /repos/sage-extensions/src/sage_extensions/__init__.py
+sage_indefinite_port: /repos/sage-indefinite-port/src/sage_indefinite_port/__init__.py
+T_Co: rank 11, determinant -2048, signature (2, 9)
+Traceback (most recent call last):
+  File "/c.py", line 25, in <module>
+    generators = L.Aut().group_generators()
+  File "/repos/sage-extensions/src/sage_extensions/categories/group/groups.py", line 5431, in group_generators
+    return self.selected_group_resolution().generators(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/repos/sage-extensions/src/sage_extensions/categories/group/groups.py", line 5409, in selected_group_resolution
+    return self.selected_resolution(OwnedGroups())
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/repos/sage-extensions/src/sage_extensions/categories/abstract_categories/objects.py", line 383, in selected_resolution
+    resolution = selected.realize()
+  File "/repos/sage-extensions/src/sage_extensions/categories/abstract_categories/objects.py", line 116, in realize
+    return self._resolution_factory()
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/repos/sage-extensions/src/sage_extensions/categories/group/groups.py", line 999, in selected_resolution
+    generators = generating_set()
+  File "/repos/sage-extensions/src/sage_extensions/categories/abstract_categories/arrow_categories.py", line 2379, in <lambda>
+    lambda: self.core_category().base_category()._core_automorphism_generators(self)
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/repos/sage-extensions/src/sage_extensions/categories/lattices.py", line 1849, in _core_automorphism_generators
+    return core_mor._computed_group_generators()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "sage/misc/cachefunc.pyx", line 2328, in sage.misc.cachefunc.CachedMethodCallerNoArgs.__call__
+    self.cache = f(self._instance)
+  File "/repos/sage-extensions/src/sage_extensions/categories/lattice_morphisms.py", line 3590, in _computed_group_generators
+    for generator in automorphism_group_generators(category, lattice)
+                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/marked_lattices.py", line 111, in automorphism_group_generators
+    generators = RECURSION.orthogonal_group_generators(marked)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/recursive.py", line 356, in orthogonal_group_generators
+    generators = self._generation_step(profile.signed_view)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/recursive.py", line 370, in _generation_step
+    vector = model.splitting_vector()
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 1040, in splitting_vector
+    representative = self.one_representative(square)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 965, in one_representative
+    for coset in envelope.right_coset_transversal():
+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "sage/misc/cachefunc.pyx", line 2328, in sage.misc.cachefunc.CachedMethodCallerNoArgs.__call__
+    self.cache = f(self._instance)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 488, in right_coset_transversal
+    coset_space = self.stabilizer_of_lattice().right_cosets()
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "sage/misc/cachefunc.pyx", line 2328, in sage.misc.cachefunc.CachedMethodCallerNoArgs.__call__
+    self.cache = f(self._instance)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 464, in stabilizer_of_lattice
+    generators = tuple(_isometry_from_row_matrix(rational_envelope, generator) for generator in OrbitCoverModel.source_generator_matrices(self.model))
+                 ^^^^^
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 464, in <genexpr>
+    generators = tuple(_isometry_from_row_matrix(rational_envelope, generator) for generator in OrbitCoverModel.source_generator_matrices(self.model))
+                       ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/eichler.py", line 74, in _isometry_from_row_matrix
+    return checked_row_isometry(lattice, lattice, rows)
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/recursive.py", line 154, in _isometry_from_row_matrix
+    source_coordinates = tuple(int(coordinates(label)) for label in source_labels)
+                         ^^^^^
+  File "/repos/sage-indefinite-port/src/sage_indefinite_port/indefinite/recursive.py", line 154, in <genexpr>
+    source_coordinates = tuple(int(coordinates(label)) for label in source_labels)
+                               ~~~^^^^^^^^^^^^^^^^^^^^
+TypeError: int() argument must be a string, a bytes-like object or a real number, not 'OwnedJoinCategory.element_class'
+[peakrss] imgimports2: child waited=1 shell_code=1 samples=34
+[peakrss] peak tree RSS      : 3608 MiB
+[peakrss] low-water MemAvail : 5244 MiB
+[peakrss] peak single VmHWM  : 3622 MiB
+[peakrss] peak VmHWM by executable (this is the per-process attribution):
+[peakrss]   julia                      3179 MiB peak
+[peakrss]   python                      416 MiB peak
+[peakrss]   python3                      23 MiB peak
+[peakrss]   bwrap                         2 MiB peak
+[peakrss]   t=    60.1s procs=  5 rss=  3608 MiB hwm=  3619 MiB avail=  5462 MiB
+[peakrss]   t=    36.0s procs=  5 rss=  3604 MiB hwm=  3619 MiB avail=  5436 MiB
+[peakrss]   t=    38.0s procs=  5 rss=  3604 MiB hwm=  3619 MiB avail=  5440 MiB
+[peakrss]   t=    40.0s procs=  5 rss=  3604 MiB hwm=  3619 MiB avail=  5371 MiB
+[peakrss]   t=    42.0s procs=  5 rss=  3604 MiB hwm=  3619 MiB avail=  5244 MiB

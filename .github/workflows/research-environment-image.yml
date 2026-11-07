@@ -343,13 +343,12 @@ jobs:
 
             `safe.directory` is stated for the path being read, and it is a trust decision this
             job is entitled to make: the checkout is the job's own, created by its runner minutes
-            earlier, and the ownership mismatch is an artifact of the container mount. The run's
-            log shows the runner adding exactly this on the host
-            (`git config --global --add safe.directory /__w/sage/sage`) and creating the workspace
-            `.git` there, while `git -C /repos/...` succeeds in the same container -- so a
-            container-side read of that path is the condition git 128 names. Stating it here is
-            not a skipped check: the revision is still read and still verified below, and an
-            unreadable one still fails the step.
+            earlier. The **hypothesis** for the 128 in run 42379122786 is ownership: the log shows
+            the runner adding `safe.directory /__w/sage/sage` on the host and creating that
+            workspace `.git` there, while `git -C /repos/...` succeeds in the same container. The
+            run's stderr was never captured, so that is a hypothesis and not a finding. Stating
+            the directory is not a skipped check: the revision is still read and still verified
+            below, and an unreadable one still fails the step, printing git's words.
             """
             finished = subprocess.run(
                 ["git", "-c", f"safe.directory={checkout}", "-C", str(checkout), "rev-parse", "HEAD"],
@@ -381,20 +380,44 @@ jobs:
             raw = distribution(name).read_text("direct_url.json")
             print(f"{name}: direct_url.json commit_id {json.loads(raw).get('vcs_info', {}).get('commit_id') if raw else None}")
             shipped = Path("/repos") / name
-            if shipped.is_dir():
-                found, complaint = head(shipped)
-                assert found is not None, f"{name}: the image's {shipped} is unreadable: {complaint}"
-                print(f"{name}: image checkout {shipped} at {found}, held {held[name]}")
-                assert found == held[name], f"{name}: the image's checkout is {found}, the lock holds {held[name]}"
+            # Required, not conditional. A checkout that is not there is a failed obligation, and
+            # no path through this block may end without the image's revision read and asserted.
+            assert shipped.is_dir(), f"{name}: the image ships no checkout at {shipped}"
+            found, complaint = head(shipped)
+            assert found is not None, f"{name}: the image's {shipped} is unreadable: {complaint}"
+            print(f"{name}: image checkout {shipped} at {found}, held {held[name]}")
+            assert found == held[name], f"{name}: the image's checkout is {found}, the lock holds {held[name]}"
             print(f"{name}: imported from {module.__file__}")
             checkout = checkout_of(module)
             assert checkout is not None, f"{name}: no checkout holds {module.__file__}"
             found, complaint = head(checkout)
             assert found is not None, f"{name}: the imported checkout {checkout} is unreadable: {complaint}"
-            if shipped.is_dir() and checkout == shipped:
+            if checkout == shipped:
                 print(f"{name}: the import is the image's copy")
             else:
                 print(f"{name}: the import is the consumer checkout {checkout} at {found}")
+
+        # The generator call is a statement about the image's own components, so it runs where
+        # those are the imports. The step above installs the workflow's sage-extensions checkout
+        # editable for the separate owner-contract observation, and in run 42379122786 that
+        # shadowed the image's provider: `sage_extensions` resolved to /__w/sage/sage/src/... The
+        # path is therefore set here, and the imports are asserted rather than assumed.
+        PYTHONPATH="/repos/sage-extensions/src:/repos/sage-indefinite-port/src${PYTHONPATH:+:$PYTHONPATH}" \
+          /sage/.venv/bin/python - <<'COMPUTE'
+        import time
+        from pathlib import Path
+        from sage.all import CartanMatrix, ZZ, block_diagonal_matrix, matrix
+        from sage_extensions.all import Lattices
+        import sage_extensions
+        import sage_indefinite_port
+
+        for module, shipped in ((sage_extensions, "/repos/sage-extensions"),
+                                (sage_indefinite_port, "/repos/sage-indefinite-port")):
+            path = Path(module.__file__).resolve()
+            assert str(path).startswith(shipped + "/"), (
+                f"{module.__name__} came from {path}, not the image's {shipped}"
+            )
+            print(f"{module.__name__}: {path}")
 
         # T_Co = <2> + U(2) + E8(2): rank 11, determinant -2048, signature (2, 9).
         U = matrix(ZZ, [[0, 1], [1, 0]])
@@ -413,7 +436,7 @@ jobs:
         started = time.time()
         assert L.discriminant_representation_is_surjective() is True
         print(f"discriminant_representation_is_surjective(): True in {time.time() - started:.1f}s")
-        PY
+        COMPUTE
 
       # Stage-1 acceptance is that the published counts reproduce inside the published
       # image, not on a PYTHONPATH binding to a working tree. The module is run from the
