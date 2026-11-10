@@ -131,12 +131,15 @@ class Image:
         lean_project(directory, pinned, packages_dir, toolchain)
         return directory
 
-    def run(self, *arguments: str) -> subprocess.CompletedProcess:
+    def run(self, *arguments: str, revision: str | None = None,
+            path: str = "/usr/bin:/bin:/usr/local/bin") -> subprocess.CompletedProcess:
+        """The script as the image build runs it: this build's resolved head passed in."""
         return subprocess.run(
             ["bash", str(SCRIPT), str(self.repos), *arguments],
             capture_output=True, text=True, check=False,
             env={
-                "PATH": "/usr/bin:/bin:/usr/local/bin",
+                "PATH": path,
+                "MATHLIB_REVISION": revision if revision is not None else self.revision,
                 "MATHLIB_PROJECT": str(self.project),
                 "MATHLIB_RECORD": str(self.record),
                 "LAKE_PACKAGES": str(self.lake_packages),
@@ -211,33 +214,41 @@ def test_a_package_no_one_carries_is_fetched_into_one_clone_per_revision(image):
     assert "FETCH" not in again.stdout
 
 
-def test_a_pin_the_image_does_not_carry_is_named_with_both_revisions(image):
-    """sage#13: the checkout does not follow the image, and the run says which two."""
+def test_a_pin_the_image_does_not_carry_is_reported_not_failed(image):
+    """The image's own run reports a checkout that lags; it does not fail for it.
+
+    Holding a Lean repository to the image is that repository's CI
+    (lean-categories#118, lean-cas-dsl#90), so the image build logs the two
+    revisions and carries on.
+    """
     other = "b" * 40
     repository = image.checkout("lean-cas-dsl", {"mathlib": other})
     result = image.run()
     assert result.returncode == 0, result.stderr
     assert (
-        f"error: {repository} pins mathlib at {other} and the image carries {image.revision}"
-        in result.stderr
-    ), result.stderr
-    assert "does not follow the image" in result.stderr
+        f"note: {repository} pins mathlib at {other} and the image carries {image.revision}"
+        in result.stdout
+    ), result.stdout
+    assert "does not follow the image" in result.stdout
+    assert "1 checkout pin(s) do not follow it" in result.stdout
+    assert not result.stderr.strip(), result.stderr
     assert not (repository / ".lake" / "packages" / "mathlib").exists(), (
         "a disagreeing pin must not be linked to the image's revision"
     )
 
 
 def test_no_second_toolchain(image):
-    """A checkout on another Lean release does not follow the image either."""
+    """A checkout on another Lean release is reported, and no toolchain is installed."""
     repository = image.checkout(
         "lean-old", {"mathlib": image.revision}, toolchain="leanprover/lean4:v4.33.0"
     )
     result = image.run()
     assert result.returncode == 0, result.stderr
     assert (
-        f"error: {repository} pins toolchain leanprover/lean4:v4.33.0 and the image has {TOOLCHAIN}"
-        in result.stderr
-    ), result.stderr
+        f"note: {repository} pins toolchain leanprover/lean4:v4.33.0 and the image has {TOOLCHAIN}"
+        in result.stdout
+    ), result.stdout
+    assert "1 checkout pin(s) do not follow it" in result.stdout
 
 
 def test_a_stale_link_is_removed_when_the_pin_moves(image):
@@ -253,20 +264,23 @@ def test_a_stale_link_is_removed_when_the_pin_moves(image):
 
 
 def test_a_project_at_another_revision_is_a_failed_image_not_a_warning(image):
-    """A project that is not what the record says is a defect, and stops the run."""
+    """The record names one revision, the tree is at another: a broken image."""
     image.checkout("lean-categories", {"mathlib": image.revision})
-    image.revision = commit(image.project, "moved")
-    result = image.run()
+    moved = commit(image.project, "moved")
+    # The build resolved what the record names, and the tree is somewhere else.
+    result = image.run(revision=image.revision)
+    assert moved != image.revision
     assert result.returncode == 1
     assert "does not carry one built project" in result.stderr, result.stderr
 
 
 def test_a_project_without_its_olean_is_a_failed_image(image):
+    """A record that claims a build the tree does not hold stops the run."""
     image.checkout("lean-categories", {"mathlib": image.revision})
     (image.project / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean").unlink()
     result = image.run()
     assert result.returncode == 1
-    assert "no Mathlib.olean" in result.stderr, result.stderr
+    assert "carries no built Mathlib" in result.stderr, result.stderr
 
 
 def test_no_lean_checkout_is_reported_rather_than_passing_quietly(image):
@@ -344,7 +358,8 @@ def test_a_build_with_no_project_resolves_the_head_and_records_it(image, tmp_pat
 
 CHECK = REPOSITORY / "docker" / "research-environment-check.py"
 BLOCK_START = "# ---- the image's one shared Lean project (sage#13)"
-BLOCK_END = 'print("no Lean checkout under /repos; the shared project is asserted on its own")'
+BLOCK_END = 'print(f"import Mathlib in {project}: {elaborated.splitlines()[-1]}")'
+
 
 
 def lean_block(project: Path, record: Path, repos: Path, elan_settings: Path) -> str:
@@ -395,10 +410,12 @@ def fake_lean(stubs: Path) -> Path:
     stubs.mkdir(exist_ok=True)
     (stubs / "lake").write_text(
         "#!/bin/sh\n"
-        'case "$1 $2" in\n'
-        '  "env lean") echo "Lean (version 4.36.0-rc2, x86_64-unknown-linux-gnu)" ;;\n'
-        '  "build Mathlib") exit 0 ;;\n'
-        "esac\n"
+        'if [ "$1" = "env" ] && [ "$2" = "lean" ]; then\n'
+        '  case "$3" in\n'
+        '    ""|--version) echo "Lean (version 4.36.0-rc2, x86_64-unknown-linux-gnu)" ;;\n'
+        '    *) echo "Nat.add_comm : ∀ (a b : Nat), a + b = b + a" ;;\n'
+        "  esac\n"
+        "fi\n"
         "exit 0\n",
         encoding="utf-8",
     )
@@ -412,34 +429,38 @@ def fake_lean(stubs: Path) -> Path:
     return stubs
 
 
-def test_the_checks_lean_block_passes_a_checkout_that_follows_the_image(image, tmp_path):
+def test_the_checks_lean_block_validates_the_images_own_project(image, tmp_path):
     image.checkout("lean-categories", {"mathlib": image.revision})
     result = run_check(image, fake_lean(tmp_path / "stubs"))
     assert result.returncode == 0, result.stdout + result.stderr
     assert f"the shared Lean project: mathlib {image.revision[:12]}" in result.stdout
-    assert "lake env lean --version" in result.stdout
-    assert "lean-categories: mathlib" in result.stdout
-    assert "import Mathlib" in result.stdout
+    assert f"lake env lean --version in {image.project}" in result.stdout
+    assert f"lake build Mathlib in {image.project}: exit 0" in result.stdout
+    assert f"import Mathlib in {image.project}: Nat.add_comm" in result.stdout
+    assert "lean-categories" not in result.stdout, "the check no longer reads the checkouts"
     assert not result.stderr.strip(), result.stderr
 
 
-def test_the_checks_lean_block_fails_and_names_both_revisions(image, tmp_path):
+def test_a_lagging_checkout_is_not_the_images_failure(image, tmp_path):
+    """Item 2: a repository that lags fails in its own CI, never in the image's run."""
     other = "d" * 40
-    repository = image.checkout("lean-cas-dsl", {"mathlib": other})
+    image.checkout("lean-cas-dsl", {"mathlib": other})
     result = run_check(image, fake_lean(tmp_path / "stubs"))
-    assert result.returncode == 1, result.stdout + result.stderr
-    assert (
-        f"error: {repository} pins mathlib at {other} and the image carries {image.revision}"
-        in result.stderr
-    ), result.stderr
-    assert "the image's Lean checkouts do not follow the image" in result.stderr
-    assert "lean-categories#118" in result.stderr
-
-
-def test_the_flag_the_build_passes_publishes_with_the_disagreement_reported(image, tmp_path):
-    other = "e" * 40
-    repository = image.checkout("lean-cas-dsl", {"mathlib": other})
-    result = run_check(image, fake_lean(tmp_path / "stubs"), "--allow-lagging-lean-checkouts")
     assert result.returncode == 0, result.stdout + result.stderr
-    assert f"error: {repository} pins mathlib at {other}" in result.stderr
-    assert "warning: 1 checkout pin(s) disagree with the image" in result.stdout
+    assert "does not follow" not in result.stdout + result.stderr
+    assert other not in result.stdout + result.stderr
+
+
+def test_the_removed_flag_is_no_longer_accepted(image, tmp_path):
+    result = run_check(image, fake_lean(tmp_path / "stubs"), "--allow-lagging-lean-checkouts")
+    assert result.returncode != 0
+    assert "unknown argument" in result.stderr, result.stderr
+
+
+def test_a_project_whose_record_disagrees_with_the_tree_fails_the_check(image, tmp_path):
+    """The check validates what the image carries, and a broken project is a failure."""
+    moved = commit(image.project, "moved")
+    assert moved != image.revision
+    result = run_check(image, fake_lean(tmp_path / "stubs"))
+    assert result.returncode != 0, result.stdout
+    assert image.revision in result.stderr, result.stderr

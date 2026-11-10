@@ -160,18 +160,26 @@ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
 ```
 
 `ELAN_HOME` is the only environment it needs beyond the runner's `PATH`, and it
-speaks for itself in the working directory: it walks `/repos` itself. It keeps the
-shared Lean project the image carries — resolving the Mathlib head only when there
-is none — links each checkout's Mathlib pins to it, and stops unless Mathlib is
-loadable. No second toolchain is added, no Mathlib revision is cloned twice, and no
-consumer checkout is edited.
+speaks for itself in the working directory: it walks `/repos` itself. It moves the
+shared Lean project to the head of mathlib4 master — as a build does — or keeps the
+revision `MATHLIB_REVISION` names, rebuilds its closure only if it moved, links each
+checkout's Mathlib pins to it, and stops unless Mathlib builds. No second toolchain
+is added, no Mathlib revision is cloned twice, and no consumer checkout is edited.
 
 **One shared Lean project, always on the latest Mathlib** (sage#13). The image carries
 exactly one Lean project — `mathlib4` at the head of `leanprover-community/mathlib4`
 master — on the toolchain that revision pins, with its whole dependency closure
-built inside it and Mathlib's oleans taken from the official cache. The build
-resolves that head, installs the toolchain the revision pins as elan's default, and
-records the revision and the toolchain in `/opt/lean-image.json`:
+built inside it and Mathlib's oleans taken from the official cache.
+
+Every build moves to that head, incremental builds included. The workflow reads the
+head when the build starts and passes it into the build
+(`MATHLIB_REVISION`, `results/mathlib-head-workflow.patch`), which makes it a build
+input: when the head has not moved, the steps that provision the project are a cache
+hit and the layer holding it is reused; when it has moved, they run and rebuild its
+closure. `docker/provision-lean-packages.sh` also compares the head with the record
+the image already carries, so a build that passes this way still writes nothing when
+the two agree. Provisioning installs the toolchain that revision pins as elan's
+default, and records the revision and the toolchain in `/opt/lean-image.json`:
 
 ```json
 {
@@ -185,13 +193,6 @@ records the revision and the toolchain in `/opt/lean-image.json`:
 }
 ```
 
-No tag and no revision is written into the provisioning: a build that has no
-project resolves the head at build time. An **incremental** build (`FROM` the
-published image) inherits the project its base carries and keeps it — otherwise
-every source push would rebuild Mathlib and its closure, which is the layer that
-dominates the image's pull time (`#9`). So the image moves to a new Mathlib head on
-a full build, and the record is what says which head it is on.
-
 Every Lean checkout under `/repos` resolves mathlib and its dependencies from that
 one project. Lake fixes a project's packages directory in its lakefile and records
 it in the manifest — `-K packagesDir=` is ignored, and a lakefile whose
@@ -201,21 +202,22 @@ declares: one link per package its manifest pins, pointing at the image's copy (
 project itself for `mathlib`, `/opt/mathlib/.lake/packages/<name>` for Mathlib's
 closure, `/repos/<name>` for a research package it requires, and
 `/opt/lake-packages/<name>@<revision>` — cloned once per revision, never built — for
-a package nothing in the image carries). Nothing in a checkout is edited: its
-manifest stays exactly what its repository published.
+a package nothing in the image carries). A link is made only when the target's
+`HEAD` is the pinned revision, and a link an earlier run left at another revision is
+removed. Nothing in a checkout is edited: its manifest stays exactly what its
+repository published.
 
-A pin the image does not carry is a disagreement, and the check says so, naming the
+A checkout that pins a revision the image does not carry — Mathlib or the toolchain
+— does not follow the image. Provisioning reports it in the build log, naming the
 checkout and both revisions:
 
-    error: /repos/lean-cas-dsl pins mathlib at db584cd6d46c… and the image carries
+    note: /repos/lean-cas-dsl pins mathlib at db584cd6d46c… and the image carries
     68dd2955f557…: the checkout does not follow the image
 
-The same holds for the toolchain — the image has one, and a checkout that pins
-another does not follow the image. The image's check fails on any such
-disagreement, and the build passes `--allow-lagging-lean-checkouts` so an image can
-be published while the Lean repositories catch up (the pin moves are
-lean-categories#118 and lean-cas-dsl#90). A consumer running the check gets the
-failure.
+and that is the whole of the image's interest in it. **The image's check validates
+the image's own shared project, and says nothing about the checkouts.** Holding a
+Lean repository to the image is that repository's own CI: lean-categories#118 and
+lean-cas-dsl#90.
 
 Readback, from the shared project and from a checkout that follows it:
 
@@ -230,12 +232,15 @@ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
 ```
 
 An unpacked image reaches the same state by running the same script; `--dry-run`
-prints what it would link without touching anything:
+prints what it would do without touching anything. Pass the revision the image
+already carries to keep it where it is — without it the script moves the image to the
+head of master, as a build does:
 
 ```sh
 python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
   --bind docker/provision-lean-packages.sh:/opt/provision-lean-packages.sh \
   --env ELAN_HOME=/opt/elan \
+  --env MATHLIB_REVISION="$(cat ~/sage-image/rootfs/opt/lean-image.json | python3 -c 'import json,sys; print(json.load(sys.stdin)["revision"])')" \
   -- /bin/bash /opt/provision-lean-packages.sh /repos --dry-run
 ```
 

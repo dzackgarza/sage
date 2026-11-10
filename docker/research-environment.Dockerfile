@@ -344,21 +344,25 @@ ENV CCACHE_DIR=/ccache
 # head of its master branch, on the toolchain that revision pins, with its closure
 # built inside it -- and install-research-repositories.sh provisions it and binds
 # every Lean checkout under /repos to it (docker/provision-lean-packages.sh). No
-# revision is written there: the build resolves the head, and records it.
+# revision is written here: every build resolves the head, and records it.
 ENV ELAN_HOME=/opt/elan
 ENV PATH=/opt/elan/bin:$PATH
 RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
     | sh -s -- -y --no-modify-path --default-toolchain none \
  && elan --version
 
+# The Mathlib head this build carries. The workflow reads it when the build starts
+# and passes it here, which is what makes the head a build input: unchanged, the
+# steps below are a cache hit and their layer is reused; moved, they run and rebuild
+# the closure. Without it the provisioning script reads the head itself.
+ARG MATHLIB_REVISION=
+
 # The recipe: the Sage virtual environment, then every research checkout, the
 # bridge's julia-deps, sage-categories' GAP releases, and the shared Lean project
-# with every checkout bound to it. A build with no project inherits none, so this
-# is where a full build resolves the current Mathlib head; an incremental build
-# inherits the project its base carries and keeps it, which is what stops a source
-# push from rebuilding Mathlib and its closure.
+# with every checkout bound to it.
 RUN --mount=type=cache,target=/ccache \
-    just research-environment-sync && ccache --show-stats
+    echo "mathlib head for this build: ${MATHLIB_REVISION:-read by the provisioning script}" \
+ && just research-environment-sync && ccache --show-stats
 
 # Resolve what the installed distributions require into the depot, so no later
 # import has anything left to fetch: sage_categories pins Catlab =0.17.6 and GATlab
@@ -379,13 +383,9 @@ COPY --from=environment /sage/uv.lock /uv.lock
 FROM environment
 
 # Fail the build if any system the image exists to provide is absent. The Lean part
-# asserts the one shared project -- the recorded revision is the one checked out,
-# the toolchain is the one that revision pins, the closure is built in it -- and
-# then `import Mathlib` in every Lean checkout, from that project.
-#
-# --allow-lagging-lean-checkouts: a checkout whose Mathlib pin disagrees with the
-# image does not follow it, and the check reports each of those loudly (sage#13).
-# The pin moves belong to the Lean repositories (lean-categories#118,
-# lean-cas-dsl#90), so the image publishes while they land; a consumer running the
-# check without this flag gets the failure. Remove the flag once they have.
-RUN "$SAGE_BIN" docker/research-environment-check.py --allow-lagging-lean-checkouts
+# asserts the image's own shared project -- the recorded revision is the one checked
+# out, the toolchain is the one that revision pins, the closure and Mathlib's olean
+# are built in it, and `import Mathlib` elaborates there -- and says nothing about
+# whether a checkout under /repos agrees with it: that is each Lean repository's own
+# CI (lean-categories#118, lean-cas-dsl#90).
+RUN "$SAGE_BIN" docker/research-environment-check.py

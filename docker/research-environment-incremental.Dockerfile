@@ -75,8 +75,15 @@ RUN purged="$(dpkg-query -W -f='${Package} ${Status}\n' 'gap*' 'libgap*' 2>/dev/
 # RELOCK=true first moves the git-sourced research packages to their heads; the
 # sync then installs that lock, and the `lock` stage below exports it.
 ARG RELOCK=false
+# The Mathlib head this build carries, resolved by the workflow when the build
+# started. It is an input to the sync below, so an unchanged head is a cache hit and
+# the layer holding the shared Lean project is reused; a moved head runs the sync,
+# which rebuilds that project's closure and nothing else (`docker/
+# provision-lean-packages.sh` compares the head with the record the base carries).
+ARG MATHLIB_REVISION=
 RUN --mount=type=cache,target=/ccache \
-    if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
+    echo "mathlib head for this build: ${MATHLIB_REVISION:-read by the provisioning script}" \
+ && if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
  && just research-environment-sync && ccache --show-stats
 
 FROM scratch AS lock

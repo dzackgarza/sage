@@ -1,5 +1,12 @@
 # image#13: one shared Lean project, always on the latest Mathlib
 
+> **Superseded in two points** by the owner's decision of 2026-11-10, implemented in
+> `results/image-13-head-per-build.md`: every build now resolves the Mathlib head
+> (incremental builds included, rebuilding the closure only when it moved), and the
+> image's check validates the image's own project only, with
+> `--allow-lagging-lean-checkouts` deleted. The sections below that describe an
+> incremental build keeping its project, and the flag, are history.
+
 Owner's decision (issue body, 2026-11-10): the image carries exactly one Lean
 project, `mathlib4` at the head of `leanprover-community/mathlib4` master, on the
 toolchain that revision pins, with its whole dependency closure built inside it and
