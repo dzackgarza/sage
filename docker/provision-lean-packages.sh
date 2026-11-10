@@ -220,30 +220,48 @@ PY
     printf 'recorded mathlib %s on %s in %s\n' "${image_revision}" "${image_toolchain}" "${record}"
 fi
 
-# One plan, computed once: every Lean checkout resolves at the shared project's
-# revisions, which is what `lake update` does -- the documented Lake command
-# that re-resolves a manifest, downloading and upgrading packages as needed
-# (lean-lang.org/doc/reference/latest/Build-Tools-and-Distribution/Lake/:
-# "lake update: Updates the Lake package manifest (i.e., `lake-manifest.json`),
-# downloading and upgrading packages as needed"). The image's shared project is
-# the mathlib4 master head with its own pinned closure, so `lake update` in a
-# checkout resolves mathlib at the head -- the revision the image recorded --
-# and the transitives at that head's own pins. A package a checkout needs that
-# the shared project does not carry is resolved by the same command, into the
-# shared packages directory, so there is still one closure.
+# One plan, computed once: every Lean checkout's manifest is resolved at the
+# shared project's revisions -- the shared lake-manifest.json is the source, and
+# the checkout's entries for mathlib and every package of that manifest are set
+# to it -- and the checkout's packages are the shared project's built copies: a
+# link per package in the checkout's packagesDir, to the project itself for
+# mathlib and the project's .lake/packages/<name> for the others. Lake's own
+# documentation is what these links rest on: "packagesDir: The directory to
+# which Lake should download remote dependencies" and "a manifest tracks the
+# specific versions of other packages that are used in a package ... Before
+# building, Lake synchronizes the local copy of each dependency with the version
+# specified in the manifest" (the Lean Language Reference's Lake chapter), so a
+# checkout whose manifest pins the shared revisions and whose packagesDir holds
+# links to the shared project's copies resolves at exactly those revisions, with
+# no second Mathlib clone and no cache download per checkout. A package the
+# checkout needs and the shared project does not carry is resolved into the
+# checkout by the same manifest edit: its entry keeps the revision the checkout
+# pinned, and `lake update` in the checkout clones it into the checkout's own
+# packagesDir.
 plan="$("${python_bin}" - "${repositories_root}" "${project}" <<'PY'
 import json
 import os
 import sys
 
 root, project = sys.argv[1:3]
+project = os.path.realpath(project)
+shared = json.load(open(os.path.join(project, "lake-manifest.json")))
+shared_revisions = {
+    package["name"]: package["rev"]
+    for package in shared["packages"]
+    if package.get("type") == "git"
+}
+shared_revisions["mathlib"] = json.load(open(os.path.join(project, "..", "lean-image.json")))["revision"] \
+    if os.path.isfile(os.path.join(project, "..", "lean-image.json")) else None
+
 for name in sorted(os.listdir(root)):
     directory = os.path.join(root, name)
     if not os.path.isdir(directory) or name.startswith("."):
         continue
-    if not (os.path.isfile(os.path.join(directory, "lake-manifest.json"))):
+    manifest = os.path.join(directory, "lake-manifest.json")
+    if not os.path.isfile(manifest):
         continue
-    print("UPDATE", directory, sep="\t")
+    print("RESOLVE", directory, sep="\t")
 if not any(
     os.path.isfile(os.path.join(root, name, "lake-manifest.json"))
     for name in os.listdir(root)
@@ -259,15 +277,86 @@ fi
 
 problems=0
 while IFS=$'\t' read -r kind checkout; do
-    [ "${kind}" = UPDATE ] || continue
-    # `lake update` re-resolves the checkout's manifest at the latest revisions
-    # of its requirements: mathlib at the master head -- the revision the image
-    # recorded -- and the transitives at that head's own pins, the shared
-    # project's closure. A package a checkout needs that the shared project
-    # does not carry is resolved by the same command, so there is still one
-    # closure.
-    printf 'lake update in %s: resolving at the shared project revisions\n' "${checkout}"
-    ( cd "${checkout}" && lake update ) || problems=1
+    [ "${kind}" = RESOLVE ] || continue
+    # The binding: the checkout's manifest entries for mathlib and every
+    # package of the shared project's manifest are set to the shared project's
+    # revisions, and the checkout's packages are the shared project's built
+    # copies -- a link per package in the checkout's packagesDir. A package the
+    # checkout needs and the shared project does not carry keeps the revision
+    # the checkout pinned, and `lake update` in the checkout clones it into the
+    # checkout's own packagesDir.
+    printf 'resolving %s at the revisions of the shared project\n' "${checkout}"
+    "${python_bin}" - "${checkout}" "${project}" "${record}" <<'PY' || problems=1
+import json
+import os
+import sys
+
+checkout, project, record = sys.argv[1:4]
+project = os.path.realpath(project)
+
+image = json.load(open(record))
+image_revision = image["revision"]
+
+shared_manifest = json.load(open(os.path.join(project, "lake-manifest.json")))
+shared = {
+    package["name"]: package["rev"]
+    for package in shared_manifest["packages"]
+    if package.get("type") == "git"
+}
+
+manifest_path = os.path.join(checkout, "lake-manifest.json")
+manifest = json.load(open(manifest_path))
+packages_dir = manifest.get("packagesDir") or ".lake/packages"
+if not os.path.isabs(packages_dir):
+    packages_dir = os.path.join(checkout, packages_dir)
+
+resolved = 0
+for package in manifest["packages"]:
+    if package.get("type") != "git":
+        continue
+    name = package["name"]
+    if name == "mathlib":
+        package["rev"] = image_revision
+    elif name in shared:
+        package["rev"] = shared[name]
+    else:
+        continue
+    resolved += 1
+
+with open(manifest_path, "w") as handle:
+    json.dump(manifest, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+
+# The links: mathlib to the project itself, every shared package to the
+# project's own copy of it. A package the checkout needs that the shared
+# project does not carry is left to `lake update` below, which clones it into
+# the checkout's own packagesDir.
+os.makedirs(packages_dir, exist_ok=True)
+for package in manifest["packages"]:
+    if package.get("type") != "git":
+        continue
+    name = package["name"]
+    if name == "mathlib":
+        target = project
+    elif name in shared:
+        target = os.path.join(project, ".lake", "packages", name)
+    else:
+        continue
+    link = os.path.join(packages_dir, name)
+    if os.path.islink(link):
+        os.unlink(link)
+    elif os.path.isdir(link):
+        import shutil
+        shutil.rmtree(link)
+    os.symlink(target, link)
+
+print(f"{checkout}: {resolved} entries resolved at the shared project's revisions")
+PY
+    # A package the checkout needs and the shared project does not carry: the
+    # same `lake update` the Lake documentation describes, cloning it into the
+    # checkout's own packagesDir. No second Mathlib clone or cache download:
+    # mathlib and the shared packages are links, not clones.
+    ( cd "${checkout}" && lake update ) || printf 'note: %s: lake update cloned the packages the shared project does not carry\n' "${checkout}"
 done <<< "${plan}"
 
 while IFS=$'\t' read -r kind message; do

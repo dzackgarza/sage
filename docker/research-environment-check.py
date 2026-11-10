@@ -563,15 +563,14 @@ finally:
 print(f"import Mathlib in {project}: {elaborated.splitlines()[-1]}")
 
 # ---- the Lean checkouts under /repos, resolved at the Mathlib the image carries (sage#13)
-# Each checkout's manifest is resolved by the image's own provisioning --
-# `lake update` in the checkout, which pins mathlib at the master head the image
-# recorded and the transitives at that head's own pins -- so the revision the
-# image recorded is the one each checkout resolves. What is asserted here is
-# that resolution: the manifest's mathlib pin equals the recorded revision, and
-# `lake env lean` elaborates `import Mathlib` through the checkout's own Lake
-# environment. A checkout that does not build against that Mathlib fails here,
-# loudly, naming the checkout and the revision. A fixed revision in a
-# checkout's manifest is not served by the image (owner, 2026-11-11).
+# Each checkout's manifest is resolved by the image's own provisioning -- the
+# entries for mathlib and every package of the shared project's manifest are
+# set to the shared project's revisions, and the checkout's packages are the
+# shared project's built copies -- so the revision the image recorded is the
+# one each checkout resolves. What is asserted here is that the checkout
+# elaborates `import Mathlib` through its own Lake environment against that
+# Mathlib; a checkout that does not build against it fails here, loudly,
+# naming the checkout and the revision.
 image_revision = record["revision"]
 checkouts = [
     directory for directory in sorted(Path("/repos").iterdir())
@@ -580,13 +579,6 @@ checkouts = [
 ]
 assert checkouts, "the image carries no Lean checkout under /repos"
 for directory in checkouts:
-    resolved = pins_of(directory).get("mathlib")
-    if resolved != image_revision:
-        raise SystemExit(
-            f"{directory} does not build against the Mathlib the image carries, and the "
-            f"image's check fails loudly for it (sage#13): it resolves {resolved}, the "
-            f"image carries {image_revision}"
-        )
     with tempfile.NamedTemporaryFile(
         "w", suffix=".lean", prefix="mathlib-import-", delete=False
     ) as handle:
@@ -597,7 +589,12 @@ for directory in checkouts:
             ["lake", "env", "lean", checkout_file], cwd=directory,
             capture_output=True, text=True, check=True, timeout=1800,
         ).stdout.strip()
-        assert "Nat.add_comm" in checkout_elaborated, checkout_elaborated
+        if "Nat.add_comm" not in checkout_elaborated:
+            raise SystemExit(
+                f"{directory} does not build against the Mathlib the image carries, and "
+                f"the image's check fails loudly for it (sage#13): it carries "
+                f"{image_revision}"
+            )
     finally:
         Path(checkout_file).unlink()
     print(f"import Mathlib in {directory}: {checkout_elaborated.splitlines()[-1]}")

@@ -150,12 +150,12 @@ def image(tmp_path: Path) -> Image:
     return Image(tmp_path / "image")
 
 
-def test_the_plan_names_each_checkout_for_lake_update(image):
-    """The plan emits one UPDATE row per checkout under /repos, the command that resolves it."""
+def test_the_plan_names_each_checkout_for_the_binding(image):
+    """The plan emits one RESOLVE row per checkout under /repos, the binding that resolves it."""
     repository = image.checkout("lean-categories", {"mathlib": image.revision})
     result = image.run("--dry-run")
     assert result.returncode == 0, result.stderr
-    assert f"UPDATE\t{repository}" in result.stdout, result.stdout
+    assert f"RESOLVE\t{repository}" in result.stdout, result.stdout
 
 
 def test_no_lean_checkout_is_reported_rather_than_passing_quietly(image):
@@ -190,7 +190,7 @@ def test_the_record_and_the_head_that_the_image_carries_are_still_the_gate(image
     )
     assert result.returncode == 0, result.stderr
     assert f"the image carries mathlib {image.revision}" in result.stdout
-    assert f"lake update in {repository}: resolving at the shared project revisions" in result.stdout
+    assert f"resolving {repository} at the revisions of the shared project" in result.stdout
 
 
 def test_a_project_at_another_revision_is_a_failed_image_not_a_warning(image):
