@@ -427,10 +427,13 @@ subprocess.run(
 # and Mathlib's oleans from the official cache.
 # docker/provision-lean-packages.sh resolves that head on every build, compares it
 # with this record, and rebuilds the closure only when it moved; what this check
-# validates is the project the image carries, and nothing else. Whether a Lean
-# checkout under /repos agrees with it is that repository's own CI's business
-# (lean-categories#118, lean-cas-dsl#90): a lagging repository fails there, never
-# here.
+# validates is the project the image carries -- and, since sage#13's acceptance
+# asks it, the Lean checkouts under /repos against that project: each one that
+# follows the image elaborates `import Mathlib` through its own Lake
+# environment here, and a checkout whose pin disagrees fails this check loudly,
+# naming the checkout and both revisions. Following the image is still filed in
+# the owning repositories (lean-categories#118, lean-cas-dsl#90); what this check
+# adds is the image's own half of that contract.
 import json
 
 unknown = [word for word in sys.argv[1:] if word.startswith("-")]
@@ -558,6 +561,53 @@ try:
 finally:
     Path(import_file).unlink()
 print(f"import Mathlib in {project}: {elaborated.splitlines()[-1]}")
+
+# ---- the Lean checkouts under /repos, against the one shared project (sage#13)
+# The acceptance of sage#13: `lake build` of a file containing `import Mathlib`
+# succeeds in each Lean checkout under /repos once it follows the image, and a
+# checkout whose pin disagrees with the image fails the image's check loudly,
+# naming the checkout and both revisions. A checkout follows the image when its
+# mathlib pin is the revision the image resolved and every closure pin is the
+# shared project's own; the probe is the same import a consumer writes,
+# elaborated through the checkout's own Lake environment.
+image_revision = record["revision"]
+project_pins = pins_of(project)
+checkouts = [
+    directory for directory in sorted(Path("/repos").iterdir())
+    if directory.is_dir() and not directory.name.startswith(".")
+    and (directory / "lake-manifest.json").is_file()
+]
+assert checkouts, "the image carries no Lean checkout under /repos"
+for directory in checkouts:
+    pins = pins_of(directory)
+    follows = pins.get("mathlib") == image_revision and all(
+        project_pins.get(name) == revision for name, revision in pins.items()
+    )
+    if not follows:
+        disagreeing = [
+            f"{name}: the checkout pins {revision}, the image carries {project_pins.get(name)}"
+            for name, revision in sorted(pins.items())
+            if name == "mathlib" and revision != image_revision
+            or name != "mathlib" and project_pins.get(name) != revision
+        ]
+        raise SystemExit(
+            f"{directory} does not follow the image, and the image's check fails loudly "
+            f"for it (sage#13): {'; '.join(disagreeing)}"
+        )
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".lean", prefix="mathlib-import-", delete=False
+    ) as handle:
+        handle.write("import Mathlib\n#check (Nat.add_comm : \u2200 a b : Nat, a + b = b + a)\n")
+        checkout_file = handle.name
+    try:
+        checkout_elaborated = subprocess.run(
+            ["lake", "env", "lean", checkout_file], cwd=directory,
+            capture_output=True, text=True, check=True, timeout=1800,
+        ).stdout.strip()
+        assert "Nat.add_comm" in checkout_elaborated, checkout_elaborated
+    finally:
+        Path(checkout_file).unlink()
+    print(f"import Mathlib in {directory}: {checkout_elaborated.splitlines()[-1]}")
 
 # ---- the document toolchain the project sites build with (sage#22) ----------
 # Both site builds outside the image install this at every run, so the image carries
