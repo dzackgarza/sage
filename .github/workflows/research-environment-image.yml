@@ -29,6 +29,7 @@ on:
     - docker/relock-research-packages.sh
     - docker/research-environment-check.py
     - docker/install-research-repositories.sh
+    - docker/provision-lean-packages.sh
     - docker/research-repositories.txt
     - .github/workflows/research-environment-image.yml
   workflow_dispatch:
