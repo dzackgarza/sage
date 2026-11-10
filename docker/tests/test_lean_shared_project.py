@@ -176,6 +176,51 @@ def test_mathlibs_closure_is_the_projects_and_is_linked_too(image):
     assert link.resolve() == (image.project / ".lake" / "packages" / "batteries").resolve()
 
 
+def test_two_checkouts_of_one_package_revision_reuse_one_clone(image):
+    """A second checkout of one revision reuses the clone the first made (sage#23).
+
+    The plan asks for a package revision once per checkout that pins it, and
+    the store holds it after the first ask: a second clone into the existing
+    destination dies with `fatal: destination path ... already exists and is
+    not an empty directory`, which is what stopped image runs 42870898584 and
+    42877714139 in the publish step. The sync owes the shared store a reuse.
+    """
+    # A real repository, so the fetch is exercised rather than described.
+    upstream = image.root / "upstream" / "BrauerGroup"
+    revision = commit(upstream, "BrauerGroup")
+
+    def pin(directory: Path) -> None:
+        (directory / "lake-manifest.json").write_text(
+            json.dumps(
+                {
+                    "version": "1.1.0",
+                    "packagesDir": ".lake/packages",
+                    "packages": [
+                        {"name": "mathlib", "type": "git",
+                         "url": "https://example.invalid/mathlib4", "rev": image.revision},
+                        {"name": "BrauerGroup", "type": "git",
+                         "url": str(upstream), "rev": revision},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    first = image.checkout("lean-categories", {"mathlib": image.revision})
+    second = image.checkout("lean-cas-dsl", {"mathlib": image.revision})
+    pin(first)
+    pin(second)
+    result = image.run()
+    assert result.returncode == 0, result.stderr
+    clone = image.lake_packages / f"BrauerGroup@{revision}"
+    assert clone.is_dir(), result.stdout + result.stderr
+    assert git(clone, "rev-parse", "HEAD") == revision
+    for repository in (first, second):
+        link = repository / ".lake" / "packages" / "BrauerGroup"
+        assert link.is_symlink() and link.resolve() == clone.resolve(), result.stdout + result.stderr
+    assert "reused" in result.stdout, result.stdout
+
+
 def test_a_package_no_one_carries_is_fetched_into_one_clone_per_revision(image):
     """checkdecls is neither Mathlib's nor a checkout's: one clone, shared by its pins."""
     # A real repository, so the fetch is exercised rather than described.

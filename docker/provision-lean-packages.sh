@@ -297,7 +297,16 @@ while IFS=$'\t' read -r kind checkout package_name revision url; do
     [ "${kind}" = FETCH ] || continue
     target="${lake_packages}/${package_name}@${revision}"
     mkdir -p "${lake_packages}"
-    git clone --quiet --filter=blob:none "${url}" "${target}"
+    if [ -d "${target}" ]; then
+        # A revision an earlier row of this plan already cloned, or one the
+        # shared store carried before the build, is reused: two checkouts can
+        # pin one revision, and git clone refuses a destination that exists
+        # and is not empty (sage#23).
+        printf 'reused %s: the shared store already carries %s at %s\n' \
+            "${target}" "${package_name}" "${revision}"
+    else
+        git clone --quiet --filter=blob:none "${url}" "${target}"
+    fi
     git -C "${target}" checkout --quiet "${revision}"
     if [ "$(git_head "${target}")" != "${revision}" ]; then
         printf 'error: %s is at %s after the clone, not the %s %s pins\n' \
