@@ -234,32 +234,21 @@ fi
 # checkout whose manifest pins the shared revisions and whose packagesDir holds
 # links to the shared project's copies resolves at exactly those revisions, with
 # no second Mathlib clone and no cache download per checkout. A package the
-# checkout needs and the shared project does not carry is resolved into the
-# checkout by the same manifest edit: its entry keeps the revision the checkout
-# pinned, and `lake update` in the checkout clones it into the checkout's own
-# packagesDir.
+# checkout needs and the shared project does not carry needs no update command:
+# its manifest entry keeps the checkout's pin, and Lake clones a missing
+# dependency at the manifest revision when the checkout is next built or
+# `lake env` runs.
 plan="$("${python_bin}" - "${repositories_root}" "${project}" <<'PY'
-import json
 import os
 import sys
 
 root, project = sys.argv[1:3]
-project = os.path.realpath(project)
-shared = json.load(open(os.path.join(project, "lake-manifest.json")))
-shared_revisions = {
-    package["name"]: package["rev"]
-    for package in shared["packages"]
-    if package.get("type") == "git"
-}
-shared_revisions["mathlib"] = json.load(open(os.path.join(project, "..", "lean-image.json")))["revision"] \
-    if os.path.isfile(os.path.join(project, "..", "lean-image.json")) else None
 
 for name in sorted(os.listdir(root)):
     directory = os.path.join(root, name)
     if not os.path.isdir(directory) or name.startswith("."):
         continue
-    manifest = os.path.join(directory, "lake-manifest.json")
-    if not os.path.isfile(manifest):
+    if not (os.path.isfile(os.path.join(directory, "lake-manifest.json"))):
         continue
     print("RESOLVE", directory, sep="\t")
 if not any(
@@ -283,8 +272,8 @@ while IFS=$'\t' read -r kind checkout; do
     # revisions, and the checkout's packages are the shared project's built
     # copies -- a link per package in the checkout's packagesDir. A package the
     # checkout needs and the shared project does not carry keeps the revision
-    # the checkout pinned, and `lake update` in the checkout clones it into the
-    # checkout's own packagesDir.
+    # the checkout pinned; Lake clones a missing dependency at the manifest
+    # revision when the checkout is next built or `lake env` runs.
     printf 'resolving %s at the revisions of the shared project\n' "${checkout}"
     "${python_bin}" - "${checkout}" "${project}" "${record}" <<'PY' || problems=1
 import json
@@ -329,8 +318,9 @@ with open(manifest_path, "w") as handle:
 
 # The links: mathlib to the project itself, every shared package to the
 # project's own copy of it. A package the checkout needs that the shared
-# project does not carry is left to `lake update` below, which clones it into
-# the checkout's own packagesDir.
+# project does not carry needs no update command: its manifest entry keeps
+# the checkout's pin, and Lake clones a missing dependency at the manifest
+# revision when the checkout is next built or `lake env` runs.
 os.makedirs(packages_dir, exist_ok=True)
 for package in manifest["packages"]:
     if package.get("type") != "git":
@@ -352,11 +342,6 @@ for package in manifest["packages"]:
 
 print(f"{checkout}: {resolved} entries resolved at the shared project's revisions")
 PY
-    # A package the checkout needs and the shared project does not carry: the
-    # same `lake update` the Lake documentation describes, cloning it into the
-    # checkout's own packagesDir. No second Mathlib clone or cache download:
-    # mathlib and the shared packages are links, not clones.
-    ( cd "${checkout}" && lake update ) || printf 'note: %s: lake update cloned the packages the shared project does not carry\n' "${checkout}"
 done <<< "${plan}"
 
 while IFS=$'\t' read -r kind message; do
@@ -364,7 +349,7 @@ while IFS=$'\t' read -r kind message; do
     printf 'note: %s\n' "${message}"
 done <<< "${plan}"
 
-updates="$(grep -c '^UPDATE' <<<"${plan}" || true)"
+resolved_count="$(grep -c '^RESOLVE' <<<"${plan}" || true)"
 printf 'the shared project at %s (mathlib %s): %s checkout(s) resolved at its revisions\n' \
-    "${project}" "${image_revision}" "${updates}"
+    "${project}" "${image_revision}" "${resolved_count}"
 exit "${problems}"
