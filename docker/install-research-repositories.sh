@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # Check out every repository in research-repositories.txt under /repos. A
-# repository that is a git source of uv.lock is checked out at its locked
-# commit, and each package the lock takes from it is reinstalled as an editable
-# package from the checkout, so the environment runs the code agents edit.
+# repository that is a git source of uv.lock is checked out at the head of its
+# main branch -- every build installs each research repository at that head
+# (sage#24), and the locked commit is only where the last relock left it -- and
+# each package the lock takes from it is reinstalled as an editable package
+# from the checkout, so the environment runs the code agents edit. The head
+# each repository was installed at is recorded in .research-revisions in this
+# tree, one "<name> <commit>" per line, for a consumer to read in the image.
 set -euo pipefail
-sage_root="$(cd "$(dirname "$0")/.." && pwd)"
-repositories_root=/repos
+# The script's own tree by default; a test or another tree points it elsewhere.
+sage_root="${SAGE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+# /repos in the image; a test or another tree points the script at its own.
+repositories_root="${REPOSITORIES_ROOT:-/repos}"
 sage_python="${sage_root}/.venv/bin/python"
 # The GAP that libgap drives is the one the image builds from the pinned source
 # into $SAGE_LOCAL, and it stays a declared path rather than whatever PATH
@@ -34,6 +40,8 @@ EOF
 )"
 
 mkdir -p "${repositories_root}"
+revisions="${sage_root}/.research-revisions"
+: > "${revisions}"
 editable=()
 while read -r url; do
     case "${url}" in ''|'#'*) continue ;; esac
@@ -48,12 +56,16 @@ while read -r url; do
     branch="${branch#origin/}"
     lock_entry="$(awk -v url="${url}" '$1 == url' <<<"${locked}")"
     if [ -n "${lock_entry}" ]; then
-        read -r _ commit subdirectories <<<"${lock_entry}"
-        git -C "${checkout}" checkout --quiet -B "${branch}" "${commit}"
+        read -r _ _ subdirectories <<<"${lock_entry}"
+        # The head of the main branch, not the commit the lock holds: the
+        # build installs each repository at that head, and the locked commit
+        # is only where the last relock left it (sage#24).
+        git -C "${checkout}" checkout --quiet -B "${branch}" "origin/${branch}"
         git -C "${checkout}" branch --quiet --set-upstream-to="origin/${branch}"
         for subdirectory in ${subdirectories}; do
             editable+=(-e "${checkout}/${subdirectory}")
         done
+        printf '%s %s\n' "${name}" "$(git -C "${checkout}" rev-parse HEAD)" >> "${revisions}"
     else
         git -C "${checkout}" checkout --quiet -B "${branch}" "origin/${branch}"
     fi

@@ -293,10 +293,7 @@ jupyter-mcp-server = { git = "https://github.com/dzackgarza/jupyter-mcp-server" 
 latticedb = { git = "https://github.com/dzackgarza/lattice-database" }
 sage-categories = { git = "https://github.com/dzackgarza/sage-categories" }
 sage-categories-homotopy = { git = "https://github.com/dzackgarza/sage-categories", subdirectory = "native/homotopy-python" }
-# #291's repair is pinned by revision, not by branch: the reviewed commit, so a later
-# commit on main cannot arrive in the image unannounced. The port's dependency metadata
-# below states the same URL for the same reason.
-sage-extensions = { git = "https://github.com/dzackgarza/sage-extensions", rev = "240cd3f845fe2b2d5a46501ae628ccbbb9708c2a" }
+sage-extensions = { git = "https://github.com/dzackgarza/sage-extensions" }
 sage-indefinite-port = { git = "https://github.com/dzackgarza/sage-indefinite-port" }
 sage-julia-bridge = { git = "https://github.com/dzackgarza/sage-julia-bridge" }
 sage-lsp = { git = "https://github.com/dzackgarza/sage-lsp-server" }
@@ -823,7 +820,7 @@ version = "10.4"
 name = "jupymake"
 requires-dist = []
 version = "0.9"
-[[tool.uv.dependency-metadata]] # research declares sage-extensions by bare URL, which is a different requirement from the pinned source above; its metadata is stated here so the two agree. Restated from research's pyproject at dbf178cf30 -- re-sync this list when that repository's dependencies change.
+[[tool.uv.dependency-metadata]] # research declares sage-extensions by bare URL; its metadata is stated here so uv can resolve it without building research. Restated from research's pyproject at dbf178cf30 -- re-sync this list when that repository's dependencies change.
 name = "dzack-research"
 requires-dist = [
   "haystack-ai>=2.31.0",
@@ -831,7 +828,7 @@ requires-dist = [
   "python-dotenv>=1.2.2",
   "python-flint>=0.9",
   "python-frontmatter>=1.1",
-  "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions@240cd3f845fe2b2d5a46501ae628ccbbb9708c2a",
+  "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions",
   "sage-julia-bridge @ git+https://github.com/dzackgarza/sage-julia-bridge",
   "streamlit>=1.59.2",
   "tree-sitter-sage",
@@ -839,10 +836,10 @@ requires-dist = [
   "z3-solver>=4.16.0.0",
 ]
 version = "0.1.1"
-[[tool.uv.dependency-metadata]] # sage-indefinite-port states its sage-extensions requirement as a commit; it must name the same revision as the source above, or the two are different requirements and uv refuses the resolution. Removed when the port resumes.
+[[tool.uv.dependency-metadata]] # sage-indefinite-port states its sage-extensions requirement as a bare URL, matching the unpinned source above. Removed when the port resumes.
 name = "sage-indefinite-port"
 requires-dist = [
   "PyNormaliz",
-  "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions@240cd3f845fe2b2d5a46501ae628ccbbb9708c2a",
+  "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions",
 ]
 version = "0.1.0"

@@ -139,6 +139,12 @@ themselves at every run — quarto, `texlive-full`, pdf2svg, poppler-utils and n
 (`#22`). That last component is the largest addition the image has taken, about
 5 GiB, and a site build now installs nothing.
 
+The research checkouts are at the head of each repository's main branch, not
+at the commit `uv.lock` holds (`#24`): every build resolves them at build
+time. The image records the commit of each repository it installed in
+`/sage/.research-revisions` — one `<name> <commit>` per line — so a consumer
+can read, in the image, the revision it is running.
+
 A published tag with
 fewer components is not a smaller environment, it is a different one, and consumers
 written against this environment cannot be relied on to say which they need — the
