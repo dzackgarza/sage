@@ -52,12 +52,6 @@ on:
           develop image
         required: false
         type: string
-      relock:
-        description: Lock every git-sourced research package at its head, build 
-          the image on that lock, and commit it
-        required: false
-        type: boolean
-        default: false
       zstd_probe:
         description: Build a tiny zstd-compressed image and pull it in a 
           container job, to prove the runner can read zstd layers
@@ -236,7 +230,6 @@ jobs:
           # transfers less and decompresses several times faster than gzip.
         build-args: |
           BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
-          RELOCK=${{ inputs.relock && 'true' || 'false' }}
           MATHLIB_REVISION=${{ steps.mathlib.outputs.revision }}
         outputs: type=image,push=true,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true
         tags: ghcr.io/${{ github.repository_owner }}/sage:${{ 
@@ -263,36 +256,6 @@ jobs:
         cache-map: '{"ccache": "/ccache"}'
         extract: true
 
-      # The lock stage reuses the build above from the BuildKit cache.
-    - name: Export the lock the image was built on
-      if: inputs.relock
-      uses: docker/build-push-action@v6
-      with:
-        context: sage-source
-        file: sage-source/docker/research-environment${{ 
-          steps.build-kind.outputs.kind == 'incremental' && '-incremental' || ''
-          }}.Dockerfile
-        target: lock
-        build-args: |
-          BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
-          RELOCK=true
-          MATHLIB_REVISION=${{ steps.mathlib.outputs.revision }}
-        cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner 
-          }}/sage:buildcache
-        outputs: type=local,dest=relock
-    - name: Commit the lock
-      if: inputs.relock
-      working-directory: sage-source
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        cp ../relock/uv.lock uv.lock
-        git diff --stat -- uv.lock
-        git diff --quiet -- uv.lock && exit 0
-        git config user.name github-actions
-        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-        git commit -m "build: lock the research packages at their heads" -- uv.lock
-        git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:develop
   # Runs on the published image of every image this workflow builds, the develop one
   # included: the consumer statements it makes -- the T_Co generator call, the
   # lattice-database contracts, the stage-1 record reproductions -- are claims about the
