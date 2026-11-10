@@ -93,9 +93,43 @@ RUN apt-get update \
     polymake libpolymake-dev libgiac-dev xcas fricas kissat cliquer \
     sagemath-database-graphs sagemath-database-polytopes \
     pari-galdata pari-elldata pari-seadata pari-galpol \
-    pandoc graphviz dvipng imagemagick texlive-latex-extra \
+    pandoc graphviz dvipng imagemagick \
     cmake libpcre2-dev cargo rustc ccache rsync binutils-gold \
  && rm -rf /var/lib/apt/lists/*
+
+# The document toolchain the project sites build with (sage#22). Both site builds
+# outside the image install it at every run -- research's docs.yml takes quarto from
+# quarto-actions/setup and then `apt-get install pdf2svg poppler-utils texlive-full`,
+# new-qual-site takes TeX Live's `scheme-full` and pdf2svg -- so the image carries it
+# and a site build installs nothing. poppler-utils is here for `pdftoppm`, which the
+# figures go through, and nodejs because new-qual-site's own test suite runs `node`.
+#
+# texlive-full WITH its Recommends, unlike the block above: the point is scheme-full,
+# and a partial install diverges the moment a figure reaches for a package nobody
+# listed -- research's docs.yml says so in as many words. It is the largest single
+# addition this image has taken, about 5 GiB installed, which #9 pays for on every
+# pull; that trade is this issue's decision, not this step's.
+RUN apt-get update \
+ && apt-get install -y texlive-full pdf2svg poppler-utils nodejs unzip xz-utils \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+# Quarto renders both sites and is not in Debian, so it comes from its release pinned
+# by version and by the digest of the .deb, as julia and pcre do. Its own postinst
+# links /opt/quarto/bin/quarto into /usr/local/bin, which is on PATH.
+RUN set -eu; \
+    version=1.11.9; \
+    sha256=64078d1623d9ab89da766591f3410a0756f3737a37efb0897c7e84b863bf092a; \
+    curl -fsSL -o /tmp/quarto.deb \
+        "https://github.com/quarto-dev/quarto-cli/releases/download/v${version}/quarto-${version}-linux-amd64.deb"; \
+    echo "$sha256  /tmp/quarto.deb" | sha256sum -c -; \
+    apt-get update; \
+    apt-get install -y /tmp/quarto.deb; \
+    rm -f /tmp/quarto.deb; \
+    rm -rf /var/lib/apt/lists/*; \
+    test -x /usr/local/bin/quarto; \
+    echo "quarto $(quarto --version)"; \
+    test "$(quarto --version)" = "${version}"
 
 # The venv has to exist before GAP is installed into it. uv refuses to adopt a
 # nonempty .venv that is not a valid Python environment -- "cannot be used

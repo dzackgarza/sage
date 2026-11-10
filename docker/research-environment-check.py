@@ -559,4 +559,91 @@ finally:
     Path(import_file).unlink()
 print(f"import Mathlib in {project}: {elaborated.splitlines()[-1]}")
 
+# ---- the document toolchain the project sites build with (sage#22) ----------
+# Both site builds outside the image install this at every run, so the image carries
+# it and a site build installs nothing: quarto, a full TeX Live, pdf2svg,
+# poppler-utils and node. Each is asserted by doing what the sites do with it -- a
+# document through TeX's own file lookup, a page through pdf2svg and poppler, the
+# version quarto reports -- and an absent one fails here, in the build, rather than
+# in a consumer's run.
+import shutil
+
+document_tools = ["quarto", "pdf2svg", "pdftoppm", "kpsewhich", "node", "lualatex"]
+absent = [tool for tool in document_tools if shutil.which(tool) is None]
+assert not absent, f"the image carries no {absent}"
+
+quarto_version = subprocess.run(
+    ["quarto", "--version"], capture_output=True, text=True, check=True
+).stdout.strip()
+assert quarto_version, "quarto --version printed nothing"
+print(f"quarto {quarto_version}")
+
+# Full TeX Live, not a subset: the package the issue names, and the files the sites'
+# figures load. `luahyperbolic.sty` is the one research's CI has to fetch from CTAN
+# because Ubuntu's TeX Live is older than the package; TeX Live 2025 has it, so a
+# full set in this image has it too.
+texlive = subprocess.run(
+    ["dpkg-query", "-W", "-f=${Status}", "texlive-full"], capture_output=True, text=True, check=False,
+)
+assert texlive.stdout.strip() == "install ok installed", (
+    "texlive-full is not installed", texlive.stdout, texlive.stderr,
+)
+tex_files = [
+    "tikz.sty", "tikz-cd.sty", "pgfplots.sty", "standalone.cls", "luahyperbolic.sty",
+    "booktabs.sty", "microtype.sty", "fontspec.sty", "unicode-math.sty",
+    "siunitx.sty", "amsmath.sty", "mathtools.sty",
+]
+missing_tex = [
+    name for name in tex_files
+    if subprocess.run(["kpsewhich", name], capture_output=True, text=True, check=False).stdout.strip() == ""
+]
+assert not missing_tex, f"TeX Live does not find {missing_tex}"
+lualatex_version = subprocess.run(
+    ["lualatex", "--version"], capture_output=True, text=True, check=False
+).stdout.strip()
+assert "LuaHBTeX" in lualatex_version or "LuaTeX" in lualatex_version, lualatex_version
+print(f"texlive-full with {len(tex_files)} files the sites load, on {lualatex_version.splitlines()[0]}")
+
+# pdf2svg and poppler on a page this check writes: the same two steps a site build
+# runs to turn a figure into an SVG and a thumbnail. A presence test would pass on a
+# binary whose library is missing.
+pdf = Path(tempfile.mkdtemp(prefix="document-tools-"))
+objects = [
+    b"<</Type/Catalog/Pages 2 0 R>>",
+    b"<</Type/Pages/Kids[3 0 R]/Count 1>>",
+    b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 10 10]>>",
+]
+page = bytearray(b"%PDF-1.4\n")
+offsets = []
+for number, body in enumerate(objects, start=1):
+    offsets.append(len(page))
+    page += f"{number} 0 obj\n".encode() + body + b"\nendobj\n"
+xref = len(page)
+page += f"xref\n0 {len(objects) + 1}\n".encode() + b"0000000000 65535 f \n"
+for offset in offsets:
+    page += f"{offset:010d} 00000 n \n".encode()
+page += f"trailer\n<</Size {len(objects) + 1}/Root 1 0 R>>\nstartxref\n{xref}\n%%EOF\n".encode()
+(pdf / "page.pdf").write_bytes(bytes(page))
+subprocess.run(["pdf2svg", str(pdf / "page.pdf"), str(pdf / "page.svg")], check=True)
+svg = (pdf / "page.svg").read_text(encoding="utf-8", errors="replace")
+assert "<svg" in svg, svg[:400]
+poppler_version = subprocess.run(
+    ["pdftoppm", "-v"], capture_output=True, text=True, check=False
+).stderr.strip() or subprocess.run(
+    ["pdftoppm", "-v"], capture_output=True, text=True, check=False
+).stdout.strip()
+assert "pdftoppm" in poppler_version, poppler_version
+subprocess.run(
+    ["pdftoppm", "-r", "10", "-png", str(pdf / "page.pdf"), str(pdf / "thumb")], check=True
+)
+assert list(pdf.glob("thumb*.png")), "pdftoppm wrote no image"
+print(f"pdf2svg rendered a page: {len(svg)} bytes of SVG; {poppler_version.splitlines()[0]}")
+
+node_version = subprocess.run(
+    ["node", "--version"], capture_output=True, text=True, check=True
+).stdout.strip()
+assert node_version.startswith("v"), node_version
+print(f"node {node_version}")
+
+
 print(version())

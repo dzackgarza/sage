@@ -49,13 +49,51 @@ STEP = "Certify lattice-database card 6JRR"
 CARD = "0012"
 BOUND = 300
 
+# c45b08c1dfb split `consumer-acceptance` into these five, one bounded job per
+# consumer call. The certify step lives in `consumer-certify`; the lookup reads the
+# five by name so a further split fails with the jobs the workflow has, not a
+# KeyError on a job that is gone.
+CONSUMER_JOBS = (
+    "consumer-mathematics",
+    "consumer-certify",
+    "consumer-records",
+    "consumer-contracts",
+    "consumer-chamber",
+)
+
+
+def consumer_jobs() -> dict:
+    jobs = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+    found = {name: jobs[name] for name in CONSUMER_JOBS if name in jobs}
+    assert found, f"none of {CONSUMER_JOBS} is in the workflow; it has {sorted(jobs)}"
+    return found
+
 
 def step_body() -> str:
-    """The named step's `run:` block, as the workflow's own YAML says it is."""
-    document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    steps = [step for step in document["jobs"]["consumer-acceptance"]["steps"] if step.get("name") == STEP]
-    assert len(steps) == 1, f"{STEP!r} appears {len(steps)} times in {WORKFLOW}"
+    """The named step's `run:` block, from whichever consumer job carries it."""
+    steps = [
+        step
+        for definition in consumer_jobs().values()
+        for step in definition.get("steps", [])
+        if step.get("name") == STEP
+    ]
+    assert len(steps) == 1, (
+        f"{STEP!r} appears {len(steps)} times across {sorted(consumer_jobs())}"
+    )
     return steps[0]["run"]
+
+
+def test_the_five_consumer_jobs_are_the_ones_the_workflow_has() -> None:
+    """The names this file reads are the split's, and the certify step is in the
+    job that certifies."""
+    jobs = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))["jobs"]
+    missing = [name for name in CONSUMER_JOBS if name not in jobs]
+    assert not missing, f"{missing} are no longer jobs; the workflow has {sorted(jobs)}"
+    carriers = [
+        name for name in CONSUMER_JOBS
+        if any(step.get("name") == STEP for step in jobs[name].get("steps", []))
+    ]
+    assert carriers == ["consumer-certify"], carriers
 
 
 def focused_invocation(body: str, families: bool = True) -> str:

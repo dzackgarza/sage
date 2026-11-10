@@ -39,13 +39,63 @@ CHECKOUT = Path(os.environ.get("WORKSPACE_CHECKOUT", REPOSITORY / ".scratch" / "
 STEP = "Construct T_Co and compute its O(T_Co) generators"
 BOUND = 300
 
+# c45b08c1dfb split the single `consumer-acceptance` job into these five, one per
+# bounded consumer call, so that no one of them is starved or skipped. The step this
+# file is about lives in `consumer-mathematics`; the lookup below reads the five by
+# name and fails loudly if the set changes again, rather than with a KeyError on a
+# job that no longer exists.
+CONSUMER_JOBS = (
+    "consumer-mathematics",
+    "consumer-certify",
+    "consumer-records",
+    "consumer-contracts",
+    "consumer-chamber",
+)
+
+
+def workflow() -> dict:
+    return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
+
+
+def consumer_jobs() -> dict:
+    """The five consumer jobs the workflow has, by name."""
+    jobs = workflow()["jobs"]
+    found = {name: jobs[name] for name in CONSUMER_JOBS if name in jobs}
+    assert found, (
+        f"none of {CONSUMER_JOBS} is in the workflow; it has {sorted(jobs)}"
+    )
+    return found
+
+
+def consumer_step(name: str) -> dict:
+    """The one step with this name, in whichever consumer job carries it."""
+    found = [
+        (job, step)
+        for job, definition in consumer_jobs().items()
+        for step in definition.get("steps", [])
+        if step.get("name") == name
+    ]
+    assert len(found) == 1, (
+        f"{name!r} appears {len(found)} times across {sorted(consumer_jobs())}"
+    )
+    return found[0][1]
+
+
+def test_the_five_consumer_jobs_are_the_ones_the_workflow_has() -> None:
+    """The names this file reads are the split's, and each is still a job."""
+    jobs = workflow()["jobs"]
+    missing = [name for name in CONSUMER_JOBS if name not in jobs]
+    assert not missing, f"{missing} are no longer jobs; the workflow has {sorted(jobs)}"
+    carriers = [
+        name for name in CONSUMER_JOBS
+        if any(step.get("name") == STEP for step in jobs[name].get("steps", []))
+    ]
+    assert carriers == ["consumer-mathematics"], carriers
+
 
 def provenance_block() -> str:
     """The step's provenance code, up to the T_Co construction."""
-    document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    steps = [step for step in document["jobs"]["consumer-acceptance"]["steps"] if step.get("name") == STEP]
-    assert len(steps) == 1, f"{STEP!r} appears {len(steps)} times"
-    body = steps[0]["run"]
+    body = consumer_step(STEP)["run"]
     assert "<<'PY'" in body, "the step no longer opens its provenance process with PY"
     heredoc = body.split("<<'PY'", 1)[1]
     lines = []
@@ -116,9 +166,7 @@ def test_an_unreadable_required_revision_fails_the_step(tmp_path: Path) -> None:
 
 def compute_imports() -> str:
     """The compute block's import preamble: the part that decides which copies are imported."""
-    document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    steps = [step for step in document["jobs"]["consumer-acceptance"]["steps"] if step.get("name") == STEP]
-    body = steps[0]["run"]
+    body = consumer_step(STEP)["run"]
     assert "<<'COMPUTE'" in body, "the step no longer computes in its own process"
     block = body.split("<<'COMPUTE'", 1)[1]
     lines = []
@@ -153,10 +201,7 @@ def test_the_generator_call_imports_the_images_pinned_copies() -> None:
 
 def whole_step() -> str:
     """The step's entire run block, as the shell receives it."""
-    document = yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
-    steps = [step for step in document["jobs"]["consumer-acceptance"]["steps"] if step.get("name") == STEP]
-    assert len(steps) == 1
-    return steps[0]["run"]
+    return consumer_step(STEP)["run"]
 
 
 @requires_image

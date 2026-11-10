@@ -2,8 +2,9 @@
 
 `ghcr.io/dzackgarza/sage:develop` is the environment this fork's consumers run
 Sage in: this tree built with CPython 3.14, GAP, Julia with Oscar/Hecke,
-Macaulay2, Singular, Normaliz, polymake, CoxIter and Lean/elan.  It is one
-image, built by `.github/workflows/research-environment-image.yml` from
+Macaulay2, Singular, Normaliz, polymake, CoxIter, Lean/elan, and the document
+toolchain the project sites build with: quarto, a full TeX Live, pdf2svg,
+poppler-utils and node.  It is one image, built by `.github/workflows/research-environment-image.yml` from
 `docker/research-environment.Dockerfile`, published for linux/amd64 only.
 
 The fork's default branch is `develop`; there is no `main`.  The image is
@@ -132,7 +133,13 @@ into the writable depot.
 
 There is one tag, `ghcr.io/dzackgarza/sage:develop`, and it carries every component
 the environment is: Sage and its checkout, GAP with its packages, Julia with its
-resolved depot, the Lean toolchains and the research checkouts. A published tag with
+resolved depot, the one shared Lean project and the research checkouts, and the
+document toolchain the two site builds outside this repository install for
+themselves at every run — quarto, `texlive-full`, pdf2svg, poppler-utils and node
+(`#22`). That last component is the largest addition the image has taken, about
+5 GiB, and a site build now installs nothing.
+
+A published tag with
 fewer components is not a smaller environment, it is a different one, and consumers
 written against this environment cannot be relied on to say which they need — the
 reason `#9` was first answered with a reduced tag and then corrected: importing
