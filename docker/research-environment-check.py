@@ -643,6 +643,39 @@ document_tools = ["quarto", "pdf2svg", "pdftoppm", "kpsewhich", "node", "lualate
 absent = [tool for tool in document_tools if shutil.which(tool) is None]
 assert not absent, f"the image carries no {absent}"
 
+# The TeX packages the two sites load, from the sources themselves: research's
+# docs.yml renders figures through the shared pandoc-config preamble
+# (styles/preambles/dzg-preamble.tex in dzackgarza/pandoc-config) and installs
+# luahyperbolic from CTAN, and new-qual-site's development.yml builds with
+# TeX Live's scheme-full. Each is asserted by kpsewhich finding it.
+tex_packages = [
+    "amsmath", "amsthm", "amssymb", "amsfonts", "mathtools", "mathrsfs",
+    "bm", "esint", "stmaryrd", "BBM", "upgreek", "iftex", "fontenc",
+    "graphicx", "subcaption", "xcolor", "amscd", "centernot", "slashed",
+    "tikz", "tikz-cd", "tikz-3dplot", "etoolbox", "xparse",
+    "dynkin-diagrams", "quiver", "pgfplots", "luatex85", "luahyperbolic",
+    "xy", "microtype", "hyperref", "bookmark", "enumitem",
+    "standalone",
+]
+for package in tex_packages:
+    found = subprocess.run(
+        ["kpsewhich", f"{package}.sty"], capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert found, f"kpsewhich found no {package}.sty: the image does not carry it"
+
+# The TikZ libraries the same preamble loads.
+tikz_libraries = [
+    "arrows.meta", "cd", "fadings", "patterns", "calc", "matrix",
+    "positioning", "decorations", "shapes", "backgrounds", "fit",
+    "intersections", "hobby", "graphs", "external",
+]
+for library in tikz_libraries:
+    found = subprocess.run(
+        ["kpsewhich", f"tikzlibrary{library}.code.tex"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    assert found, f"kpsewhich found no tikzlibrary{library}.code.tex: the image does not carry it"
+
 quarto_version = subprocess.run(
     ["quarto", "--version"], capture_output=True, text=True, check=True
 ).stdout.strip()
