@@ -228,6 +228,48 @@ with tempfile.TemporaryDirectory() as launcher_environment:
         f"({third['workspace']})"
     )
 
+# `from sage.interfaces.gap import gap` asks kernel_info() for the GAP build at
+# import time -- the workspace is named after it -- and kernel_info() reads three
+# records out of `gap --systemfile kernel-info.g`.  GAP breaks a printed line
+# that reaches its line width and marks the break with a backslash, and the
+# third record (the roots) begins with `$HOME/.gap/`: a HOME long enough to make
+# GAP break that record used to stop the import with `ValueError: too many
+# values to unpack (expected 3)`, before any mathematics ran (sage#20).  The
+# records are read across the breaks now, so the length of HOME cannot decide
+# whether the interface imports.  The HOME is grown until GAP is measured
+# breaking the record, so the premise is asserted rather than assumed.
+GAP_IMPORT_PROBE = r'''
+from sage.interfaces.gap import gap
+print("order", gap.Order(gap.SymmetricGroup(4)))
+'''
+with tempfile.TemporaryDirectory() as home_root:
+    from importlib.resources import files
+    systemfile = files("sage").joinpath("ext_data/gap/kernel-info.g")
+    long_home = Path(home_root)
+    for _ in range(8):
+        printed = subprocess.run(["gap", "--systemfile", str(systemfile)],
+                                 env={**os.environ, "HOME": str(long_home)},
+                                 capture_output=True, text=True, check=True)
+        if "\\\n" in printed.stdout:
+            break
+        long_home = long_home / "a-home-directory-with-a-name-long-enough-that-gap-breaks-its-record-of-roots"
+        long_home.mkdir(parents=True, exist_ok=True)
+    else:
+        raise AssertionError(f"GAP never broke the roots record: {printed.stdout!r}")
+    imported = subprocess.run(
+        [sys.executable, "-c", GAP_IMPORT_PROBE],
+        env={"HOME": str(long_home),
+             "DOT_SAGE": str(Path(home_root, "dot-sage")),
+             # The image's own PATH: what is under test here is the length of
+             # HOME, not whether a launcher's PATH finds a `gap` (sage#19).
+             "PATH": "/sage/.venv/bin:/usr/local/bin:/usr/bin:/bin"},
+        capture_output=True, text=True, check=False,
+    )
+    assert imported.returncode == 0, (imported.returncode, imported.stdout, imported.stderr)
+    assert imported.stdout.strip().splitlines()[-1] == "order 24", imported.stdout
+    print(f"the GAP interface imported with a {len(str(long_home))}-character HOME, "
+          f"at which GAP breaks its roots record")
+
 # Maxima's package files are found through MAXIMA_PREFIX, and in a tree where
 # Maxima was staged into SAGE_LOCAL they live under it. A reconfigure must not
 # leave the prefix empty merely because the system ECL can already load

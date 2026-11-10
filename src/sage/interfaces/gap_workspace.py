@@ -49,7 +49,7 @@ def _workspace_digest():
         sage: len(d) == 40
         True
     """
-    from sage.libs.gap.util import kernel_info
+    from sage.libs.gap.kernel_info import kernel_info
     version, arch, roots = kernel_info()
     home = os.path.abspath(os.path.expanduser('~'))
     searched = [root for root in roots.split(';')

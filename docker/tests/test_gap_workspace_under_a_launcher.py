@@ -105,10 +105,9 @@ requires_image = pytest.mark.skipif(
 
 @requires_image
 def test_the_workspace_is_written_and_reused_across_homes() -> None:
-    # A short work path on purpose.  This image's kernel_info() still cannot read the
-    # roots GAP wraps at the 80th column, which a HOME of about 75 characters or more
-    # produces; that is a second defect, measured and reported with sage#19, and it is
-    # not this test's claim.  The launcher's own HOME is short too.
+    # A short work path keeps this test's claim to the workspace: the length of HOME
+    # is sage#20's claim, asserted where the image is built
+    # (docker/research-environment-check.py), and the launcher's own HOME is short too.
     work = Path(tempfile.mkdtemp(prefix="gapwork-", dir="/tmp"))
     try:
         (work / "home-a").mkdir()

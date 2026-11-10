@@ -11,6 +11,7 @@ py.install_sources(
   'gap_includes.pxd',
   'libgap.pyx',
   'gap_test.py',
+  'kernel_info.py',
   'operations.py',
   'sage.gaprc',
   'saved_workspace.py',
