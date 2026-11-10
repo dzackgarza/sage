@@ -836,7 +836,7 @@ requires-dist = [
   "z3-solver>=4.16.0.0",
 ]
 version = "0.1.1"
-[[tool.uv.dependency-metadata]] # sage-indefinite-port states its sage-extensions requirement as a bare URL, matching the unpinned source above. Removed when the port resumes.
+[[tool.uv.dependency-metadata]] # sage-indefinite-port states its sage-extensions requirement as a bare URL, matching the unpinned source above. The port's own metadata, stated here so uv can resolve it without building the port; the port is not resumed, and this entry stays until it is.
 name = "sage-indefinite-port"
 requires-dist = [
   "PyNormaliz",
