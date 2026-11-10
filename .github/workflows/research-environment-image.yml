@@ -26,7 +26,6 @@ on:
     - build/pkgs/**
     - docker/research-environment.Dockerfile
     - docker/research-environment-incremental.Dockerfile
-    - docker/relock-research-packages.sh
     - docker/research-environment-check.py
     - docker/install-research-repositories.sh
     - docker/provision-lean-packages.sh
