@@ -236,7 +236,15 @@ RUN set -eu; \
 # its own PATH instead, and then there is no `gap` and the interface cannot even
 # be imported (sage#19).  A wrapper, not a symlink, for the reason given in the
 # file: GAP derives its root paths from the program it was started as.
+#
+# /usr/bin/gap is the same launcher for the process that has no PATH at all:
+# Python's own /bin:/usr/bin fallback is what an emptied environment --
+# `env -i`, the probe the environment check runs kernel_info() under --
+# resolves `gap` through, and the check reports `FileNotFoundError: 'gap'`
+# when nothing is there (sage#24).  The same wrapper, not a distribution GAP:
+# a distribution GAP at that path is what the incremental build purges.
 COPY --chmod=0755 docker/gap-launcher.sh /usr/local/bin/gap
+COPY --chmod=0755 docker/gap-launcher.sh /usr/bin/gap
 
 # Debian installs these programs under package prefixes (4ti2-hilbert,
 # latte-count, topcom-points2allfinetriangs); Sage's features look for the

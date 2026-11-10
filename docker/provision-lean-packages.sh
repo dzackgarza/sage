@@ -174,9 +174,18 @@ else
     elan default "${image_toolchain}"
     # Mathlib itself comes from the official cache for this exact revision, so it
     # is never compiled; the packages it imports are built once, here, by this
-    # toolchain, and that built closure is what every checkout resolves.
+    # toolchain, and that built closure is what every checkout resolves. The
+    # packages the manifest pins but Mathlib's own target never imports -- Cli,
+    # on 4365edbea6's evidence -- are built too, each by name, so the closure is
+    # complete: the environment check asserts a build directory for every
+    # package the manifest pins (sage#13).
     ( cd "${project}" && lake exe cache get )
-    ( cd "${project}" && lake build Mathlib )
+    closure="$("${python_bin}" - "${project}/lake-manifest.json" <<'PY'
+import json, sys
+print(" ".join(sorted(package["name"] for package in json.load(open(sys.argv[1]))["packages"] if package.get("type") == "git")))
+PY
+)"
+    ( cd "${project}" && lake build Mathlib ${closure} )
     if [ ! -f "${olean}" ]; then
         printf 'error: %s is missing after the build; mathlib %s is not usable\n' \
             "${olean}" "${image_revision}" >&2

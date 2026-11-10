@@ -69,7 +69,11 @@ RUN purged="$(dpkg-query -W -f='${Package} ${Status}\n' 'gap*' 'libgap*' 2>/dev/
         /usr/lib/x86_64-linux-gnu/libgap.so.9 \
         /usr/lib/x86_64-linux-gnu/libgap.so \
         /usr/lib/x86_64-linux-gnu/pkgconfig/libgap.pc \
- && test ! -e /usr/bin/gap \
+ # A distribution GAP is gone; the image's own wrapper at /usr/bin/gap is not
+ # one, and kernel_info() finding it is the point of the wrapper (sage#24).
+ && if [ -e /usr/bin/gap ] && ! grep -q 'exec /sage/.venv/bin/gap' /usr/bin/gap; then \
+        echo "FATAL: /usr/bin/gap is not the image's wrapper" >&2; exit 1; \
+    fi \
  && test ! -d /usr/share/gap
 
 # The Mathlib head this build carries, resolved by the workflow when the build
