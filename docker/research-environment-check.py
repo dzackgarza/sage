@@ -79,22 +79,41 @@ loaded_libgap = [
 assert loaded_libgap, "no libgap mapped into this process"
 assert all(path.startswith("/sage/.venv/lib/") for path in loaded_libgap), loaded_libgap
 
-# Exactly one GAP: the one built from the pinned source. No Debian package the
-# image installs depends on Debian's GAP, so a build from debian:trixie has none,
-# and research-environment-incremental.Dockerfile purges what a published base
-# carries. It has to be gone rather than merely unused: kernel_info() runs the bare
-# command `gap` through PATH, so a second copy turns any PATH that does not resolve
-# $SAGE_LOCAL/bin/gap first into GAP 4.14's library read by libgap.so.11 -- which is
-# a segfault in DoOperation1Args, not an exception (sage#11).
-distribution_gap = [
-    path for path in (
-        "/usr/bin/gap",
-        "/usr/lib/gap",
-        "/usr/share/gap",
-        "/usr/lib/x86_64-linux-gnu/libgap.so.9",
-    ) if Path(path).exists()
+# Exactly one GAP: the one built from the pinned source (sage#11, sage#26). What
+# sage#11 found was a *distribution* GAP -- Debian's 4.14, whose library libgap.so.11
+# reads and segfaults in DoOperation1Args -- so what is asserted here is what makes a
+# path a distribution GAP, not that the path exists:
+#
+#   * a Debian package installed it. `dpkg-query -S` answers that for a path, and the
+#     apt package list below answers it for the package database as a whole.
+#   * /usr/bin/gap is not this image's launcher. docker/gap-launcher.sh, whose body is
+#     `exec /sage/.venv/bin/gap "$@"`, is copied to /usr/local/bin/gap for anything
+#     whose PATH this image built, and to /usr/bin/gap for a process with no PATH at
+#     all: Python's own /bin:/usr/bin fallback is what `env -i`, and the probe below,
+#     resolve `gap` through (sage#24). A launcher starts the same Sage-owned binary as
+#     /sage/.venv/bin/gap, so it is not a second GAP -- and deleting it to satisfy this
+#     check takes sage#24's function away, which is what fc971cae did and sage#26
+#     restores.
+launcher_path = "/usr/bin/gap"
+# The rest of a distribution GAP's tree. The Sage-owned GAP's roots are under
+# /sage/.venv (kernel_info() reports them above), so a tree at any of these paths came
+# from somewhere else and is absent rather than merely unowned.
+debian_gap_tree = (
+    "/usr/lib/gap",
+    "/usr/share/gap",
+    "/usr/lib/x86_64-linux-gnu/libgap.so.9",
+)
+present = [
+    path for path in (launcher_path, *debian_gap_tree) if Path(path).exists()
 ]
-assert not distribution_gap, f"a distribution GAP is still installed: {distribution_gap}"
+owned = []
+for path in present:
+    ownership = subprocess.run(
+        ["dpkg-query", "-S", path], capture_output=True, text=True, check=False,
+    )
+    if ownership.returncode == 0:
+        owned.append(ownership.stdout.strip() or path)
+assert not owned, f"a distribution GAP is installed by a Debian package: {owned}"
 apt_gap = sorted(
     line.split()[0]
     for line in subprocess.run(
@@ -104,12 +123,24 @@ apt_gap = sorted(
     if line.endswith(" install ok installed")
 )
 assert not apt_gap, f"apt still carries GAP packages: {apt_gap}"
+for path in debian_gap_tree:
+    assert not Path(path).exists(), f"{path} holds a GAP that is not the image's: {path}"
+launcher = Path(__file__).with_name("gap-launcher.sh").read_bytes()
+assert Path(launcher_path).is_file(), (
+    "/usr/bin/gap is missing: a process whose environment did not come from this image "
+    "has no `gap` at all (sage#24)"
+)
+assert Path(launcher_path).read_bytes() == launcher, (
+    "/usr/bin/gap is not this image's launcher (docker/gap-launcher.sh): "
+    f"{Path(launcher_path).read_text(errors='replace')[:120]!r}"
+)
 
-# The probe that found sage#11: an emptied environment leaves PATH unset, so a bare
-# `gap` resolves through Python's own /bin:/usr/bin, and libgap is then initialised
-# on whatever library that GAP reports. Either the Sage-owned roots are the ones
-# found and the session works, or the probe fails as a Python error; dying on a
-# signal is the crash this asserts against.
+# The probe that found sage#11, and the reason the launcher is at /usr/bin/gap: an
+# emptied environment leaves PATH unset, so a bare `gap` resolves through Python's own
+# /bin:/usr/bin, and libgap is then initialised on whatever library that GAP reports.
+# It must succeed -- the version the source pins, the Sage-owned roots, arithmetic
+# through libgap -- because the launcher is always there: a traceback is a failure now,
+# and dying on a signal is the segfault sage#11 was.
 probe = subprocess.run(
     [
         sys.executable, "-c",
@@ -129,16 +160,16 @@ assert probe.returncode >= 0, (
     f"the empty-environment GAP probe died on signal {-probe.returncode}: "
     f"{probe.stdout}{probe.stderr}"
 )
-if probe.returncode:
-    assert "Traceback" in probe.stderr, (probe.returncode, probe.stdout, probe.stderr)
-    print(f"kernel_info() under env -i raised: {probe.stderr.strip().splitlines()[-1]}")
-else:
-    probed_version, probed_roots, probed_sum = probe.stdout.splitlines()[:3]
-    assert probed_version == declared_gap, (probed_version, declared_gap)
-    assert "/sage/.venv/lib/gap/" in probed_roots, probed_roots
-    assert "/sage/.venv/share/gap/" in probed_roots, probed_roots
-    assert probed_sum == "2", probed_sum
-    print(f"kernel_info() under env -i: {probed_version} {probed_roots}; libgap.eval('1+1') = {probed_sum}")
+assert probe.returncode == 0, (
+    "the emptied environment does not reach the image's GAP through /usr/bin/gap: "
+    f"{probe.stdout}{probe.stderr}"
+)
+probed_version, probed_roots, probed_sum = probe.stdout.splitlines()[:3]
+assert probed_version == declared_gap, (probed_version, declared_gap)
+assert "/sage/.venv/lib/gap/" in probed_roots, probed_roots
+assert "/sage/.venv/share/gap/" in probed_roots, probed_roots
+assert probed_sum == "2", probed_sum
+print(f"kernel_info() under env -i: {probed_version} {probed_roots}; libgap.eval('1+1') = {probed_sum}")
 
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 
