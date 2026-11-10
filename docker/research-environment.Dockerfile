@@ -237,14 +237,18 @@ RUN set -eu; \
 # be imported (sage#19).  A wrapper, not a symlink, for the reason given in the
 # file: GAP derives its root paths from the program it was started as.
 #
-# /usr/bin/gap is the same launcher for the process that has no PATH at all:
-# Python's own /bin:/usr/bin fallback is what an emptied environment --
-# `env -i`, the probe the environment check runs kernel_info() under --
-# resolves `gap` through, and the check reports `FileNotFoundError: 'gap'`
-# when nothing is there (sage#24).  The same wrapper, not a distribution GAP:
-# a distribution GAP at that path is what the incremental build purges.
+# One path only: /usr/local/bin/gap, and nothing at /usr/bin/gap (sage#26). The
+# second COPY of this launcher, at /usr/bin/gap, came in ac455b94fb for the
+# emptied-environment probe of sage#24 -- Python's own /bin:/usr/bin fallback is
+# what `env -i` resolves `gap` through -- and it stopped run 42910347791's full
+# build at the environment check: `a distribution GAP is still installed:
+# ['/usr/bin/gap']`. The check asserts that path, and a launcher there is
+# indistinguishable from Debian's binary, so nothing may be there: the COPY is
+# deleted here, and the incremental Dockerfile removes the file from a published
+# base that was built while it was. The emptied-environment probe is not what
+# decides this: the check accepts a Python error from it, and reports the
+# `FileNotFoundError: 'gap'` that an emptied environment now raises.
 COPY --chmod=0755 docker/gap-launcher.sh /usr/local/bin/gap
-COPY --chmod=0755 docker/gap-launcher.sh /usr/bin/gap
 
 # Debian installs these programs under package prefixes (4ti2-hilbert,
 # latte-count, topcom-points2allfinetriangs); Sage's features look for the

@@ -48,33 +48,44 @@ RUN set -eu; \
         test -f /opt/julia/lib/julia/sys.so; \
         echo "installed $(/opt/julia/bin/julia --version) with its sysimage"; \
     fi
-# Debian's GAP does not belong in this environment and is not in the full
-# Dockerfile's package lists: Sage's `gap` spkg is excluded by name and no other
-# package depends on it, so a build from debian:trixie has none. A package list can
-# only stop an install; it cannot remove one, and this image is built on a published
-# base. A base older than e1e3235b ("build GAP, libgap and its packages from Sage's
-# pinned source instead of Debian") carries Debian's 4.14 -- /usr/bin/gap,
-# /usr/lib/gap, /usr/share/gap, libgap.so.9 -- and apt never removes what a layer
-# installed. That copy is what sage.libs.gap.util.kernel_info() runs when PATH does
-# not resolve $SAGE_LOCAL/bin/gap first, and libgap.so.11 then reads 4.14's library
-# and segfaults in DoOperation1Args (sage#11). Nothing in the image is built against
-# it, so it is purged here, and the build stops if the purge did not take.
+# Exactly one GAP: the one built from the pinned source. No package the full
+# Dockerfile's lists name depends on Debian's GAP, so a build from debian:trixie has
+# none -- but a package list can only stop an install, and this image is built on a
+# published base, which may carry one. A base older than e1e3235b ("build GAP, libgap
+# and its packages from Sage's pinned source instead of Debian") carries Debian's
+# 4.14 -- /usr/bin/gap, /usr/lib/gap, /usr/share/gap, libgap.so.9 -- and apt never
+# removes what a layer installed. That copy is what sage.libs.gap.util.kernel_info()
+# runs when PATH does not resolve $SAGE_LOCAL/bin/gap first, and libgap.so.11 then
+# reads 4.14's library and segfaults in DoOperation1Args (sage#11).
+#
+# /usr/bin/gap goes with it, whoever wrote it there: the image's launcher is
+# /usr/local/bin/gap and nothing is /usr/bin/gap (sage#26). The second COPY of that
+# launcher, at /usr/bin/gap in research-environment.Dockerfile (ac455b94fb, for the
+# emptied-environment probe raised in sage#24), is what put a second GAP in a full
+# build and stopped run 42910347791 at the check's `a distribution GAP is still
+# installed: ['/usr/bin/gap']`. The check cannot tell a launcher at that path from a
+# distribution binary, and must not try to: it asserts the path, so the path is empty
+# and the COPY is gone (fc971cae). A base published while the COPY was there carries
+# the file -- a base's layers only add -- so it is removed here with the rest, and
+# this layer stops if any of the four the check looks for survives it. The four are
+# the check's own list, in its order; docker/tests/test_one_gap_in_the_image.py holds
+# the two to each other.
 RUN purged="$(dpkg-query -W -f='${Package} ${Status}\n' 'gap*' 'libgap*' 2>/dev/null \
         | awk '$2 == "install" && $3 == "ok" && $4 == "installed" {print $1}')" \
  && if [ -n "$purged" ]; then \
         printf 'purging the distribution GAP: %s\n' "$purged"; \
         apt-get purge -y $purged; \
     fi \
- && rm -rf /usr/share/gap /usr/lib/gap \
+ && rm -rf /usr/bin/gap /usr/lib/gap /usr/share/gap \
         /usr/lib/x86_64-linux-gnu/libgap.so.9 \
         /usr/lib/x86_64-linux-gnu/libgap.so \
         /usr/lib/x86_64-linux-gnu/pkgconfig/libgap.pc \
- # A distribution GAP is gone; the image's own wrapper at /usr/bin/gap is not
- # one, and kernel_info() finding it is the point of the wrapper (sage#24).
- && if [ -e /usr/bin/gap ] && ! grep -q 'exec /sage/.venv/bin/gap' /usr/bin/gap; then \
-        echo "FATAL: /usr/bin/gap is not the image's wrapper" >&2; exit 1; \
-    fi \
- && test ! -d /usr/share/gap
+ && for path in /usr/bin/gap /usr/lib/gap /usr/share/gap \
+        /usr/lib/x86_64-linux-gnu/libgap.so.9; do \
+        if [ -e "$path" ]; then \
+            echo "FATAL: $path survived the distribution-GAP removal" >&2; exit 1; \
+        fi; \
+    done
 
 # The Mathlib head this build carries, resolved by the workflow when the build
 # started. It is an input to the sync below, so an unchanged head is a cache hit and
