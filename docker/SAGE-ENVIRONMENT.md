@@ -160,78 +160,88 @@ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
 ```
 
 `ELAN_HOME` is the only environment it needs beyond the runner's `PATH`, and it
-speaks for itself in the working directory: it walks `/repos` itself. It links
-or adopts the Lake packages each manifest pins, retrieves Mathlib's official
-cache only if the image does not already carry it, builds the packages Mathlib
-imports, and stops unless Mathlib is loadable. No toolchain is added, no package
-is cloned twice, and no consumer checkout is edited.
+speaks for itself in the working directory: it walks `/repos` itself. It keeps the
+shared Lean project the image carries — resolving the Mathlib head only when there
+is none — links each checkout's Mathlib pins to it, and stops unless Mathlib is
+loadable. No second toolchain is added, no Mathlib revision is cloned twice, and no
+consumer checkout is edited.
 
-Lake fixes a project's packages directory in its lakefile and records it in the
-manifest — `-K packagesDir=` is ignored, and a lakefile whose `packagesDir`
-disagrees with its manifest is rejected as out of date — so two checkouts that
-pin one package at different revisions cannot both be served by that directory.
+**One shared Lean project, always on the latest Mathlib** (sage#13). The image carries
+exactly one Lean project — `mathlib4` at the head of `leanprover-community/mathlib4`
+master — on the toolchain that revision pins, with its whole dependency closure
+built inside it and Mathlib's oleans taken from the official cache. The build
+resolves that head, installs the toolchain the revision pins as elan's default, and
+records the revision and the toolchain in `/opt/lean-image.json`:
 
-The layout that resolves them:
-
-* `/opt/lake-packages/<name>@<revision>` holds one checkout per package revision;
-  every view links into it, so no revision is cloned twice.
-* The packages directory the checkouts declare
-  (`/.local/share/lean/v4.33.0/packages`) holds the packages they agree on, as
-  links to those checkouts. For a name they disagree on — here `lean_categories`,
-  pinned at `eea5c7f3…` by `lean-cas-dsl` and `82d1370d…` by
-  `lean-cas-dsl-leaf-contracts` — provisioning links nothing and deletes nothing:
-  the directory the published image shipped stays on disk, and no checkout is
-  expected to resolve through it.
-* `/opt/lake-views/index.json` records, per checkout, the override for each
-  package its manifest pins at a revision that directory does not hold, naming
-  the content-addressed checkout. Both checkouts carry an override for
-  `lean_categories`; `lean-categories` carries none.
-
-A run mounts a checkout's overrides over the packages directory for that
-invocation only, and before mounting it verifies the checkout's **whole
-manifest**: every pinned package must be present at exactly its revision — in
-its override or, for a shared package, in the directory the lakefile declares.
-A package that resolves to another revision refuses the launch, naming the
-pin and what was found, rather than running against it. Both projects are
-launched explicitly:
-
-```sh
-python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
-  --env ELAN_HOME=/opt/elan --lean-view /repos/lean-cas-dsl \
-  -- /bin/sh -c 'cd /repos/lean-cas-dsl && lake env lean /tmp/file.lean'
-
-python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
-  --env ELAN_HOME=/opt/elan --lean-view /repos/lean-cas-dsl-leaf-contracts \
-  -- /bin/sh -c 'cd /repos/lean-cas-dsl-leaf-contracts && lake env lean /tmp/file.lean'
+```json
+{
+  "project": "/opt/mathlib",
+  "repository": "https://github.com/leanprover-community/mathlib4",
+  "revision": "…",
+  "master_head_at_resolution": "…",
+  "toolchain": "leanprover/lean4:v4.36.0-rc2",
+  "cache": "lake exe cache get (official Mathlib cache)",
+  "resolved": "…"
+}
 ```
 
-Nothing global is rewritten, so the two resolve different revisions of one
-package at the same time in separate mount namespaces.
+No tag and no revision is written into the provisioning: a build that has no
+project resolves the head at build time. An **incremental** build (`FROM` the
+published image) inherits the project its base carries and keeps it — otherwise
+every source push would rebuild Mathlib and its closure, which is the layer that
+dominates the image's pull time (`#9`). So the image moves to a new Mathlib head on
+a full build, and the record is what says which head it is on.
 
-Two checkouts that pin one package at different revisions are separated by the
-views above. Two that pin **Mathlib** at different revisions need separate *build
-trees* as well, because a Lean release refuses another release's oleans: a Mathlib
-built by 4.33.0 is unreadable to 4.33.1, and the same holds for every package
-Mathlib imports (sage#12). Provisioning therefore builds each pinned Mathlib
-revision as its own project — `lake exe cache get` and `lake build Mathlib` inside
-`/opt/lake-packages/mathlib@<revision>`, where that revision's dependencies resolve
-into that checkout's `.lake/packages` and are built by that checkout's toolchain —
-and does it only for a revision the shared directory does not already carry, which
-is exactly the revision a checkout pins differently. The environment check imports
-Mathlib for every checkout that pins it: `LEAN_PATH` is the build directory of each
-package that checkout's view resolves to, and the import runs on the toolchain the
-checkout pins, rather than through `lake env`, which does not return in this
-environment.
-Under PRoot the same mount is one `-b` per override, both paths taken from the
-index: `-b <rootfs>/opt/lake-packages/<name>@<revision>:<packagesDir>/<name>`.
+Every Lean checkout under `/repos` resolves mathlib and its dependencies from that
+one project. Lake fixes a project's packages directory in its lakefile and records
+it in the manifest — `-K packagesDir=` is ignored, and a lakefile whose
+`packagesDir` disagrees with its manifest is rejected as out of date — so
+provisioning puts the resolution in the directory each checkout's own lakefile
+declares: one link per package its manifest pins, pointing at the image's copy (the
+project itself for `mathlib`, `/opt/mathlib/.lake/packages/<name>` for Mathlib's
+closure, `/repos/<name>` for a research package it requires, and
+`/opt/lake-packages/<name>@<revision>` — cloned once per revision, never built — for
+a package nothing in the image carries). Nothing in a checkout is edited: its
+manifest stays exactly what its repository published.
 
-Readback, from the pinned project:
+A pin the image does not carry is a disagreement, and the check says so, naming the
+checkout and both revisions:
+
+    error: /repos/lean-cas-dsl pins mathlib at db584cd6d46c… and the image carries
+    68dd2955f557…: the checkout does not follow the image
+
+The same holds for the toolchain — the image has one, and a checkout that pins
+another does not follow the image. The image's check fails on any such
+disagreement, and the build passes `--allow-lagging-lean-checkouts` so an image can
+be published while the Lean repositories catch up (the pin moves are
+lean-categories#118 and lean-cas-dsl#90). A consumer running the check gets the
+failure.
+
+Readback, from the shared project and from a checkout that follows it:
 
 ```sh
 python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
   --env ELAN_HOME=/opt/elan \
+  -- /bin/sh -c 'cd /opt/mathlib && lake env lean --version && lake build Mathlib'
+
+python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+  --env ELAN_HOME=/opt/elan \
   -- /bin/sh -c 'cd /repos/lean-categories && printf "import Mathlib\n#check (Nat.add_comm : ∀ a b : Nat, a + b = b + a)\n" > /tmp/mathlib-import.lean && lake env lean /tmp/mathlib-import.lean'
 ```
+
+An unpacked image reaches the same state by running the same script; `--dry-run`
+prints what it would link without touching anything:
+
+```sh
+python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
+  --bind docker/provision-lean-packages.sh:/opt/provision-lean-packages.sh \
+  --env ELAN_HOME=/opt/elan \
+  -- /bin/bash /opt/provision-lean-packages.sh /repos --dry-run
+```
+
+An image published before this layout carries `mathlib@<revision>` checkouts under
+`/opt/lake-packages` and `/opt/lake-views`; both are gone in this one, and a script
+that still names them is reading an older image.
 
 ## Deploying the Bliss repair into an existing copy
 
@@ -276,13 +286,14 @@ project should write to it: the one that provisioned it. Everyone else reads the
 stamps and runs readback, and takes the artifacts (`provision-lean-packages.sh`,
 `apply-bliss-repair.sh` with its patches) if they need to deploy into a copy of
 their own; two projects running builds into one tree race on the same
-`.lake/build` and site-packages, and produce duplicate builds.
+`.lake/build`, the shared Lean project and site-packages, and produce duplicate
+builds.
 
 Readback, without writing:
 
 ```sh
 cat ~/sage-image/rootfs/opt/bliss-repair.json          # base revision, patch and module digests
-cat ~/sage-image/rootfs/opt/lake-views/index.json      # per checkout, its Lean package overrides
+cat ~/sage-image/rootfs/opt/lean-image.json            # the Mathlib revision and toolchain the image carries
 ```
 
 What can be observed of the host: one RAM figure and no swap (`free`), one set

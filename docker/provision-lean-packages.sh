@@ -1,33 +1,48 @@
 #!/usr/bin/env bash
-# Provision the Lean packages every checkout under a repository root resolves.
+# Provision the image's one shared Lean project, and bind every Lean checkout
+# under the repository root to it.
 #
-# The image build runs this after checking the research repositories out; an
-# image that was unpacked earlier runs the same script, with the checkouts
-# already in place, and reaches the same state without being rebuilt.
+# The image carries a single Lean project -- mathlib4 at the head of its master
+# branch, on the toolchain that revision pins, with its whole dependency closure
+# built inside it and Mathlib's oleans from the official cache. A build that has
+# no project yet resolves the head at build time and records the revision and
+# toolchain it resolved; a build that inherits one -- an incremental image, which
+# is `FROM` the image it extends -- keeps it, so the image's Lean content is one
+# project rather than one per checkout and one per Mathlib revision (sage#13).
 #
-# Lake fixes a project's packages directory in its lakefile and records it in
-# the manifest: "-K packagesDir=" is ignored, and a lakefile whose packagesDir
-# disagrees with its manifest is rejected as out of date. Two checkouts that pin
-# one package at different revisions therefore cannot both be served by that one
-# directory, so each checkout gets its own view -- a directory of links to the
-# content-addressed checkouts under /opt/lake-packages, exactly the packages its
-# manifest pins -- and the launcher binds that view over the packages directory
-# for a single invocation (`docker/sage-image.py run --lean-view CHECKOUT`).
-# The shared directory keeps only the packages every checkout agrees on, so
-# nothing silently resolves another project's revision.
+# Every checkout under the repository root that carries a lake-manifest.json then
+# resolves mathlib and its closure from that project: provisioning links each
+# package its manifest pins to the image's copy of it, in the packages directory
+# its lakefile declares. A pin the image does not carry is reported as a
+# disagreement, naming the checkout and both revisions -- nothing is rewritten in
+# the checkout, and its manifest stays what its repository published. The
+# environment check turns those reports into a failure (docker/
+# research-environment-check.py).
 #
-# Mathlib's oleans come from the official cache for the pinned revision, so
-# Mathlib itself is never compiled; the packages Mathlib imports are built once.
+# An image that was unpacked before this was introduced reaches the same state
+# without being rebuilt; see docker/SAGE-ENVIRONMENT.md.
 #
-#   docker/provision-lean-packages.sh [REPOSITORIES_ROOT]   (default /repos)
+#   docker/provision-lean-packages.sh [REPOSITORIES_ROOT] [--dry-run]
 #
-# Environment: LAKE_PACKAGES (default /opt/lake-packages), LAKE_VIEWS (default
-# /opt/lake-views), PYTHON (default python3).
+# --dry-run prints the plan and touches nothing. Without an existing project it
+# cannot plan: a build resolves the head first.
+#
+# Environment: MATHLIB_PROJECT (default /opt/mathlib), MATHLIB_RECORD (default
+# /opt/lean-image.json), LAKE_PACKAGES (default /opt/lake-packages) for packages
+# neither the project nor a checkout provides, MATHLIB_REPOSITORY (default
+# https://github.com/leanprover-community/mathlib4), PYTHON (default python3).
 set -euo pipefail
 
 repositories_root="${1:-${REPOSITORIES_ROOT:-/repos}}"
+case "${2:-}" in
+    --dry-run) dry_run=1 ;;
+    '') dry_run=0 ;;
+    *) printf 'usage: %s [REPOSITORIES_ROOT] [--dry-run]\n' "$0" >&2; exit 2 ;;
+esac
+project="${MATHLIB_PROJECT:-/opt/mathlib}"
+record="${MATHLIB_RECORD:-/opt/lean-image.json}"
 lake_packages="${LAKE_PACKAGES:-/opt/lake-packages}"
-lake_views="${LAKE_VIEWS:-/opt/lake-views}"
+repository="${MATHLIB_REPOSITORY:-https://github.com/leanprover-community/mathlib4}"
 python_bin="${PYTHON:-python3}"
 
 # The image keeps elan and its toolchains under /opt/elan. A runner that does
@@ -42,23 +57,147 @@ if [ -z "${ELAN_HOME:-}" ] && [ -d /opt/elan ]; then
     export ELAN_HOME
 fi
 
-# One plan, computed once: the checkouts, the checkouts' toolchains, the
-# content-addressed packages, each checkout's view, and the packages the shared
-# directory can carry.
-plan="$("${python_bin}" - "${repositories_root}" "${lake_packages}" "${lake_views}" <<'PY'
-import hashlib
+# A directory that is not a repository, or has no commit yet, is "no revision".
+git_head() { git -C "$1" rev-parse --verify --quiet HEAD 2>/dev/null || true; }
+
+# The head of the repository's branch, as one revision. This is the only place the
+# image decides which Mathlib it carries, and it decides it per build: no tag and no
+# revision is written here. The branch is master, which is what mathlib4 develops on.
+resolve_head() {
+    git ls-remote "${repository}" refs/heads/master \
+        | awk 'NR == 1 { print $1 }' \
+        || git ls-remote "${repository}" HEAD | awk 'NR == 1 { print $1 }'
+}
+
+if [ -f "${record}" ] && [ -d "${project}" ]; then
+    image_revision="$("${python_bin}" -c 'import json,sys; print(json.load(open(sys.argv[1]))["revision"])' "${record}")"
+    image_toolchain="$("${python_bin}" -c 'import json,sys; print(json.load(open(sys.argv[1]))["toolchain"])' "${record}")"
+    head="$(git_head "${project}")"
+    olean="${project}/.lake/build/lib/lean/Mathlib.olean"
+    if [ "${head}" != "${image_revision}" ] || [ ! -f "${olean}" ]; then
+        printf 'error: %s is at %s and %s, but %s records %s; the image does not carry one built project\n' \
+            "${project}" "${head:-no revision}" \
+            "$([ -f "${olean}" ] && echo has Mathlib.olean || echo has no Mathlib.olean)" \
+            "${record}" "${image_revision}" >&2
+        exit 1
+    fi
+    printf 'the image carries mathlib %s on %s, recorded by the build that resolved it (%s)\n' \
+        "${image_revision}" "${image_toolchain}" "$("${python_bin}" -c 'import json,sys; print(json.load(open(sys.argv[1])).get("resolved","no date"))' "${record}")"
+elif [ "${dry_run}" = 1 ]; then
+    printf 'no shared Lean project at %s; a build resolves %s at build time\n' "${project}" "${repository}"
+    exit 0
+else
+    image_revision="$(resolve_head)"
+    if [ -z "${image_revision}" ]; then
+        printf 'error: %s reports no head; the image cannot choose a Mathlib\n' "${repository}" >&2
+        exit 1
+    fi
+    printf 'resolving %s at %s, the head of its default branch\n' "${repository}" "${image_revision}"
+    current="$(git_head "${project}" 2>/dev/null || true)"
+    if [ -n "${current}" ] && [ "${current}" != "${image_revision}" ]; then
+        printf 'error: %s already holds %s, not the %s this build resolves; remove it to move the project\n' \
+            "${project}" "${current}" "${image_revision}" >&2
+        exit 1
+    fi
+    if [ "${current}" != "${image_revision}" ]; then
+        mkdir -p "${project}"
+        git -C "${project}" init --quiet
+        git -C "${project}" remote add origin "${repository}" 2>/dev/null \
+            || git -C "${project}" remote set-url origin "${repository}"
+        # One revision, not the history: Lake reads the lakefile and the manifest,
+        # and the record is what a consumer reads for provenance. A server that will
+        # not serve a revision by name still serves its head, which is what the
+        # resolution asked for.
+        git -C "${project}" fetch --quiet --depth 1 origin "${image_revision}" \
+            || git -C "${project}" fetch --quiet origin "${image_revision}" \
+            || git -C "${project}" fetch --quiet --depth 1 origin HEAD
+        git -C "${project}" checkout --quiet "${image_revision}"
+    fi
+    if [ "$(git_head "${project}")" != "${image_revision}" ]; then
+        printf 'error: %s is at %s after the checkout, not %s\n' \
+            "${project}" "$(git_head "${project}")" "${image_revision}" >&2
+        exit 1
+    fi
+    # The toolchain is not chosen here either: it is the one that revision pins.
+    image_toolchain="$(cat "${project}/lean-toolchain")"
+    elan toolchain install "${image_toolchain}"
+    elan default "${image_toolchain}"
+    # Mathlib itself comes from the official cache for this exact revision, so it
+    # is never compiled; the packages it imports are built once, here, by this
+    # toolchain, and that built closure is what every checkout resolves.
+    ( cd "${project}" && lake exe cache get )
+    ( cd "${project}" && lake build Mathlib )
+    olean="${project}/.lake/build/lib/lean/Mathlib.olean"
+    if [ ! -f "${olean}" ]; then
+        printf 'error: %s is missing after the build; mathlib %s is not usable\n' "${olean}" "${image_revision}" >&2
+        exit 1
+    fi
+    "${python_bin}" - "${record}" "${project}" "${repository}" "${image_revision}" "${image_toolchain}" <<'PY'
+import json
+import sys
+import time
+
+record, project, repository, revision, toolchain = sys.argv[1:6]
+# `master_head_at_resolution` is read back by the environment check: it is the
+# revision the build asked for, so a checkout that is not at it proves the
+# project moved rather than that the record is stale.
+with open(record, "w") as handle:
+    json.dump(
+        {
+            "project": project,
+            "repository": repository,
+            "revision": revision,
+            "master_head_at_resolution": revision,
+            "toolchain": toolchain,
+            "cache": "lake exe cache get (official Mathlib cache)",
+            "resolved": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        },
+        handle,
+        indent=2,
+        sort_keys=True,
+    )
+    handle.write("\n")
+PY
+    printf 'recorded mathlib %s on %s in %s\n' "${image_revision}" "${image_toolchain}" "${record}"
+fi
+
+# One plan, computed once: every Lean checkout, what each of its pins resolves to
+# in this image, and the link that puts it in the directory its lakefile declares.
+plan="$("${python_bin}" - "${repositories_root}" "${project}" "${lake_packages}" <<'PY'
 import json
 import os
+import subprocess
 import sys
 
-root, lake_packages, lake_views = sys.argv[1:4]
-checkouts, packages, views, shared = [], {}, [], {}
+root, project, lake_packages = sys.argv[1:4]
+project = os.path.realpath(project)
+
+
+def head(path):
+    result = subprocess.run(
+        ["git", "-C", path, "rev-parse", "--verify", "--quiet", "HEAD"],
+        capture_output=True, text=True, check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+carried = {"mathlib": project}
+closure_directory = os.path.join(project, ".lake", "packages")
+# A project whose closure has not been resolved yet carries Mathlib alone; a real
+# one has every package its own manifest pins.
+for name in sorted(os.listdir(closure_directory)) if os.path.isdir(closure_directory) else []:
+    directory = os.path.join(closure_directory, name)
+    if os.path.isdir(directory):
+        carried[name] = directory
+
+checkouts = 0
 for name in sorted(os.listdir(root)):
     directory = os.path.join(root, name)
     manifest = os.path.join(directory, "lake-manifest.json")
     toolchain = os.path.join(directory, "lean-toolchain")
-    if not os.path.isfile(toolchain) or not os.path.isfile(manifest):
+    if not os.path.isfile(manifest) or not os.path.isfile(toolchain):
         continue
+    checkouts += 1
     with open(toolchain) as handle:
         pinned_toolchain = handle.read().strip()
     with open(manifest) as handle:
@@ -67,185 +206,98 @@ for name in sorted(os.listdir(root)):
     if not os.path.isabs(packages_dir):
         packages_dir = os.path.join(directory, packages_dir)
     packages_dir = os.path.realpath(packages_dir)
-    pins = sorted(
-        (package["name"], package["url"], package["rev"])
-        for package in data["packages"]
-        if package["type"] == "git"
-    )
-    checkouts.append((directory, pinned_toolchain, packages_dir))
-    digest = hashlib.sha256(
-        "\n".join(f"{packages_dir}\t{n}\t{r}" for n, _, r in pins).encode()
-    ).hexdigest()[:12]
-    view = os.path.join(lake_views, f"{name}@{digest}")
-    views.append((directory, packages_dir, view, pins))
-    for package_name, url, revision in pins:
-        packages[(package_name, revision)] = url
-        shared.setdefault((packages_dir, package_name), set()).add(revision)
-
-for directory, pinned_toolchain, _ in checkouts:
     print("CHECKOUT", directory, pinned_toolchain, sep="\t")
-for (package_name, revision), url in sorted(packages.items()):
-    print("PACKAGE", package_name, revision, url, sep="\t")
-for directory, packages_dir, view, pins in views:
-    for package_name, _, revision in pins:
-        print("PIN", directory, packages_dir, package_name, revision, sep="\t")
-for (packages_dir, package_name), revisions in sorted(shared.items()):
-    if len(revisions) == 1:
-        print("SHARED", packages_dir, package_name, next(iter(revisions)), sep="\t")
-    else:
-        print("CONFLICT", packages_dir, package_name, " ".join(sorted(revisions)), sep="\t")
+    for package in sorted(data["packages"], key=lambda item: item["name"]):
+        if package.get("type") != "git":
+            continue
+        package_name, revision = package["name"], package["rev"]
+        target = carried.get(package_name)
+        if target is None:
+            # A package neither Mathlib's closure nor a checkout of this image
+            # provides: one clone per revision, shared by every checkout that
+            # pins it, and nothing built here.
+            target = os.path.join(lake_packages, f"{package_name}@{revision}")
+            if not os.path.isdir(target):
+                print("FETCH", directory, package_name, revision, package["url"], sep="\t")
+                print("LINK", os.path.join(packages_dir, package_name), target, sep="\t")
+                continue
+        found = head(target)
+        if found == revision:
+            print("FOLLOWS", directory, package_name, revision, sep="\t")
+            print("LINK", os.path.join(packages_dir, package_name), target, sep="\t")
+        else:
+            # Disagreement: the image carries this package at another revision, so
+            # nothing is linked and the checkout keeps its own manifest. A link an
+            # earlier run left at that path would resolve the image's revision under
+            # this checkout's pin, so it is removed rather than left to be read.
+            print("LAGS", directory, package_name, revision, found or target, sep="\t")
+            print("REMOVE", os.path.join(packages_dir, package_name), sep="\t")
+if not checkouts:
+    print("NOTE", f"no Lean checkout under {root}", sep="\t")
 PY
 )"
+
+if [ "${dry_run}" = 1 ]; then
+    printf '%s\n' "${plan}"
+    exit 0
+fi
 
 problems=0
-
-# Content-addressed checkouts, shared by every view.
-while IFS=$'\t' read -r kind name revision url; do
-    [ "${kind}" = PACKAGE ] || continue
-    shared_checkout="${lake_packages}/${name}@${revision}"
-    if [ ! -d "${shared_checkout}" ]; then
-        git clone --quiet --filter=blob:none "${url}" "${shared_checkout}"
-        git -C "${shared_checkout}" checkout --quiet "${revision}"
+links=0
+while IFS=$'\t' read -r kind checkout package_name revision url; do
+    [ "${kind}" = FETCH ] || continue
+    target="${lake_packages}/${package_name}@${revision}"
+    mkdir -p "${lake_packages}"
+    git clone --quiet --filter=blob:none "${url}" "${target}"
+    git -C "${target}" checkout --quiet "${revision}"
+    if [ "$(git_head "${target}")" != "${revision}" ]; then
+        printf 'error: %s is at %s after the clone, not the %s %s pins\n' \
+            "${target}" "$(git_head "${target}")" "${revision}" "${checkout##*/}" >&2
+        problems=1
     fi
 done <<< "${plan}"
 
-# What each checkout must have overridden, and the index the launcher reads:
-# a package whose revision the shared directory does not hold for this checkout
-# is mounted from its content-addressed checkout for that invocation only.
-mkdir -p "${lake_views}"
-overrides="$("${python_bin}" - "${plan}" "${lake_views}/index.json" <<'PY'
-import json
-import os
-import sys
-
-rows = [line.split("\t") for line in sys.argv[1].splitlines() if line]
-shared = {}
-for row in rows:
-    if row[0] == "SHARED":
-        _, packages_dir, name, revision = row
-        shared[(packages_dir, name)] = revision
-index = {}
-for row in rows:
-    if row[0] != "PIN":
-        continue
-    _, checkout, packages_dir, name, revision = row
-    entry = index.setdefault(checkout, {"packages_dir": packages_dir, "packages": {}, "overrides": []})
-    entry["packages"][name] = revision
-for checkout, entry in index.items():
-    for name, revision in sorted(entry["packages"].items()):
-        if shared.get((entry["packages_dir"], name)) != revision:
-            entry["overrides"].append(
-                {
-                    "name": name,
-                    "revision": revision,
-                    "checkout": f"/opt/lake-packages/{name}@{revision}",
-                }
-            )
-    del entry["packages"]
-json.dump(index, open(sys.argv[2], "w"), indent=2, sort_keys=True)
-open(sys.argv[2], "a").write("\n")
-for checkout, entry in sorted(index.items()):
-    for override in entry["overrides"]:
-        print("OVERRIDE", checkout, override["name"], override["revision"], sep="\t")
-PY
-)"
-
-# The shared directory carries only the packages every checkout agrees on, and
-# carries them as links to the content-addressed checkout: an image unpacked
-# earlier holds a copy of its own there, whose build tree moves into that
-# checkout so every view sees one built Mathlib rather than a second copy.
-while IFS=$'\t' read -r kind packages_dir name revision; do
-    [ "${kind}" = SHARED ] || continue
-    mkdir -p "${packages_dir}"
-    target="${packages_dir}/${name}"
-    shared_checkout="${lake_packages}/${name}@${revision}"
-    if [ -d "${target}" ] && [ ! -L "${target}" ]; then
-        # An image unpacked earlier carries its own copy, with the cache
-        # unpacked into it: keep that copy where it is.
-        current="$(git -C "${target}" rev-parse HEAD 2>/dev/null || true)"
-        if [ "${current}" != "${revision}" ]; then
-            printf 'error: %s is at %s, not the %s the checkouts share\n' \
-                "${target}" "${current:-no revision}" "${revision}" >&2
-            problems=1
-        fi
-    else
-        ln -sfn "${shared_checkout}" "${target}"
-    fi
-done <<< "${plan}"
-
-# The toolchain each checkout pins.
-while IFS=$'\t' read -r kind checkout toolchain; do
-    [ "${kind}" = CHECKOUT ] || continue
-    elan toolchain install "${toolchain}"
-done <<< "${plan}"
-
-# Mathlib for every revision some checkout pins, each revision in its own
-# content-addressed checkout. A revision the shared packages directory already
-# carries is built there, by the checkouts that resolve it; a revision it does not
-# carry -- one a checkout pins differently, which the launcher binds from its
-# override -- is built here as its own project: the official cache for that
-# revision first, then the packages it imports, which Lake resolves into this
-# checkout's own .lake/packages and builds with this checkout's toolchain. Two
-# revisions must not share one build tree: a Lean release refuses another release's
-# oleans, so a Mathlib built by 4.33.0 is unreadable to 4.33.1 (sage#12), and the
-# same holds for every package it imports.
-while IFS=$'\t' read -r revision; do
-    [ -n "${revision}" ] || continue
-    mathlib_checkout="${lake_packages}/mathlib@${revision}"
-    olean="${mathlib_checkout}/.lake/build/lib/lean/Mathlib.olean"
-    if [ ! -d "${mathlib_checkout}" ]; then
-        printf 'error: no checkout for mathlib %s\n' "${revision}" >&2
+while IFS=$'\t' read -r kind path target; do
+    [ "${kind}" = LINK ] || continue
+    if [ ! -d "${target}" ]; then
+        printf 'error: %s is not present, so %s is left unlinked\n' "${target}" "${path}" >&2
         problems=1
         continue
     fi
-    if [ ! -f "${olean}" ]; then
-        ( cd "${mathlib_checkout}" && lake exe cache get ) \
-            || { printf 'error: the Mathlib cache for %s could not be fetched\n' "${revision}" >&2; problems=1; continue; }
-        ( cd "${mathlib_checkout}" && lake build Mathlib ) \
-            || { printf 'error: Mathlib %s did not build\n' "${revision}" >&2; problems=1; continue; }
+    if [ -d "${path}" ] && [ ! -L "${path}" ]; then
+        # A copy an earlier image left there, with its build tree. It is kept
+        # rather than replaced: deleting a build tree to make room for a link
+        # would hide whichever revision it holds.
+        printf 'note: %s is a copy, not a link to %s; it stays as it is\n' "${path}" "${target}"
+        continue
     fi
-    if [ ! -f "${olean}" ]; then
-        printf 'error: %s is missing after the build\n' "${olean}" >&2
-        problems=1
-    fi
-done < <(awk -F'\t' '$1 == "PIN" && $4 == "mathlib" { print $5 }' <<< "${plan}" | sort -u)
+    mkdir -p "$(dirname "${path}")"
+    ln -sfn "${target}" "${path}"
+    links=$((links + 1))
+done <<< "${plan}"
 
-# Every checkout must either be fully carried by the shared directory or have
-# an override for each package it pins differently; a checkout with no override
-# must still resolve from the directory its lakefile declares.
+while IFS=$'\t' read -r kind path; do
+    [ "${kind}" = REMOVE ] || continue
+    if [ -L "${path}" ]; then
+        rm -f "${path}"
+        printf 'removed the link %s: it does not hold what the checkout pins\n' "${path}"
+    fi
+done <<< "${plan}"
+
+while IFS=$'\t' read -r kind checkout package_name revision found; do
+    [ "${kind}" = LAGS ] || continue
+    printf 'error: %s pins %s at %s and the image carries %s: the checkout does not follow the image\n' \
+        "${checkout}" "${package_name}" "${revision}" "${found}" >&2
+done <<< "${plan}"
+
 while IFS=$'\t' read -r kind checkout toolchain; do
     [ "${kind}" = CHECKOUT ] || continue
-    packages_dir="$(awk -F'\t' -v c="${checkout}" '$1 == "PIN" && $2 == c { print $3; exit }' <<< "${plan}")"
-    missing=""
-    while IFS=$'\t' read -r row_name row_revision; do
-        current="$(git -C "${packages_dir}/${row_name}" rev-parse HEAD 2>/dev/null || true)"
-        [ "${current}" = "${row_revision}" ] && continue
-        if ! grep -qx "OVERRIDE"$'\t'"${checkout}"$'\t'"${row_name}"$'\t'"${row_revision}" <<< "${overrides}"; then
-            printf 'error: %s needs %s at %s and has no override for it\n' \
-                "${checkout##*/}" "${row_name}" "${row_revision}" >&2
-            problems=1
-        fi
-        missing="${missing:+$missing }${row_name}"
-    done < <(awk -F'\t' -v c="${checkout}" '$1 == "PIN" && $2 == c { print $4"\t"$5 }' <<< "${plan}")
-    if [ -z "${missing}" ]; then
-        # Lake reads the packages directory the lakefile declares; the entries
-        # it puts on LEAN_PATH are those packages resolved to their checkouts,
-        # so the revision check above is what proves the manifest is honoured.
-        path="$( cd "${checkout}" && lake env printenv LEAN_PATH 2>/dev/null || true )"
-        if [ -z "${path}" ]; then
-            printf 'error: %s does not load its Lake environment\n' "${checkout##*/}" >&2
-            problems=1
-        fi
-    else
-        printf 'note: %s mounts %s for its own manifest; run it with --lean-view %s\n' \
-            "${checkout##*/}" "${missing}" "${checkout}"
+    if [ "${toolchain}" != "${image_toolchain}" ]; then
+        printf 'error: %s pins toolchain %s and the image has %s: the checkout does not follow the image\n' \
+            "${checkout}" "${toolchain}" "${image_toolchain}" >&2
     fi
 done <<< "${plan}"
 
-while IFS=$'\t' read -r kind packages_dir name revisions; do
-    [ "${kind}" = CONFLICT ] || continue
-    printf 'note: %s is pinned at more than one revision (%s); each checkout mounts its own\n' \
-        "${name}" "${revisions}"
-done <<< "${plan}"
-
+printf 'the shared project at %s serves %s link(s); %s disagreement(s) reported\n' \
+    "${project}" "${links}" "$(grep -c $'^LAGS\t' <<< "${plan}" || true)"
 exit "${problems}"

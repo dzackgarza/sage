@@ -234,68 +234,6 @@ def runtime() -> None:
         )
 
 
-def resolve_in(rootfs: Path, path: Path) -> Path:
-    """Resolve a link that may point into the image, not at the host."""
-    for _ in range(40):
-        if not path.is_symlink():
-            break
-        target = Path(os.readlink(path))
-        path = (rootfs / str(target).lstrip("/")) if target.is_absolute() else (path.parent / target)
-    return path
-
-
-def git_head(path: Path) -> str | None:
-    # A directory that is not a repository is "no revision", which the caller
-    # reports as such rather than as a crash.
-    result = subprocess.run(
-        ["git", "-C", str(path), "rev-parse", "HEAD"], capture_output=True, text=True, check=False
-    )
-    return result.stdout.strip() if result.returncode == 0 else None
-
-
-def lean_view_mounts(rootfs: Path, checkout: str) -> list[tuple[Path, str]]:
-    """The mounts a checkout needs, after checking its whole manifest resolves.
-
-    Every package the manifest pins must already be present at that revision --
-    in the checkout's override or, for a package it shares with the others, in
-    the packages directory its lakefile declares. A package that resolves to
-    another revision stops the launch instead of running against it.
-    """
-    index = json.loads((rootfs / "opt" / "lake-views" / "index.json").read_text())
-    entry = index.get(checkout)
-    if entry is None:
-        raise SystemExit(
-            f"{checkout} has no Lean package view; run docker/provision-lean-packages.sh "
-            "in this image first"
-        )
-    packages_dir = entry["packages_dir"]
-    overrides = {override["name"]: override for override in entry["overrides"]}
-    manifest = json.loads((rootfs / checkout.lstrip("/") / "lake-manifest.json").read_text())
-    mounts: list[tuple[Path, str]] = []
-    for package in manifest["packages"]:
-        if package.get("type") != "git":
-            continue
-        name, revision = package["name"], package["rev"]
-        override = overrides.get(name)
-        source = rootfs / (override["checkout"] if override else f"{packages_dir}/{name}").lstrip("/")
-        source = resolve_in(rootfs, source)
-        destination = f"{packages_dir}/{name}" if override else None
-        if not source.is_dir():
-            raise SystemExit(
-                f"{checkout} pins {name} at {revision} and it is not present at {source}; "
-                "run docker/provision-lean-packages.sh in this image"
-            )
-        resolved = git_head(source)
-        if resolved != revision:
-            raise SystemExit(
-                f"{checkout} pins {name} at {revision} but resolves {resolved or 'no revision'} "
-                f"from {source}; run docker/provision-lean-packages.sh in this image"
-            )
-        if destination:
-            mounts.append((source, destination))
-    return mounts
-
-
 def command(
     rootfs: Path,
     arguments: list[str],
@@ -303,7 +241,6 @@ def command(
     environment: list[str],
     directory: str | None,
     image_environment: list[str] = (),
-    lean_view: str | None = None,
 ) -> int:
     runtime()
     home = rootfs.parent / "home"
@@ -321,12 +258,6 @@ def command(
         source, _, destination = mount.partition(":")
         source = os.path.abspath(source)
         mounts += ["--bind", source, destination or source]
-    if lean_view:
-        # The packages this checkout's manifest pins differently from the shared
-        # directory, mounted over it for this invocation only: two checkouts
-        # resolve different revisions at the same time, and nothing global moves.
-        for source, destination in lean_view_mounts(rootfs, lean_view):
-            mounts += ["--bind", str(source), destination]
     variables: dict[str, str] = {}
     for entry in image_environment:
         key, _, value = entry.partition("=")
@@ -366,11 +297,6 @@ def main(argv: list[str]) -> int:
     run.add_argument("--bind", action="append", default=[], metavar="SRC[:DEST]", help="mount SRC at DEST (default: its own path)")
     run.add_argument("--env", action="append", default=[], metavar="KEY=VALUE")
     run.add_argument("--chdir", metavar="DIR")
-    run.add_argument(
-        "--lean-view",
-        metavar="CHECKOUT",
-        help="bind that checkout's Lean package view over its packages directory",
-    )
     options, rest = parser.parse_known_args(argv)
     if rest and rest[0] == "--":
         rest = rest[1:]
@@ -421,7 +347,6 @@ def main(argv: list[str]) -> int:
         environment,
         options.chdir,
         image_environment,
-        getattr(options, "lean_view", None),
     )
 
 

@@ -106,8 +106,8 @@ mkdir -p "${categories_root}/.gap/pkg"
 (cd "${categories_root}" && "${sage_gap}" -q -r \
     --packagedirs "${categories_root}/.gap/pkg" "${categories_root}/.gap-packages.g")
 
-# Lean: the toolchain each checkout pins and the packages its manifest
-# resolves. The same script provisions an image that was unpacked earlier,
-# without a rebuild: docker/provision-lean-packages.sh.
+# Lean: one shared project, on the Mathlib head this build resolves, and every
+# checkout bound to it by links in the packages directory its lakefile declares.
+# The same script provisions an image that was unpacked earlier, without a
+# rebuild: docker/provision-lean-packages.sh.
 PYTHON="${sage_python}" "${sage_root}/docker/provision-lean-packages.sh" "${repositories_root}"
-elan default "$(cat "${repositories_root}/lean-categories/lean-toolchain")"

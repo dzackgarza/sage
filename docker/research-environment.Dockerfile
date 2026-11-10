@@ -340,8 +340,11 @@ COPY . /sage
 # between runs, so a source change recompiles only the modules it touches.
 ENV CCACHE_DIR=/ccache
 
-# Lean 4 through elan; install-research-repositories.sh installs the toolchain
-# each Lean checkout pins.
+# Lean 4 through elan. The image carries ONE shared Lean project -- mathlib4 at the
+# head of its master branch, on the toolchain that revision pins, with its closure
+# built inside it -- and install-research-repositories.sh provisions it and binds
+# every Lean checkout under /repos to it (docker/provision-lean-packages.sh). No
+# revision is written there: the build resolves the head, and records it.
 ENV ELAN_HOME=/opt/elan
 ENV PATH=/opt/elan/bin:$PATH
 RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
@@ -349,8 +352,11 @@ RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-ini
  && elan --version
 
 # The recipe: the Sage virtual environment, then every research checkout, the
-# bridge's julia-deps, sage-categories' GAP releases and the Lean packages each
-# checkout pins.
+# bridge's julia-deps, sage-categories' GAP releases, and the shared Lean project
+# with every checkout bound to it. A build with no project inherits none, so this
+# is where a full build resolves the current Mathlib head; an incremental build
+# inherits the project its base carries and keeps it, which is what stops a source
+# push from rebuilding Mathlib and its closure.
 RUN --mount=type=cache,target=/ccache \
     just research-environment-sync && ccache --show-stats
 
@@ -372,8 +378,14 @@ COPY --from=environment /sage/uv.lock /uv.lock
 
 FROM environment
 
-# Fail the build if any system the image exists to provide is absent. The Lean
-# part of the check imports Mathlib from a pinned checkout, which exercises
-# docker/provision-lean-packages.sh against whatever this build left in place: a
-# full build is the only one that runs it with an empty packages directory.
-RUN "$SAGE_BIN" docker/research-environment-check.py
+# Fail the build if any system the image exists to provide is absent. The Lean part
+# asserts the one shared project -- the recorded revision is the one checked out,
+# the toolchain is the one that revision pins, the closure is built in it -- and
+# then `import Mathlib` in every Lean checkout, from that project.
+#
+# --allow-lagging-lean-checkouts: a checkout whose Mathlib pin disagrees with the
+# image does not follow it, and the check reports each of those loudly (sage#13).
+# The pin moves belong to the Lean repositories (lean-categories#118,
+# lean-cas-dsl#90), so the image publishes while they land; a consumer running the
+# check without this flag gets the failure. Remove the flag once they have.
+RUN "$SAGE_BIN" docker/research-environment-check.py --allow-lagging-lean-checkouts

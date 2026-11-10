@@ -421,100 +421,227 @@ subprocess.run(
     check=True,
 )
 
-# Each Lean checkout imports Mathlib the way a consumer runs it. A Lean release
-# refuses another release's oleans, so a Mathlib is readable only by the toolchain
-# that built it, and the same holds for every package Mathlib imports: docker/
-# provision-lean-packages.sh builds each pinned Mathlib revision as its own project
-# when the shared packages directory does not already carry that revision, and its
-# dependencies are built inside that checkout by that checkout's toolchain (sage#12),
-# which is what the launcher's view binds over the packages directory. The check
-# reproduces that environment exactly: LEAN_PATH is the build directory of every
-# package in the project's manifest, resolved the way the view resolves it, and the
-# import runs on the toolchain the project pins rather than through Lake, whose
-# `env` does not return in this environment.
+# ---- the image's one shared Lean project (sage#13) ---------------------------
+# The image carries mathlib4 at the head of its master branch, on the toolchain
+# that revision pins, with its whole dependency closure built inside
+# /opt/mathlib and Mathlib's oleans from the official cache.
+# docker/provision-lean-packages.sh resolves that head when a build has no project
+# yet, and records the revision and the toolchain in /opt/lean-image.json; a build
+# that inherits a project keeps it. Every Lean checkout under /repos resolves
+# mathlib and its closure from this one project. A checkout whose pin disagrees
+# does not follow the image: that is reported for every checkout, and it fails
+# this check -- which is what "fails loudly" means -- unless the caller says the
+# image is published while the repositories catch up. The build passes
+# --allow-lagging-lean-checkouts for exactly that, and the pin moves are
+# lean-categories#118 and lean-cas-dsl#90.
 import json
 
+flags = [word for word in sys.argv[1:] if word.startswith("--")]
+unknown = [word for word in flags if word != "--allow-lagging-lean-checkouts"]
+assert not unknown, f"unknown argument(s): {unknown}"
+allow_lagging = "--allow-lagging-lean-checkouts" in flags
 
-def pinned(project: Path) -> tuple[str, dict[str, str]]:
-    """The toolchain a checkout pins and the revision it pins for every package."""
-    toolchain = (project / "lean-toolchain").read_text(encoding="utf-8").strip()
-    manifest = json.loads((project / "lake-manifest.json").read_text(encoding="utf-8"))
-    return toolchain, {
+record_path = Path("/opt/lean-image.json")
+record = json.loads(record_path.read_text(encoding="utf-8"))
+project = Path(record["project"])
+assert project == Path("/opt/mathlib"), (
+    f"the image's Lean project is {project}, not /opt/mathlib", record,
+)
+assert record["master_head_at_resolution"] == record["revision"], (
+    "the build resolved one Mathlib revision and checked out another",
+    record["master_head_at_resolution"], record["revision"],
+)
+
+
+def git_head(directory: Path) -> str | None:
+    result = subprocess.run(
+        ["git", "-C", str(directory), "rev-parse", "--verify", "--quiet", "HEAD"],
+        capture_output=True, text=True, check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def manifest(directory: Path) -> dict:
+    return json.loads((directory / "lake-manifest.json").read_text(encoding="utf-8"))
+
+
+def pins_of(directory: Path) -> dict[str, str]:
+    """Every git package a project's manifest pins, by name: one flat closure."""
+    return {
         package["name"]: package["rev"]
-        for package in manifest["packages"]
+        for package in manifest(directory)["packages"]
         if package.get("type") == "git"
     }
 
 
-index = json.loads(Path("/opt/lake-views/index.json").read_text(encoding="utf-8"))
+def build_dir(directory: Path) -> str:
+    return str(directory / ".lake" / "build" / "lib" / "lean")
+
+
+head = git_head(project)
+assert head == record["revision"], (
+    "the shared project is not the revision the image recorded",
+    head, record["revision"],
+)
+
+# The toolchain is the one that revision pins, and nothing else: the image holds no
+# second Mathlib and no second toolchain for a checkout that pins its own.
+pinned_toolchain = (project / "lean-toolchain").read_text(encoding="utf-8").strip()
+assert pinned_toolchain == record["toolchain"], (
+    "the toolchain the recorded Mathlib revision pins is not the one the image records",
+    pinned_toolchain, record["toolchain"],
+)
+settings = Path("/opt/elan/settings.toml")
+assert settings.is_file(), settings
+assert f'default_toolchain = "{record["toolchain"]}"' in settings.read_text(
+    encoding="utf-8"
+), (
+    "the image's default toolchain is not the one its shared Mathlib project pins",
+    settings.read_text(encoding="utf-8").strip(), record["toolchain"],
+)
+
+# The closure, built once, in the one project: Mathlib's olean is there, and every
+# package the project's own manifest pins is a checkout at exactly that revision
+# with its build directory present.
+assert (project / ".lake" / "build" / "lib" / "lean" / "Mathlib.olean").is_file(), (
+    f"{project} carries no built Mathlib; docker/provision-lean-packages.sh did not finish"
+)
+closure = {}
+for name, revision in sorted(pins_of(project).items()):
+    directory = project / ".lake" / "packages" / name
+    assert directory.is_dir(), (f"{directory} is missing from the shared project", name)
+    found = git_head(directory)
+    assert found == revision, (
+        f"{directory} is at {found}, not the {revision} the shared project pins", name,
+    )
+    assert Path(build_dir(directory)).is_dir(), (
+        f"{directory} carries no build directory; the closure was not built in the one project",
+        name,
+    )
+    closure[name] = directory
+print(
+    f"the shared Lean project: mathlib {record['revision'][:12]} on {record['toolchain']}"
+    f" (master head resolved at {record.get('resolved', 'an unrecorded time')}),"
+    f" closure built in {project}: {', '.join(sorted(closure))}"
+)
+
+# `lake env` is Lake itself answering, so the toolchain it reports is the one a
+# consumer's build would run on.
+lake_env_version = subprocess.run(
+    ["lake", "env", "lean", "--version"], cwd=project, capture_output=True, text=True,
+    check=True, timeout=900,
+).stdout.strip()
+expected_version = record["toolchain"].rsplit(":", 1)[-1].lstrip("v")
+assert expected_version in lake_env_version, (lake_env_version, record["toolchain"])
+print(f"lake env lean --version in {project}: {lake_env_version.splitlines()[0]}")
+
+# A build of Mathlib from the project itself: after provisioning this is a no-op,
+# and the assertion is that Lake finds the closure it was built with -- a project
+# whose oleans are there but whose closure is not stops here.
+built = subprocess.run(
+    ["lake", "build", "Mathlib"], cwd=project, capture_output=True, text=True,
+    check=False, timeout=3600,
+)
+if built.returncode != 0:
+    raise SystemExit(
+        f"lake build Mathlib failed in {project} (exit {built.returncode}):\n"
+        f"{built.stdout[-4000:]}{built.stderr[-4000:]}"
+    )
+print(f"lake build Mathlib in {project}: exit 0")
+mathlib_path = build_dir(project)
+
 with tempfile.NamedTemporaryFile(
     "w", suffix=".lean", prefix="mathlib-import-", delete=False
 ) as handle:
     handle.write("import Mathlib\n#check (Nat.add_comm : \u2200 a b : Nat, a + b = b + a)\n")
     import_file = handle.name
-imported = []
+
+# Every Lean checkout, against the one project. Two things are asserted for each:
+# that what it pins is what the image carries (otherwise it does not follow the
+# image, and that is a failure), and that an `import Mathlib` it cannot get wrong
+# -- the closure resolved from the project's build directories -- elaborates.
+lagging = []
+following = []
 try:
     for toolchain_file in sorted(Path("/repos").glob("*/lean-toolchain")):
-        project = toolchain_file.parent
-        if not (project / "lake-manifest.json").is_file():
+        checkout = toolchain_file.parent
+        if not (checkout / "lake-manifest.json").is_file():
             continue
-        pinned_toolchain, pins = pinned(project)
-        subprocess.run(["lake", "--version"], cwd=project, check=True)
-        entry = index.get(str(project))
-        assert entry is not None, f"{project} is not in /opt/lake-views/index.json"
-        packages_dir = Path(entry["packages_dir"])
-        overrides = {item["name"]: item for item in entry["overrides"]}
-        directories = {
-            name: Path(overrides[name]["checkout"]) if name in overrides else packages_dir / name
-            for name in pins
-        }
-        if "mathlib" in overrides:
-            # A revision the shared directory does not carry. Its dependencies live
-            # beside it only if this checkout resolved them itself; a Mathlib built
-            # earlier against the shared directory carries none, and those packages
-            # are still the ones it was built with, so the shared entry is used and
-            # the revision check below holds it to the pin.
-            mathlib = Path(overrides["mathlib"]["checkout"])
-            _, closure = pinned(mathlib)
-            for name in pins:
-                if name == "mathlib":
-                    continue
-                bundled = mathlib / ".lake" / "packages" / name
-                if bundled.is_dir():
-                    directories[name] = bundled
-                    if name in closure:
-                        assert pins[name] == closure[name], (name, pins[name], closure[name])
-            directories["mathlib"] = mathlib
-            where = "from its override checkout"
-        else:
-            mathlib = (packages_dir / "mathlib").resolve()
-            where = "from the shared packages directory"
-        for name, directory in sorted(directories.items()):
-            resolved = subprocess.run(
-                ["git", "-C", str(directory), "rev-parse", "HEAD"],
-                capture_output=True, text=True, check=True,
-            ).stdout.strip()
-            assert resolved == pins[name], (str(directory), resolved, pins[name])
-        built_by = (mathlib / "lean-toolchain").read_text(encoding="utf-8").strip()
-        assert built_by == pinned_toolchain, (str(mathlib), built_by, pinned_toolchain)
-        lean_path = ":".join(
-            str(directory / ".lake" / "build" / "lib" / "lean")
-            for _, directory in sorted(directories.items())
+        checkout_toolchain = toolchain_file.read_text(encoding="utf-8").strip()
+        problems = []
+        if checkout_toolchain != record["toolchain"]:
+            problems.append(
+                f"error: {checkout} pins toolchain {checkout_toolchain}"
+                f" and the image has {record['toolchain']}: the checkout does not follow the image"
+            )
+        resolved: dict[str, Path] = {}
+        for name, revision in sorted(pins_of(checkout).items()):
+            if name == "mathlib":
+                source = project
+            elif name in closure:
+                source = closure[name]
+            elif (Path("/repos") / name).is_dir():
+                # A research package: the image carries it as its own checkout, so
+                # it serves the other checkouts at the revision it is at.
+                source = Path("/repos") / name
+            else:
+                source = None
+            found = git_head(source) if source is not None else None
+            if found is None or found != revision:
+                problems.append(
+                    f"error: {checkout} pins {name} at {revision} and the image carries"
+                    f" {found or 'nothing'}: the checkout does not follow the image"
+                )
+                continue
+            resolved[name] = source
+        if problems:
+            lagging.extend(problems)
+            continue
+        path = ":".join(
+            [build_dir(directory) for directory in resolved.values()] + [mathlib_path]
         )
         output = subprocess.run(
-            ["elan", "run", pinned_toolchain, "lean", import_file],
-            cwd=project,
-            env={**os.environ, "LEAN_PATH": lean_path},
+            ["elan", "run", record["toolchain"], "lean", import_file],
+            cwd=checkout,
+            env={**os.environ, "LEAN_PATH": path},
             capture_output=True, text=True, check=True,
         ).stdout.strip()
-        assert "Nat.add_comm" in output, output
-        imported.append(
-            f"{project.name} ({pinned_toolchain}) {where} mathlib {pins['mathlib'][:8]}:"
-            f" {output.splitlines()[-1]}"
+        assert "Nat.add_comm" in output, (str(checkout), output)
+        # Lake's own answer for the checkout, which is what a consumer runs: the
+        # toolchain above, and the same closures.
+        lake_version = subprocess.run(
+            ["lake", "env", "lean", "--version"], cwd=checkout,
+            capture_output=True, text=True, check=True, timeout=900,
+        ).stdout.strip()
+        assert expected_version in lake_version, (str(checkout), lake_version)
+        following.append(
+            f"{checkout.name}: mathlib {pins_of(checkout)['mathlib'][:12]}"
+            f" from the shared project, {len(resolved)} pin(s) resolved,"
+            f" import Mathlib on {checkout_toolchain}: {output.splitlines()[-1]}"
         )
 finally:
     Path(import_file).unlink()
-for line in imported:
+for line in following:
     print(line)
+for line in lagging:
+    print(line, file=sys.stderr)
+if lagging:
+    summary = (
+        f"{len(lagging)} checkout pin(s) disagree with the image, which carries mathlib"
+        f" {record['revision']} on {record['toolchain']}. The Lean repositories follow the"
+        " image (lean-categories#118, lean-cas-dsl#90); until they do, the image is"
+        " published with --allow-lagging-lean-checkouts and this check fails for a consumer."
+    )
+    if not allow_lagging:
+        raise SystemExit(
+            "the image's Lean checkouts do not follow the image:\n"
+            + "\n".join(lagging)
+            + "\n"
+            + summary
+        )
+    print(f"warning: {summary}")
+
+if not following and not lagging:
+    print("no Lean checkout under /repos; the shared project is asserted on its own")
 
 print(version())
