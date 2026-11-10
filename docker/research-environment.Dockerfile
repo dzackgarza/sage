@@ -391,12 +391,20 @@ RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-ini
 # the closure. Without it the provisioning script reads the head itself.
 ARG MATHLIB_REVISION=
 
-# The recipe: the Sage virtual environment, then every research checkout, the
-# bridge's julia-deps, sage-categories' GAP releases, and the shared Lean project
-# with every checkout bound to it.
+# The recipe's steps, each its own layer: a pull fetches layers in parallel, and
+# one layer holding the whole environment downloads as a single stream (sage#9).
+# The layers hold the venv's packages, the Sage build, the research checkouts,
+# and the shared Lean project, in the recipe's own order. The stats print after
+# the last step, as they did when the recipe was one command.
 RUN --mount=type=cache,target=/ccache \
     echo "mathlib head for this build: ${MATHLIB_REVISION:-read by the provisioning script}" \
- && just research-environment-sync && ccache --show-stats
+ && just research-environment-venv
+RUN --mount=type=cache,target=/ccache \
+    just research-environment-sage && ccache --show-stats
+RUN --mount=type=cache,target=/ccache just research-environment-repositories
+RUN --mount=type=cache,target=/ccache just research-environment-lean
+RUN --mount=type=cache,target=/ccache \
+    just research-environment-pip-check && ccache --show-stats
 
 # Resolve what the installed distributions require into the depot, so no later
 # import has anything left to fetch: sage_categories pins Catlab =0.17.6 and GATlab

@@ -81,10 +81,21 @@ ARG RELOCK=false
 # which rebuilds that project's closure and nothing else (`docker/
 # provision-lean-packages.sh` compares the head with the record the base carries).
 ARG MATHLIB_REVISION=
+# The recipe's steps, each its own layer: a pull fetches layers in parallel, and
+# one layer holding the whole environment downloads as a single stream (sage#9).
+# The layers hold the venv's packages, the Sage build, the research checkouts,
+# and the shared Lean project, in the recipe's own order. The stats print after
+# the last step, as they did when the recipe was one command.
 RUN --mount=type=cache,target=/ccache \
     echo "mathlib head for this build: ${MATHLIB_REVISION:-read by the provisioning script}" \
  && if [ "$RELOCK" = true ]; then docker/relock-research-packages.sh; fi \
- && just research-environment-sync && ccache --show-stats
+ && just research-environment-venv
+RUN --mount=type=cache,target=/ccache \
+    just research-environment-sage && ccache --show-stats
+RUN --mount=type=cache,target=/ccache just research-environment-repositories
+RUN --mount=type=cache,target=/ccache just research-environment-lean
+RUN --mount=type=cache,target=/ccache \
+    just research-environment-pip-check && ccache --show-stats
 
 FROM scratch AS lock
 COPY --from=environment /sage/uv.lock /uv.lock
