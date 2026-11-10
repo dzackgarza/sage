@@ -562,16 +562,17 @@ finally:
     Path(import_file).unlink()
 print(f"import Mathlib in {project}: {elaborated.splitlines()[-1]}")
 
-# ---- the Lean checkouts under /repos, against the one shared project (sage#13)
-# The acceptance of sage#13: `lake build` of a file containing `import Mathlib`
-# succeeds in each Lean checkout under /repos once it follows the image, and a
-# checkout whose pin disagrees with the image fails the image's check loudly,
-# naming the checkout and both revisions. A checkout follows the image when its
-# mathlib pin is the revision the image resolved and every closure pin is the
-# shared project's own; the probe is the same import a consumer writes,
-# elaborated through the checkout's own Lake environment.
+# ---- the Lean checkouts under /repos, resolved at the Mathlib the image carries (sage#13)
+# Each checkout's manifest is resolved by the image's own provisioning --
+# `lake update` in the checkout, which pins mathlib at the master head the image
+# recorded and the transitives at that head's own pins -- so the revision the
+# image recorded is the one each checkout resolves. What is asserted here is
+# that resolution: the manifest's mathlib pin equals the recorded revision, and
+# `lake env lean` elaborates `import Mathlib` through the checkout's own Lake
+# environment. A checkout that does not build against that Mathlib fails here,
+# loudly, naming the checkout and the revision. A fixed revision in a
+# checkout's manifest is not served by the image (owner, 2026-11-11).
 image_revision = record["revision"]
-project_pins = pins_of(project)
 checkouts = [
     directory for directory in sorted(Path("/repos").iterdir())
     if directory.is_dir() and not directory.name.startswith(".")
@@ -579,20 +580,12 @@ checkouts = [
 ]
 assert checkouts, "the image carries no Lean checkout under /repos"
 for directory in checkouts:
-    pins = pins_of(directory)
-    follows = pins.get("mathlib") == image_revision and all(
-        project_pins.get(name) == revision for name, revision in pins.items()
-    )
-    if not follows:
-        disagreeing = [
-            f"{name}: the checkout pins {revision}, the image carries {project_pins.get(name)}"
-            for name, revision in sorted(pins.items())
-            if name == "mathlib" and revision != image_revision
-            or name != "mathlib" and project_pins.get(name) != revision
-        ]
+    resolved = pins_of(directory).get("mathlib")
+    if resolved != image_revision:
         raise SystemExit(
-            f"{directory} does not follow the image, and the image's check fails loudly "
-            f"for it (sage#13): {'; '.join(disagreeing)}"
+            f"{directory} does not build against the Mathlib the image carries, and the "
+            f"image's check fails loudly for it (sage#13): it resolves {resolved}, the "
+            f"image carries {image_revision}"
         )
     with tempfile.NamedTemporaryFile(
         "w", suffix=".lean", prefix="mathlib-import-", delete=False

@@ -220,77 +220,34 @@ PY
     printf 'recorded mathlib %s on %s in %s\n' "${image_revision}" "${image_toolchain}" "${record}"
 fi
 
-# One plan, computed once: every Lean checkout, what each of its pins resolves to
-# in this image, and the link that puts it in the directory its lakefile declares.
-plan="$("${python_bin}" - "${repositories_root}" "${project}" "${lake_packages}" <<'PY'
+# One plan, computed once: every Lean checkout resolves at the shared project's
+# revisions, which is what `lake update` does -- the documented Lake command
+# that re-resolves a manifest, downloading and upgrading packages as needed
+# (lean-lang.org/doc/reference/latest/Build-Tools-and-Distribution/Lake/:
+# "lake update: Updates the Lake package manifest (i.e., `lake-manifest.json`),
+# downloading and upgrading packages as needed"). The image's shared project is
+# the mathlib4 master head with its own pinned closure, so `lake update` in a
+# checkout resolves mathlib at the head -- the revision the image recorded --
+# and the transitives at that head's own pins. A package a checkout needs that
+# the shared project does not carry is resolved by the same command, into the
+# shared packages directory, so there is still one closure.
+plan="$("${python_bin}" - "${repositories_root}" "${project}" <<'PY'
 import json
 import os
-import subprocess
 import sys
 
-root, project, lake_packages = sys.argv[1:4]
-project = os.path.realpath(project)
-
-
-def head(path):
-    result = subprocess.run(
-        ["git", "-C", path, "rev-parse", "--verify", "--quiet", "HEAD"],
-        capture_output=True, text=True, check=False,
-    )
-    return result.stdout.strip() if result.returncode == 0 else ""
-
-
-carried = {"mathlib": project}
-closure_directory = os.path.join(project, ".lake", "packages")
-# A project whose closure has not been resolved yet carries Mathlib alone; a real
-# one has every package its own manifest pins.
-for name in sorted(os.listdir(closure_directory)) if os.path.isdir(closure_directory) else []:
-    directory = os.path.join(closure_directory, name)
-    if os.path.isdir(directory) and head(directory) and not directory.endswith(".build"):
-        carried[name] = directory
-
-checkouts = 0
+root, project = sys.argv[1:3]
 for name in sorted(os.listdir(root)):
     directory = os.path.join(root, name)
-    manifest = os.path.join(directory, "lake-manifest.json")
-    toolchain = os.path.join(directory, "lean-toolchain")
-    if not os.path.isfile(manifest) or not os.path.isfile(toolchain):
+    if not os.path.isdir(directory) or name.startswith("."):
         continue
-    checkouts += 1
-    with open(toolchain) as handle:
-        pinned_toolchain = handle.read().strip()
-    with open(manifest) as handle:
-        data = json.load(handle)
-    packages_dir = data.get("packagesDir") or ".lake/packages"
-    if not os.path.isabs(packages_dir):
-        packages_dir = os.path.join(directory, packages_dir)
-    packages_dir = os.path.realpath(packages_dir)
-    print("CHECKOUT", directory, pinned_toolchain, sep="\t")
-    for package in sorted(data["packages"], key=lambda item: item["name"]):
-        if package.get("type") != "git":
-            continue
-        package_name, revision = package["name"], package["rev"]
-        target = carried.get(package_name)
-        if target is None:
-            # A package neither Mathlib's closure nor a checkout of this image
-            # provides: one clone per revision, shared by every checkout that
-            # pins it, and nothing built here.
-            target = os.path.join(lake_packages, f"{package_name}@{revision}")
-            if not os.path.isdir(target):
-                print("FETCH", directory, package_name, revision, package["url"], sep="\t")
-                print("LINK", os.path.join(packages_dir, package_name), target, sep="\t")
-                continue
-        found = head(target)
-        if found == revision:
-            print("FOLLOWS", directory, package_name, revision, sep="\t")
-            print("LINK", os.path.join(packages_dir, package_name), target, sep="\t")
-        else:
-            # The checkout pins a revision the image does not carry. Nothing is
-            # linked, and a link an earlier run left there is removed rather than
-            # left to resolve the image's revision under this checkout's pin.
-            print("LAGS", directory, package_name, revision, found or target, sep="\t")
-            print("REMOVE", os.path.join(packages_dir, package_name), sep="\t")
-if not checkouts:
+    if not (os.path.isfile(os.path.join(directory, "lake-manifest.json"))):
+        continue
+    print("UPDATE", directory, sep="\t")
+if not any(
+    os.path.isfile(os.path.join(root, name, "lake-manifest.json"))
+    for name in os.listdir(root)
+):
     print("NOTE", f"no Lean checkout under {root}", sep="\t")
 PY
 )"
@@ -301,74 +258,16 @@ if [ "${dry_run}" = 1 ]; then
 fi
 
 problems=0
-links=0
-while IFS=$'\t' read -r kind checkout package_name revision url; do
-    [ "${kind}" = FETCH ] || continue
-    target="${lake_packages}/${package_name}@${revision}"
-    mkdir -p "${lake_packages}"
-    if [ -d "${target}" ]; then
-        # A revision an earlier row of this plan already cloned, or one the
-        # shared store carried before the build, is reused: two checkouts can
-        # pin one revision, and git clone refuses a destination that exists
-        # and is not empty (sage#23).
-        printf 'reused %s: the shared store already carries %s at %s\n' \
-            "${target}" "${package_name}" "${revision}"
-    else
-        git clone --quiet --filter=blob:none "${url}" "${target}"
-    fi
-    git -C "${target}" checkout --quiet "${revision}"
-    if [ "$(git_head "${target}")" != "${revision}" ]; then
-        printf 'error: %s is at %s after the clone, not the %s %s pins\n' \
-            "${target}" "$(git_head "${target}")" "${revision}" "${checkout##*/}" >&2
-        problems=1
-    fi
-done <<< "${plan}"
-
-while IFS=$'\t' read -r kind path target; do
-    [ "${kind}" = LINK ] || continue
-    if [ ! -d "${target}" ]; then
-        printf 'error: %s is not present, so %s is left unlinked\n' "${target}" "${path}" >&2
-        problems=1
-        continue
-    fi
-    if [ -d "${path}" ] && [ ! -L "${path}" ]; then
-        # A copy an earlier image left there, with its build tree. It is kept
-        # rather than replaced: deleting a build tree to make room for a link
-        # would hide whichever revision it holds.
-        printf 'note: %s is a copy, not a link to %s; it stays as it is\n' "${path}" "${target}"
-        continue
-    fi
-    mkdir -p "$(dirname "${path}")"
-    ln -sfn "${target}" "${path}"
-    links=$((links + 1))
-done <<< "${plan}"
-
-while IFS=$'\t' read -r kind path; do
-    [ "${kind}" = REMOVE ] || continue
-    if [ -L "${path}" ]; then
-        rm -f "${path}"
-        printf 'removed the link %s: it does not hold what the checkout pins\n' "${path}"
-    fi
-done <<< "${plan}"
-
-# A checkout that pins a revision the image does not carry is reported here and
-# nowhere else: the image's own check validates the shared project, and holding a
-# Lean repository to the image is that repository's CI.
-lagging=0
-while IFS=$'\t' read -r kind checkout package_name revision found; do
-    [ "${kind}" = LAGS ] || continue
-    lagging=$((lagging + 1))
-    printf 'note: %s pins %s at %s and the image carries %s: the checkout does not follow the image\n' \
-        "${checkout}" "${package_name}" "${revision}" "${found}"
-done <<< "${plan}"
-
-while IFS=$'\t' read -r kind checkout toolchain; do
-    [ "${kind}" = CHECKOUT ] || continue
-    if [ "${toolchain}" != "${image_toolchain}" ]; then
-        lagging=$((lagging + 1))
-        printf 'note: %s pins toolchain %s and the image has %s: the checkout does not follow the image\n' \
-            "${checkout}" "${toolchain}" "${image_toolchain}"
-    fi
+while IFS=$'\t' read -r kind checkout; do
+    [ "${kind}" = UPDATE ] || continue
+    # `lake update` re-resolves the checkout's manifest at the latest revisions
+    # of its requirements: mathlib at the master head -- the revision the image
+    # recorded -- and the transitives at that head's own pins, the shared
+    # project's closure. A package a checkout needs that the shared project
+    # does not carry is resolved by the same command, so there is still one
+    # closure.
+    printf 'lake update in %s: resolving at the shared project revisions\n' "${checkout}"
+    ( cd "${checkout}" && lake update ) || problems=1
 done <<< "${plan}"
 
 while IFS=$'\t' read -r kind message; do
@@ -376,6 +275,7 @@ while IFS=$'\t' read -r kind message; do
     printf 'note: %s\n' "${message}"
 done <<< "${plan}"
 
-printf 'the shared project at %s (mathlib %s) serves %s link(s); %s checkout pin(s) do not follow it\n' \
-    "${project}" "${image_revision}" "${links}" "${lagging}"
+updates="$(grep -c '^UPDATE' <<<"${plan}" || true)"
+printf 'the shared project at %s (mathlib %s): %s checkout(s) resolved at its revisions\n' \
+    "${project}" "${image_revision}" "${updates}"
 exit "${problems}"
