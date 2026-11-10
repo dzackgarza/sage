@@ -197,6 +197,7 @@ AUTHORS:
 
 import os
 import re
+import shutil
 import string
 import time
 import warnings
@@ -1297,7 +1298,22 @@ class Gap(Gap_generic):
         from sage.misc.temporary_file import atomic_write
         with atomic_write(WORKSPACE) as f:
             f.close()
-            self.eval('SaveWorkspace("%s");' % (f.name), allow_use_file=False)
+            try:
+                self.eval('SaveWorkspace("%s");' % (f.name), allow_use_file=False)
+            except RuntimeError as error:
+                # GAP says "Error, Cannot write to file, see 'LastSystemError();'"
+                # when the write into an opened file fails (src/saveload.c), and
+                # names neither the file nor the room it needed.  Say both.
+                if 'Cannot write to file' not in str(error):
+                    raise
+                directory = os.path.dirname(f.name) or '.'
+                raise OSError(
+                    "GAP could not write its workspace into %s, which has %d "
+                    "bytes free; a workspace of this GAP takes about 70 MB. If "
+                    "that is the shortfall, point DOT_SAGE at a directory with "
+                    "room, or delete the workspaces in it -- they are caches and "
+                    "are recreated as needed."
+                    % (directory, shutil.disk_usage(directory).free)) from error
 
     # Todo -- this -- but there is a tricky "when does it end" issue!
     # Maybe do via a file somehow?

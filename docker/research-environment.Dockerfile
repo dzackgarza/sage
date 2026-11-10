@@ -194,6 +194,16 @@ RUN set -eu; \
 # there is nothing else to fetch: atlasrep, design, grape, guava, hap, polenta,
 # polycyclic, factint, tomlib, genss, orb, forms and recog are bundled.
 
+# /usr/local/bin/gap is the image's GAP for anything that resolves it through
+# PATH, which Sage does: `sage.interfaces.gap` starts the bare command `gap`, and
+# kernel_info() runs it to hash the workspace name.  The image's own PATH finds
+# $SAGE_LOCAL/bin/gap first, but a host that runs the unpacked filesystem -- PRoot
+# over it, a bare exec, an entrypoint that rebuilds the environment -- inherits
+# its own PATH instead, and then there is no `gap` and the interface cannot even
+# be imported (sage#19).  A wrapper, not a symlink, for the reason given in the
+# file: GAP derives its root paths from the program it was started as.
+COPY --chmod=0755 docker/gap-launcher.sh /usr/local/bin/gap
+
 # Debian installs these programs under package prefixes (4ti2-hilbert,
 # latte-count, topcom-points2allfinetriangs); Sage's features look for the
 # unprefixed names, so link them into /usr/local/bin. 4ti2 and LattE both ship

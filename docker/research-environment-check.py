@@ -159,6 +159,75 @@ gap_size = libgap.function_factory("Size")
 order = gap_size(stabilizer_chain(borel(4))).sage()
 assert order == 4 * 5**6, order
 
+# An ordinary call through the *external* GAP interface saves a workspace of
+# GAP's whole memory image and starts GAP from it on every call after that
+# (`SaveWorkspace`, then `gap -L <workspace>`).  Three properties are asserted
+# here, each of them wrong before sage#19:
+#
+# * the call works in an environment this image did not supply -- PATH without
+#   $SAGE_LOCAL/bin, a HOME outside the image -- which is what PRoot over the
+#   unpacked filesystem gives a process, and what made the interface stop with
+#   `FileNotFoundError: 'gap'`;
+# * the workspace's name is the GAP build's, not the caller's home, so a second
+#   HOME over one DOT_SAGE reuses it instead of writing a second 70 MB copy;
+# * on a filesystem with no room for another workspace, the workspaces of
+#   *other* builds are what the cache gives up, and the call still returns.  The
+#   threshold is raised rather than the disk filled.
+GAP_WORKSPACE_PROBE = r'''
+import os, sys
+import sage.interfaces.gap_workspace as gap_workspace
+if sys.argv[1] == "short-of-room":
+    gap_workspace.GAP_WORKSPACE_MIN_FREE = 1 << 62
+from sage.interfaces.gap import gap, WORKSPACE
+print("workspace", os.path.basename(WORKSPACE))
+print("order", gap.Order(gap.SymmetricGroup(4)))
+print("inode", os.stat(WORKSPACE).st_ino)
+'''
+
+
+def gap_workspace_probe(home, cache, mode="ordinary"):
+    """Run the ordinary GAP call with the environment a launcher would supply."""
+    return subprocess.run(
+        [sys.executable, "-c", GAP_WORKSPACE_PROBE, mode],
+        env={"HOME": str(home), "DOT_SAGE": str(cache),
+             "PATH": "/usr/local/bin:/usr/bin:/bin"},
+        capture_output=True, text=True, check=False,
+    )
+
+
+def gap_workspace_result(probe):
+    """The three lines the probe prints, or the failure that replaced them."""
+    assert probe.returncode == 0, (probe.returncode, probe.stdout, probe.stderr)
+    fields = dict(line.split(" ", 1) for line in probe.stdout.splitlines())
+    assert fields["order"] == "24", (fields, probe.stderr)
+    return fields
+
+
+assert Path("/usr/local/bin/gap").is_file(), "no /usr/local/bin/gap launcher"
+with tempfile.TemporaryDirectory() as launcher_environment:
+    cache = Path(launcher_environment, "dot-sage")
+    home_a = Path(launcher_environment, "home-a")
+    home_b = Path(launcher_environment, "home-b")
+    home_a.mkdir()
+    home_b.mkdir()
+    first = gap_workspace_result(gap_workspace_probe(home_a, cache))
+    written = sorted(path.name for path in (cache / "gap").glob("*workspace*"))
+    assert written == [first["workspace"]], written
+    second = gap_workspace_result(gap_workspace_probe(home_b, cache))
+    assert second["workspace"] == first["workspace"], (first, second)
+    assert second["inode"] == first["inode"], "the workspace was rewritten, not reused"
+    foreign = cache / "gap" / f"libgap-workspace-{os.uname().nodename}-{'0' * 40}"
+    foreign.write_bytes(b"a workspace of another GAP build\n")
+    (cache / "gap" / first["workspace"]).unlink()
+    third = gap_workspace_result(gap_workspace_probe(home_b, cache, "short-of-room"))
+    assert not foreign.exists(), "a workspace of another GAP build was kept for room"
+    assert (cache / "gap" / third["workspace"]).is_file(), third
+    print(
+        f"external GAP: {first['workspace']} written from a clean environment, "
+        f"reused from a second HOME, and its cache made room for it "
+        f"({third['workspace']})"
+    )
+
 # Maxima's package files are found through MAXIMA_PREFIX, and in a tree where
 # Maxima was staged into SAGE_LOCAL they live under it. A reconfigure must not
 # leave the prefix empty merely because the system ECL can already load
