@@ -804,12 +804,15 @@ no-build-isolation-package = ["sagemath"]
 # compiled.
 config-settings-package = { sagemath = { build-dir = "builddir" }, tree-sitter-sage = { editable_mode = "strict" } }
 # Build these packages from source instead of installing pre-built wheels.
-# python-flint's wheel vendors its own libflint, and Sage loads the system
-# one: two libflints in one process SIGSEGV (sage#25). python-flint 0.9 is
-# built against the system flint instead -- its build docs accept FLINT
-# 3.0-3.6 (pypi.org/project/python-flint/0.9.0), and the flint Sage uses is
-# in that range.
-no-binary-package = ["cypari2", "pplpy", "primecountpy", "python-flint"]
+# python-flint's and pynormaliz's wheels vendor their own libflint, and Sage
+# loads the system one: two libflints in one process SIGSEGV (sage#25, sage#31).
+# python-flint 0.9's build docs accept FLINT 3.0-3.6
+# (pypi.org/project/python-flint/0.9.0), and the flint Sage uses is in that
+# range. pynormaliz 2.24 builds against the Normaliz the image installs into
+# the venv from the release Sage's package metadata pins (build/pkgs/normaliz,
+# NORMALIZ_LOCAL_DIR): Debian's 3.10.4 is older than pynormaliz's own source
+# accepts (NormalizModule.cpp: NMZ_RELEASE >= 31100).
+no-binary-package = ["cypari2", "pplpy", "primecountpy", "python-flint", "pynormaliz"]
 
 # sage-numerical-backends-coin ships only an sdist whose build requires
 # sagemath-objects 10.7, which does not compile on Python 3.14. uv builds it

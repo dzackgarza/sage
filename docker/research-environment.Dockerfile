@@ -158,6 +158,14 @@ RUN uv venv /sage/.venv --python 3.14
 # the environment every such run starts from.
 ENV PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig
 
+# pynormaliz is built from source against the Normaliz installed into the venv
+# below (sage#31): its setup.py reads NORMALIZ_LOCAL_DIR for the headers and the
+# library, and bakes the library's directory into the extension's runtime path,
+# so the built module resolves the venv's libnormaliz wherever it is run from.
+# An ENV for the same reason as PKG_CONFIG_PATH: the incremental build runs its
+# own sync and needs it too.
+ENV NORMALIZ_LOCAL_DIR=/sage/.venv
+
 # GAP, libgap, its headers and every GAP package come from ONE pinned upstream
 # source: the tarball Sage's own `gap` and `gap_packages` spkgs declare in
 # build/pkgs/gap/checksums.ini. Nothing here comes from the distribution, and no
@@ -305,6 +313,43 @@ RUN set -eu; \
     cmake --install /tmp/coxiter/build; \
     rm -rf /tmp/pcre /tmp/pcre.tar.bz2 /tmp/coxiter; \
     command -v coxiter
+
+# Normaliz, built from the release Sage's own package metadata pins
+# (build/pkgs/normaliz), into $SAGE_LOCAL -- the same decision the GAP build
+# above makes, and for the same three reasons:
+#
+#  * Pinning. Debian trixie ships 3.10.4, and the pynormaliz Sage pins with it
+#    (build/pkgs/pynormaliz, 2.24) refuses a Normaliz that old in its own
+#    source: NormalizModule.cpp asserts NMZ_RELEASE >= 31100. A pynormaliz
+#    source build therefore needs Normaliz >= 3.11.1, which the distribution
+#    does not have.
+#  * One libflint. pynormaliz's wheel vendors a Normaliz that vendors a
+#    libflint (pynormaliz.libs/libflint-2d14cefb.so.22.0.0), and Sage loads the
+#    system one -- two libflints in one process, the defect class sage#25
+#    repaired for python-flint (sage#31). Built here, Normaliz links the system
+#    FLINT through the same --with-flint Sage's spkg-configure passes, and
+#    pynormaliz builds against this one (NORMALIZ_LOCAL_DIR above).
+#  * One place. The venv sync builds pynormaliz from source against these
+#    headers and this library; the files are not Python's and survive
+#    `uv sync`, as GAP's do.
+RUN set -eu; \
+    SAGE_LOCAL=/sage/.venv; \
+    version="$(cat build/pkgs/normaliz/package-version.txt)"; \
+    sha256="$(sed -n 's/^sha256=//p' build/pkgs/normaliz/checksums.ini)"; \
+    curl -fsSL -o /tmp/normaliz.tar.gz "https://github.com/Normaliz/Normaliz/releases/download/v${version}/normaliz-${version}.tar.gz"; \
+    echo "${sha256}  /tmp/normaliz.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/normaliz; tar -xzf /tmp/normaliz.tar.gz -C /tmp/normaliz --strip-components=1; \
+    cd /tmp/normaliz; \
+    # The flint-detection seed Sage's own spkg-install passes: configure's
+    # link check for flint's fmpz_poly_set_coeff_mpz does not resolve the
+    # headers the way the check compiles them.
+    export ac_cv_lib_flint_fmpz_poly_set_coeff_mpz=yes; \
+    ./configure --prefix="$SAGE_LOCAL" --with-flint --with-e-antic --with-nauty; \
+    make -j"$(nproc)"; \
+    make install; \
+    test -f "$SAGE_LOCAL/lib/libnormaliz.so" && test -f "$SAGE_LOCAL/include/libnormaliz/cone.h"; \
+    test -x "$SAGE_LOCAL/bin/normaliz" && "$SAGE_LOCAL/bin/normaliz" -v | head -1; \
+    cd /; rm -rf /tmp/normaliz /tmp/normaliz.tar.gz
 
 FROM base AS environment
 

@@ -17,18 +17,23 @@ research-environment-venv:
     sage_python_version="${SAGE_PYTHON_VERSION:-3.14}"
 
     cd "${sage_root}"
-    # python-flint is built from source against the system FLINT -- its wheel
-    # vendors a second libflint, and Sage loads the system one, which is a
-    # SIGSEGV in one process (sage#25; pyproject.toml's no-binary-package
-    # names it). uv does not reinstall a locked version that is already
-    # installed, so a venv synced before that change -- an incremental build's
-    # base image, or a desk venv -- still carries the wheel, and with it
-    # python_flint.libs. The wheel is replaced once, here: a venv without it
-    # (a full build's fresh one) syncs unchanged.
+    # python-flint and pynormaliz are built from source against the system
+    # FLINT -- their wheels vendor a second libflint, and Sage loads the
+    # system one, which is a SIGSEGV in one process (sage#25, sage#31;
+    # pyproject.toml's no-binary-package names them). uv does not reinstall a
+    # locked version that is already installed, so a venv synced before those
+    # changes -- an incremental build's base image, or a desk venv -- still
+    # carries the wheels, and with them python_flint.libs and pynormaliz.libs.
+    # Each wheel is replaced once, here: a venv without them (a full build's
+    # fresh one) syncs unchanged. pynormaliz builds against the Normaliz the
+    # image installs into the venv (NORMALIZ_LOCAL_DIR).
     reinstall=()
-    if [ -d ".venv/lib/python${sage_python_version}/site-packages/python_flint.libs" ]; then
-        reinstall=(--reinstall-package python-flint)
-    fi
+    for wheel in python-flint pynormaliz; do
+        vendored=".venv/lib/python${sage_python_version}/site-packages/${wheel//-/_}.libs"
+        if [ -d "${vendored}" ]; then
+            reinstall+=(--reinstall-package "${wheel}")
+        fi
+    done
     uv sync --python "${sage_python_version}" --frozen --inexact --no-install-project --group research-environment "${reinstall[@]}"
 
 # Sage, built and installed into the venv.

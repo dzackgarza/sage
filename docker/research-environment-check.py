@@ -259,6 +259,47 @@ assert len(mapped) == 1, (
 print(f"one libflint in the process: {mapped[0]}")
 print("fmpz_mat([[2,1],[1,2]]).det() after import sage.all: 3")
 
+# ---- one libflint: pynormaliz and Sage in one process (sage#31) -----------
+# pynormaliz's wheel vendors a Normaliz that vendors a libflint, and Sage loads
+# the system one: the defect class of sage#25, from a second wheel. The pin
+# that decides the repair: pynormaliz 2.24's own source refuses a Normaliz
+# older than 3.11.1 (NormalizModule.cpp asserts NMZ_RELEASE >= 31100) while
+# Debian trixie ships 3.10.4, so the image builds the Normaliz Sage's package
+# metadata pins (build/pkgs/normaliz) into the venv against the system flint,
+# and pynormaliz from source against it. Both engines compute the Hilbert
+# basis of a non-unimodular cone -- [[1,0],[1,2]], whose basis has a point
+# that is not a ray -- and must agree; and the same process maps exactly one
+# libflint. Unlike sage#25's call this one survives a defective image, so the
+# computing process reports its own maps.
+normaliz_probe = subprocess.run(
+    [
+        sys.executable, "-c",
+        "import sage.all; "
+        "from PyNormaliz import Cone; "
+        "from sage.geometry.cone import Cone as SageCone; "
+        "basis = sorted(tuple(int(c) for c in v) for v in Cone(cone=[[1, 0], [1, 2]]).HilbertBasis()); "
+        "sage = sorted(tuple(int(c) for c in v) for v in SageCone([(1, 0), (1, 2)]).Hilbert_basis()); "
+        "assert basis == sage == [(1, 0), (1, 1), (1, 2)], (basis, sage); "
+        "print(basis); "
+        "print('\\n'.join(sorted(set(line.split()[-1] for line in open('/proc/self/maps') "
+        "if 'libflint' in line))))",
+    ],
+    capture_output=True, text=True, check=False, timeout=600,
+)
+assert normaliz_probe.returncode == 0, (
+    f"the one-libflint call of sage#31 died with {normaliz_probe.returncode}: "
+    f"{normaliz_probe.stdout[-2000:]}{normaliz_probe.stderr[-2000:]}"
+)
+normaliz_lines = [line for line in normaliz_probe.stdout.splitlines() if line.strip()]
+assert normaliz_lines[0] == "[(1, 0), (1, 1), (1, 2)]", (normaliz_probe.stdout, normaliz_probe.stderr)
+mapped = normaliz_lines[1:]
+assert len(mapped) == 1, (
+    f"the pynormaliz process maps {len(mapped)} libflints, and one is the whole point (sage#31): "
+    f"{' ; '.join(mapped)}"
+)
+print(f"one libflint in the pynormaliz process: {mapped[0]}")
+print("PyNormaliz and Sage agree on the Hilbert basis of [[1,0],[1,2]]: (1,0), (1,1), (1,2)")
+
 # A generated matrix subgroup over F_5, ordered by genss's stabilizer chain in
 # the matrix action rather than through a permutation representation. This is
 # capability evidence and not a certificate: the chain is Monte Carlo bounded by
