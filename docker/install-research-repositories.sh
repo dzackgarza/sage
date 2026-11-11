@@ -13,24 +13,6 @@ sage_root="${SAGE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 # /repos in the image; a test or another tree points the script at its own.
 repositories_root="${REPOSITORIES_ROOT:-/repos}"
 sage_python="${sage_root}/.venv/bin/python"
-# The heads this build resolved, one <name>=<commit> pair per repository, passed
-# by the workflow as the RESEARCH_REVISIONS build argument (sage#24). The install
-# checks each checkout's HEAD against it and fails the build when one differs:
-# a build that installs the heads of an earlier build is exactly the defect.
-research_revisions="${RESEARCH_REVISIONS:-}"
-if [ -n "${research_revisions}" ]; then
-    for pair in ${research_revisions}; do
-        name="${pair%%=*}"
-        expected="${pair#*=}"
-        checkout="${repositories_root}/${name}"
-        found="$(git -C "${checkout}" rev-parse HEAD 2>/dev/null || true)"
-        if [ "${found}" != "${expected}" ]; then
-            printf 'error: %s is at %s, not the %s this build resolved: the install step is stale\n' \
-                "${checkout}" "${found:-no revision}" "${expected}" >&2
-            exit 1
-        fi
-    done
-fi
 # The GAP that libgap drives is the one the image builds from the pinned source
 # into $SAGE_LOCAL, and it stays a declared path rather than whatever PATH
 # resolves when this script runs outside the sync recipe.
@@ -88,6 +70,27 @@ while read -r url; do
         git -C "${checkout}" checkout --quiet -B "${branch}" "origin/${branch}"
     fi
 done < "${sage_root}/docker/research-repositories.txt"
+
+# The heads this build resolved, one <name>=<commit> pair per repository, passed
+# by the workflow as the RESEARCH_REVISIONS build argument (sage#24). The check
+# runs after the checkout loop, so it compares the commit the script checked out
+# with the commit the workflow resolved: a difference means the remote moved
+# between the two reads, or that the script did not check out the head. In both
+# cases the build fails, and the message names both commits.
+research_revisions="${RESEARCH_REVISIONS:-}"
+if [ -n "${research_revisions}" ]; then
+    for pair in ${research_revisions}; do
+        name="${pair%%=*}"
+        expected="${pair#*=}"
+        checkout="${repositories_root}/${name}"
+        found="$(git -C "${checkout}" rev-parse HEAD 2>/dev/null || true)"
+        if [ "${found}" != "${expected}" ]; then
+            printf 'error: %s is at %s, not the %s this build resolved: the remote moved between the two reads, or the install did not check out the head\n' \
+                "${checkout}" "${found:-no revision}" "${expected}" >&2
+            exit 1
+        fi
+    done
+fi
 
 cd "${sage_root}"
 uv pip install --python "${sage_python}" --no-deps "${editable[@]}"

@@ -137,6 +137,20 @@ class Install:
             capture_output=True, text=True, check=False, env=environment,
         )
 
+    def run_with_revisions(self, revisions: str) -> subprocess.CompletedProcess:
+        """The script with the heads the workflow resolved, passed as the build argument."""
+        environment = dict(os.environ)
+        environment.update({
+            "PATH": f"{self.bin}:{environment['PATH']}",
+            "SAGE_ROOT": str(self.sage),
+            "REPOSITORIES_ROOT": str(self.repos),
+            "RESEARCH_REVISIONS": revisions,
+        })
+        return subprocess.run(
+            ["bash", str(SCRIPT)],
+            capture_output=True, text=True, check=False, env=environment,
+        )
+
 
 @pytest.fixture
 def install(tmp_path: Path) -> Install:
@@ -150,6 +164,24 @@ def test_the_install_step_checks_out_the_current_head(install: Install):
     checkout = install.repos / "sage-extensions"
     assert git(checkout, "rev-parse", "HEAD") == install.head, result.stdout + result.stderr
     assert git(checkout, "rev-parse", "HEAD") != install.locked
+
+
+def test_the_head_check_passes_after_checkout_on_a_fresh_root(install: Install):
+    """The check compares the checked-out commit with the head the workflow resolved.
+
+    On a fresh root the checkouts do not exist before the install runs, so the
+    check must run after the checkout loop (sage#24's defect 1). The script's
+    own checkout is the head the workflow resolved, so the check passes; a
+    mismatch between the two names both commits and fails the build.
+    """
+    # The head the workflow resolved is the fixture origin's head.
+    result = install.run_with_revisions(f"sage-extensions={install.head}")
+    assert result.returncode == 0, result.stderr
+    # A mismatch: the passed-in head is the fixture's LOCKED commit, not its
+    # head, so the check fails and names both commits.
+    mismatch = install.run_with_revisions(f"sage-extensions={install.locked}")
+    assert mismatch.returncode != 0
+    assert f"{install.locked}" in mismatch.stderr or "is at" in mismatch.stderr
 
 
 def test_the_image_records_the_commit_of_each_repository_it_installed(install: Install):
