@@ -53,6 +53,27 @@ gap_binary = shutil.which("gap")
 assert gap_binary is not None, "no gap on PATH"
 assert Path(gap_binary).resolve().is_relative_to(Path("/sage/.venv")), gap_binary
 
+# Every `gap` on the default PATH, not only the first `which` returns: each
+# directory the image's PATH names is walked, and every file named `gap` in it
+# must be the Sage-owned binary or this image's launcher. A second GAP anywhere
+# on the PATH -- a Debian package's, a conda split's -- is what sage#11 and
+# sage#26 found, and it fails here, naming the path.
+launcher_bytes = Path(sys.argv[0]).resolve().with_name("gap-launcher.sh").read_bytes()
+every_gap = [
+    Path(directory) / "gap"
+    for directory in os.environ.get("PATH", "").split(os.pathsep)
+    if (Path(directory) / "gap").exists()
+]
+assert every_gap, "the default PATH carries no gap at all"
+for candidate in every_gap:
+    assert candidate.read_bytes() == launcher_bytes or candidate.resolve().is_relative_to(
+        Path("/sage/.venv")
+    ), f"{candidate} is a GAP the image does not own (sage#26)"
+print(
+    "every gap on the default PATH resolves to the Sage-owned GAP; "
+    f"libgap and gap report {declared_gap}"
+)
+
 gap_version, gap_arch, gap_roots = kernel_info()
 assert gap_version == declared_gap, (gap_version, declared_gap)
 assert "/sage/.venv/lib/gap/" in gap_roots, gap_roots

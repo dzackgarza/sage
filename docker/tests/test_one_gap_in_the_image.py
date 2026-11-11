@@ -20,6 +20,9 @@ What is asserted here, with no image:
   at /usr/bin/gap passes, and a distribution GAP fails -- by the package that owns a
   path (`dpkg-query -S`), by the apt package list, by the distribution tree's
   presence, and by /usr/bin/gap holding anything but the launcher;
+* the check's PATH walk, run the same way: every `gap` on the default PATH must be
+  the Sage-owned binary or the launcher, and a foreign GAP anywhere on it fails,
+  naming the path;
 * the incremental Dockerfile's removal layer takes a base's distro GAP and stops
   when the purge fails or a path survives, and its absence list is the check's own
   distribution tree.
@@ -30,6 +33,7 @@ docker/gap-launcher.sh; the rebase is uniform, so it cannot hide which path is
 being decided.
 """
 
+import os
 import re
 import subprocess
 import sys
@@ -115,6 +119,26 @@ def check_gap_block(root: Path) -> str:
     block = text[text.index(CHECK_BLOCK_START):text.index(CHECK_BLOCK_END)]
     assert "distribution" in block and "dpkg-query" in block, block[:200]
     return block.replace("/usr/", f"{root}/usr/")
+
+
+WALK_START = "# Every `gap` on the default PATH, not only the first `which` returns"
+WALK_NEXT = "gap_version, gap_arch, gap_roots = kernel_info()"
+
+
+def walk_block(root: Path) -> str:
+    """The check's PATH walk, with /sage/.venv under `root`."""
+    text = CHECK.read_text(encoding="utf-8")
+    block = text[text.index(WALK_START):text.index(WALK_NEXT)]
+    assert "is a GAP the image does not own" in block, block[:200]
+    return block.replace("/sage/.venv", str(root / "sage" / ".venv"))
+
+
+def walk(root: Path, monkeypatch, **namespace) -> None:
+    """The check's PATH walk, exec'd as the image runs it, on this fixture's PATH."""
+    monkeypatch.setattr(sys, "argv", [str(CHECK)])
+    every = {"__file__": str(CHECK), "Path": Path, "os": os, "sys": sys}
+    every.update(namespace)
+    exec(compile(walk_block(root), "<check-walk>", "exec"), every)  # noqa: S102
 
 
 def check_tree_paths() -> list[str]:
@@ -310,3 +334,25 @@ def test_the_layer_stops_when_a_path_survives(tmp_path) -> None:
     result = run_removal(root, stubs)
     assert result.returncode != 0, (result.stdout, result.stderr)
     assert "/usr/lib/gap survived the distribution-GAP removal" in result.stderr
+
+
+def test_the_walk_passes_the_owned_and_fails_a_foreign_gap(tmp_path, monkeypatch) -> None:
+    """Every `gap` on the default PATH: the launcher and the Sage-owned binary
+    pass, and a foreign GAP fails, naming the path (sage#26)."""
+    root = tmp_path / "image"
+    launcher_dir = root / "usr" / "local" / "bin"
+    launcher_dir.mkdir(parents=True)
+    (launcher_dir / "gap").write_bytes(LAUNCHER.read_bytes())
+    venv_dir = root / "sage" / ".venv" / "bin"
+    venv_dir.mkdir(parents=True)
+    (venv_dir / "gap").write_bytes(b"the sage-owned binary")
+    foreign_dir = tmp_path / "foreign"
+    foreign_dir.mkdir()
+    (foreign_dir / "gap").write_bytes(b"a foreign gap")
+
+    monkeypatch.setenv("PATH", f"{launcher_dir}:{venv_dir}:{foreign_dir}")
+    with pytest.raises(AssertionError, match="is a GAP the image does not own"):
+        walk(root, monkeypatch, declared_gap="4.16.1")
+
+    (foreign_dir / "gap").unlink()
+    walk(root, monkeypatch, declared_gap="4.16.1")
