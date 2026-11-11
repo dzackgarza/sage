@@ -43,9 +43,27 @@ mkdir -p "${repositories_root}"
 revisions="${sage_root}/.research-revisions"
 : > "${revisions}"
 editable=()
+# The heads this build installs, one <name>=<commit> pair per repository,
+# resolved by the workflow when the build started (sage#24). With them, the
+# script checks out exactly those commits: the remote moves during a build --
+# sage-extensions main receives pushes from several chats every hour -- and
+# the head a build installs is the one it resolved (sage#28). Without them, a
+# local build, the script resolves each repository's head once, here, and
+# installs that one value.
+research_revisions="${RESEARCH_REVISIONS:-}"
+resolved_of() {
+    local pair
+    for pair in ${research_revisions}; do
+        case "${pair}" in
+            "${1}="*) printf '%s\n' "${pair#*=}"; return 0 ;;
+        esac
+    done
+    return 1
+}
 while read -r url; do
     case "${url}" in ''|'#'*) continue ;; esac
     name="${url##*/}"
+    name="${name%.git}"
     checkout="${repositories_root}/${name}"
     if [ -d "${checkout}/.git" ]; then
         git -C "${checkout}" fetch --quiet origin
@@ -54,30 +72,38 @@ while read -r url; do
     fi
     branch="$(git -C "${checkout}" symbolic-ref --short refs/remotes/origin/HEAD)"
     branch="${branch#origin/}"
+    # The commit this build installs for this repository: the one the workflow
+    # resolved when the build started, or -- with no RESEARCH_REVISIONS, a
+    # local build -- the head as the fetch above left it, read once. Either
+    # way one value serves the checkout and the record: checking out
+    # origin/<branch> instead would read the remote a second time, after the
+    # Sage build, and a push in between is a build failure (sage#28).
+    commit="$(resolved_of "${name}")" || commit="origin/${branch}"
+    # A clone that predates the resolved commit may not carry it -- an
+    # incremental build over a base image whose fetch is older than this
+    # build's resolve: fetch the commit by name, which the server serves when
+    # it is reachable.
+    if ! git -C "${checkout}" cat-file -e "${commit}^{commit}" 2>/dev/null; then
+        git -C "${checkout}" fetch --quiet origin "${commit}"
+    fi
+    git -C "${checkout}" checkout --quiet -B "${branch}" "${commit}"
+    git -C "${checkout}" branch --quiet --set-upstream-to="origin/${branch}"
     lock_entry="$(awk -v url="${url}" '$1 == url' <<<"${locked}")"
     if [ -n "${lock_entry}" ]; then
         read -r _ _ subdirectories <<<"${lock_entry}"
-        # The head of the main branch, not the commit the lock holds: the
-        # build installs each repository at that head, and the locked commit
-        # is only where the last relock left it (sage#24).
-        git -C "${checkout}" checkout --quiet -B "${branch}" "origin/${branch}"
-        git -C "${checkout}" branch --quiet --set-upstream-to="origin/${branch}"
         for subdirectory in ${subdirectories}; do
             editable+=(-e "${checkout}/${subdirectory}")
         done
         printf '%s %s\n' "${name}" "$(git -C "${checkout}" rev-parse HEAD)" >> "${revisions}"
-    else
-        git -C "${checkout}" checkout --quiet -B "${branch}" "origin/${branch}"
     fi
 done < "${sage_root}/docker/research-repositories.txt"
 
 # The heads this build resolved, one <name>=<commit> pair per repository, passed
 # by the workflow as the RESEARCH_REVISIONS build argument (sage#24). The check
-# runs after the checkout loop, so it compares the commit the script checked out
-# with the commit the workflow resolved: a difference means the remote moved
-# between the two reads, or that the script did not check out the head. In both
-# cases the build fails, and the message names both commits.
-research_revisions="${RESEARCH_REVISIONS:-}"
+# runs after the checkout loop and verifies that each checkout holds the commit
+# the workflow resolved: the checkout above names that commit, so a difference
+# means the install did not check it out -- the remote moving during the build
+# is no longer a failure, it is the condition the checkout handles (sage#28).
 if [ -n "${research_revisions}" ]; then
     for pair in ${research_revisions}; do
         name="${pair%%=*}"
@@ -85,7 +111,7 @@ if [ -n "${research_revisions}" ]; then
         checkout="${repositories_root}/${name}"
         found="$(git -C "${checkout}" rev-parse HEAD 2>/dev/null || true)"
         if [ "${found}" != "${expected}" ]; then
-            printf 'error: %s is at %s, not the %s this build resolved: the remote moved between the two reads, or the install did not check out the head\n' \
+            printf 'error: %s is at %s, not the %s this build resolved: the install did not check out the commit the workflow resolved\n' \
                 "${checkout}" "${found:-no revision}" "${expected}" >&2
             exit 1
         fi
