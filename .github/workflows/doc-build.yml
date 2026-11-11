@@ -6,6 +6,9 @@ on:
   push:
     branches:
       - develop
+    paths-ignore:
+      - docker/**
+      - .github/workflows/research-environment-image.yml
   workflow_dispatch:
     # Allow to run manually
 
