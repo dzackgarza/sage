@@ -13,6 +13,24 @@ sage_root="${SAGE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 # /repos in the image; a test or another tree points the script at its own.
 repositories_root="${REPOSITORIES_ROOT:-/repos}"
 sage_python="${sage_root}/.venv/bin/python"
+# The heads this build resolved, one <name>=<commit> pair per repository, passed
+# by the workflow as the RESEARCH_REVISIONS build argument (sage#24). The install
+# checks each checkout's HEAD against it and fails the build when one differs:
+# a build that installs the heads of an earlier build is exactly the defect.
+research_revisions="${RESEARCH_REVISIONS:-}"
+if [ -n "${research_revisions}" ]; then
+    for pair in ${research_revisions}; do
+        name="${pair%%=*}"
+        expected="${pair#*=}"
+        checkout="${repositories_root}/${name}"
+        found="$(git -C "${checkout}" rev-parse HEAD 2>/dev/null || true)"
+        if [ "${found}" != "${expected}" ]; then
+            printf 'error: %s is at %s, not the %s this build resolved: the install step is stale\n' \
+                "${checkout}" "${found:-no revision}" "${expected}" >&2
+            exit 1
+        fi
+    done
+fi
 # The GAP that libgap drives is the one the image builds from the pinned source
 # into $SAGE_LOCAL, and it stays a declared path rather than whatever PATH
 # resolves when this script runs outside the sync recipe.

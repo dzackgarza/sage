@@ -413,6 +413,15 @@ RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-ini
 # the closure. Without it the provisioning script reads the head itself.
 ARG MATHLIB_REVISION=
 
+# The research heads this build carries, one <name>=<commit> pair per
+# repository of docker/research-repositories.txt, resolved by the workflow when
+# the build starts (sage#24). Reading them here makes them build inputs:
+# unchanged, the install step below is a cache hit and its layer is reused;
+# moved, the layer is rebuilt and every layer after it. Without this argument
+# the step's only input is the Mathlib head, so a build on a day when that head
+# did not move installs the heads of an earlier build.
+ARG RESEARCH_REVISIONS=
+
 # The recipe's steps, each its own layer: a pull fetches layers in parallel, and
 # one layer holding the whole environment downloads as a single stream (sage#9).
 # The layers hold the venv's packages, the Sage build, the research checkouts,
