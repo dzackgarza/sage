@@ -740,7 +740,7 @@ tex_packages = [
 ]
 for package in tex_packages:
     found = subprocess.run(
-        ["kpsewhich", f"{package}.sty"], capture_output=True, text=True,
+        ["kpsewhich", f"{package}.sty"], capture_output=True, text=True, check=True,
     ).stdout.strip()
     assert found, f"kpsewhich found no {package}.sty: the image does not carry it"
 
@@ -764,7 +764,7 @@ tikz_libraries = [
 ]
 for library in tikz_libraries:
     found = subprocess.run(
-        ["kpsewhich", library], capture_output=True, text=True,
+        ["kpsewhich", library], capture_output=True, text=True, check=True,
     ).stdout.strip()
     assert found, f"kpsewhich found no {library}: the image does not carry it"
 
