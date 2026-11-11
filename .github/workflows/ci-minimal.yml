@@ -11,6 +11,10 @@ on:
     branches:
       - master
       - develop
+    paths-ignore:
+      - docker/**
+      - .github/workflows/research-environment-image.yml
+      - justfile
   pull_request:
   workflow_dispatch:
     # Allow to run manually
