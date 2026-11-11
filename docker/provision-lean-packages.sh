@@ -13,12 +13,15 @@
 # republished (sage#13).
 #
 # Every checkout under the repository root that carries a lake-manifest.json
-# resolves mathlib and its closure from that project: provisioning links each
-# package its manifest pins to the image's copy of it, in the packages directory
-# its lakefile declares. A pin the image does not carry is a checkout that does
-# not follow the image: it is reported here, naming the checkout and both
-# revisions, and nothing in the checkout is rewritten. Holding the Lean
-# repositories to the image is each repository's own CI (lean-categories#118,
+# resolves mathlib and its closure from that project: provisioning sets the
+# checkout's manifest entries for mathlib and every package of the shared
+# project's manifest to the shared project's revisions, and links its packages
+# directory to the project's built copies -- the project itself for mathlib,
+# the project's .lake/packages/<name> for the others. A package the checkout
+# needs that the shared project does not carry keeps the revision the checkout
+# pinned; Lake clones a missing dependency at the manifest revision when the
+# checkout is next built or `lake env` runs. Holding the Lean repositories to
+# the image is each repository's own CI (lean-categories#118,
 # lean-cas-dsl#90), never this image's run.
 #
 # An image that was unpacked before this was introduced reaches the same state
@@ -30,8 +33,7 @@
 #
 # Environment: MATHLIB_REVISION (the head this build resolved; without it the head
 # is read here), MATHLIB_PROJECT (default /opt/mathlib), MATHLIB_RECORD (default
-# /opt/lean-image.json), LAKE_PACKAGES (default /opt/lake-packages) for packages
-# neither the project nor a checkout provides, MATHLIB_REPOSITORY (default
+# /opt/lean-image.json), MATHLIB_REPOSITORY (default
 # https://github.com/leanprover-community/mathlib4), PYTHON (default python3).
 set -euo pipefail
 
@@ -43,7 +45,6 @@ case "${2:-}" in
 esac
 project="${MATHLIB_PROJECT:-/opt/mathlib}"
 record="${MATHLIB_RECORD:-/opt/lean-image.json}"
-lake_packages="${LAKE_PACKAGES:-/opt/lake-packages}"
 repository="${MATHLIB_REPOSITORY:-https://github.com/leanprover-community/mathlib4}"
 python_bin="${PYTHON:-python3}"
 

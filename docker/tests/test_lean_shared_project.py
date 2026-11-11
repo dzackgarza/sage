@@ -4,14 +4,16 @@ The image carries a single Lean project -- mathlib4 at the head of its master
 branch, on the toolchain that revision pins, with its whole dependency closure
 built inside it and Mathlib's oleans from the official cache. Every checkout
 under /repos resolves Mathlib and its closure at the revision the shared
-project carries: the provisioning runs `lake update` in each checkout, the
-documented Lake command that re-resolves a manifest, downloading and upgrading
-packages as needed (the Lean Language Reference's Lake chapter: "lake update:
-Updates the Lake package manifest (i.e., `lake-manifest.json`), downloading and
-upgrading packages as needed. For each new (transitive) Git dependency, the
-appropriate commit is cloned into a subdirectory of `packagesDir`."). A fixed
-revision in a checkout's manifest is not served by the image (owner,
-2026-11-11).
+project carries: the provisioning sets each checkout's manifest entries for
+mathlib and every package of the shared project's manifest to the shared
+project's revisions, and links its packages directory to the project's built
+copies -- the mechanism Lake itself documents, in the Lean Language
+Reference's Lake chapter: "a manifest tracks the specific versions of other
+packages that are used in a package ... Before building, Lake synchronizes
+the local copy of each dependency with the version specified in the
+manifest", and "packagesDir: The directory to which Lake should download
+remote dependencies". A fixed revision in a checkout's manifest is not
+served by the image (owner, 2026-11-11).
 
 The real script runs here, over fixture repositories, with the record the
 image carries. The assertions are about the script's own verdicts and not

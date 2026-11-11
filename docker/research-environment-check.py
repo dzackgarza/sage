@@ -761,11 +761,18 @@ for directory in checkouts:
         handle.write("import Mathlib\n#check (Nat.add_comm : \u2200 a b : Nat, a + b = b + a)\n")
         checkout_file = handle.name
     try:
-        checkout_elaborated = subprocess.run(
+        elaborated = subprocess.run(
             ["lake", "env", "lean", checkout_file], cwd=directory,
-            capture_output=True, text=True, check=True, timeout=1800,
-        ).stdout.strip()
-        if "Nat.add_comm" not in checkout_elaborated:
+            capture_output=True, text=True, check=False, timeout=1800,
+        )
+        if elaborated.returncode != 0:
+            raise SystemExit(
+                f"{directory} does not build against the Mathlib the image carries, and "
+                f"the image's check fails loudly for it (sage#13): lake env lean exited "
+                f"{elaborated.returncode} there, and the image carries {image_revision}:"
+                f"\n{elaborated.stdout[-2000:]}{elaborated.stderr[-2000:]}"
+            )
+        if "Nat.add_comm" not in elaborated.stdout:
             raise SystemExit(
                 f"{directory} does not build against the Mathlib the image carries, and "
                 f"the image's check fails loudly for it (sage#13): it carries "
@@ -773,7 +780,7 @@ for directory in checkouts:
             )
     finally:
         Path(checkout_file).unlink()
-    print(f"import Mathlib in {directory}: {checkout_elaborated.splitlines()[-1]}")
+    print(f"import Mathlib in {directory}: {elaborated.stdout.strip().splitlines()[-1]}")
 
 # ---- the document toolchain the project sites build with (sage#22) ----------
 # Both site builds outside the image install this at every run, so the image carries

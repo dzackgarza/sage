@@ -186,7 +186,7 @@ built inside it and Mathlib's oleans taken from the official cache.
 
 Every build moves to that head, incremental builds included. The workflow reads the
 head when the build starts and passes it into the build
-(`MATHLIB_REVISION`, `results/mathlib-head-workflow.patch`), which makes it a build
+(`MATHLIB_REVISION`), which makes it a build
 input: when the head has not moved, the steps that provision the project are a cache
 hit and the layer holding it is reused; when it has moved, they run and rebuild its
 closure. `docker/provision-lean-packages.sh` also compares the head with the record
@@ -207,30 +207,24 @@ default, and records the revision and the toolchain in `/opt/lean-image.json`:
 ```
 
 Every Lean checkout under `/repos` resolves mathlib and its dependencies from that
-one project. Lake fixes a project's packages directory in its lakefile and records
-it in the manifest — `-K packagesDir=` is ignored, and a lakefile whose
-`packagesDir` disagrees with its manifest is rejected as out of date — so
-provisioning puts the resolution in the directory each checkout's own lakefile
-declares: one link per package its manifest pins, pointing at the image's copy (the
-project itself for `mathlib`, `/opt/mathlib/.lake/packages/<name>` for Mathlib's
-closure, `/repos/<name>` for a research package it requires, and
-`/opt/lake-packages/<name>@<revision>` — cloned once per revision, never built — for
-a package nothing in the image carries). A link is made only when the target's
-`HEAD` is the pinned revision, and a link an earlier run left at another revision is
-removed. Nothing in a checkout is edited: its manifest stays exactly what its
-repository published.
+one project. Lake resolves a package's dependencies through its manifest — the
+Lean Language Reference's Lake chapter: "a manifest tracks the specific versions
+of other packages that are used in a package … Before building, Lake
+synchronizes the local copy of each dependency with the version specified in the
+manifest" — and materializes them in the packages directory the lakefile
+declares ("packagesDir: The directory to which Lake should download remote
+dependencies"). Provisioning therefore sets each checkout's manifest entries for
+mathlib and every package of the shared project's manifest to the shared
+project's revisions, and links its packages directory to the project's built
+copies: the project itself for `mathlib`,
+`/opt/mathlib/.lake/packages/<name>` for Mathlib's closure. A package the
+checkout needs that the shared project does not carry keeps the revision the
+checkout pinned, and Lake clones it when the checkout is next built.
 
-A checkout that pins a revision the image does not carry — Mathlib or the toolchain
-— does not follow the image. Provisioning reports it in the build log, naming the
-checkout and both revisions:
-
-    note: /repos/lean-cas-dsl pins mathlib at db584cd6d46c… and the image carries
-    68dd2955f557…: the checkout does not follow the image
-
-and that is the whole of the image's interest in it. **The image's check validates
-the image's own shared project, and says nothing about the checkouts.** Holding a
-Lean repository to the image is that repository's own CI: lean-categories#118 and
-lean-cas-dsl#90.
+A checkout that does not build against the shared Mathlib fails the image's
+check loudly, naming the checkout and the revision it carries. Repairing such a
+checkout is the owning repository's own work (lean-categories#118,
+lean-cas-dsl#90), not the image's.
 
 Readback, from the shared project and from a checkout that follows it:
 
