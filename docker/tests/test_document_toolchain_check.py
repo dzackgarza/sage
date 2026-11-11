@@ -53,7 +53,15 @@ def stubs_for(tmp_path: Path, omit: tuple[str, ...] = (), no_tex: tuple[str, ...
     stubs = tmp_path / "stubs"
     stubs.mkdir()
     bodies = {
-        "quarto": f"print({QUARTO!r})\n",
+        "quarto": (
+            "import sys\n"
+            "from pathlib import Path\n"
+            "if sys.argv[1:2] == ['render']:\n"
+            "    Path(sys.argv[2]).with_name('page.pdf').write_bytes(b'%PDF-1.4\\n%%EOF\\n')\n"
+            "    print('rendered a page')\n"
+            "else:\n"
+            f"    print({QUARTO!r})\n"
+        ),
         "pdf2svg": (
             "raise SystemExit(1)\n" if pdf2svg_breaks else
             "import sys\nopen(sys.argv[2], 'w').write('<svg xmlns=\\\"http://www.w3.org/2000/svg\\\"/>')\n"
@@ -101,7 +109,7 @@ def test_every_document_tool_present_passes_and_reports_each(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     assert f"quarto {QUARTO}" in result.stdout
     assert "texlive-full with 12 files the sites load" in result.stdout
-    assert "pdf2svg rendered a page" in result.stdout
+    assert "quarto rendered a page with a TikZ figure through pdf2svg: " in result.stdout
     assert f"node {NODE}" in result.stdout
 
 

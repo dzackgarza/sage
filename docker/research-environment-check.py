@@ -871,28 +871,32 @@ lualatex_version = subprocess.run(
 assert "LuaHBTeX" in lualatex_version or "LuaTeX" in lualatex_version, lualatex_version
 print(f"texlive-full with {len(tex_files)} files the sites load, on {lualatex_version.splitlines()[0]}")
 
-# pdf2svg and poppler on a page this check writes: the same two steps a site build
-# runs to turn a figure into an SVG and a thumbnail. A presence test would pass on a
-# binary whose library is missing.
-pdf = Path(tempfile.mkdtemp(prefix="document-tools-"))
-objects = [
-    b"<</Type/Catalog/Pages 2 0 R>>",
-    b"<</Type/Pages/Kids[3 0 R]/Count 1>>",
-    b"<</Type/Page/Parent 2 0 R/MediaBox[0 0 10 10]>>",
-]
-page = bytearray(b"%PDF-1.4\n")
-offsets = []
-for number, body in enumerate(objects, start=1):
-    offsets.append(len(page))
-    page += f"{number} 0 obj\n".encode() + body + b"\nendobj\n"
-xref = len(page)
-page += f"xref\n0 {len(objects) + 1}\n".encode() + b"0000000000 65535 f \n"
-for offset in offsets:
-    page += f"{offset:010d} 00000 n \n".encode()
-page += f"trailer\n<</Size {len(objects) + 1}/Root 1 0 R>>\nstartxref\n{xref}\n%%EOF\n".encode()
-(pdf / "page.pdf").write_bytes(bytes(page))
-subprocess.run(["pdf2svg", str(pdf / "page.pdf"), str(pdf / "page.svg")], check=True)
-svg = (pdf / "page.svg").read_text(encoding="utf-8", errors="replace")
+# A page the way a site build makes one: quarto renders a one-page document with a
+# TikZ figure, pdf2svg turns the rendered page into the SVG a figure becomes, and
+# poppler makes its thumbnail. One command of each tool in the chain, on the same
+# page -- and a tool that is present but cannot do its work fails the build here,
+# in the image, rather than in a site build.
+render = Path(tempfile.mkdtemp(prefix="quarto-render-"))
+(render / "page.qmd").write_text(
+    "---\n"
+    "title: A one-page document\n"
+    "header-includes: |\n"
+    "  \\usepackage{tikz}\n"
+    "---\n"
+    "\n"
+    "\\begin{tikzpicture}\n"
+    "  \\draw (0,0) circle (1);\n"
+    "\\end{tikzpicture}\n",
+    encoding="utf-8",
+)
+quarto_rendered = subprocess.run(
+    ["quarto", "render", str(render / "page.qmd"), "--to", "pdf"], cwd=render,
+    capture_output=True, text=True, check=False, timeout=900,
+)
+assert quarto_rendered.returncode == 0, (quarto_rendered.stdout, quarto_rendered.stderr)
+assert (render / "page.pdf").is_file(), "quarto rendered no PDF"
+subprocess.run(["pdf2svg", str(render / "page.pdf"), str(render / "page.svg")], check=True)
+svg = (render / "page.svg").read_text(encoding="utf-8", errors="replace")
 assert "<svg" in svg, svg[:400]
 poppler_version = subprocess.run(
     ["pdftoppm", "-v"], capture_output=True, text=True, check=False
@@ -901,10 +905,13 @@ poppler_version = subprocess.run(
 ).stdout.strip()
 assert "pdftoppm" in poppler_version, poppler_version
 subprocess.run(
-    ["pdftoppm", "-r", "10", "-png", str(pdf / "page.pdf"), str(pdf / "thumb")], check=True
+    ["pdftoppm", "-r", "10", "-png", str(render / "page.pdf"), str(render / "thumb")], check=True
 )
-assert list(pdf.glob("thumb*.png")), "pdftoppm wrote no image"
-print(f"pdf2svg rendered a page: {len(svg)} bytes of SVG; {poppler_version.splitlines()[0]}")
+assert list(render.glob("thumb*.png")), "pdftoppm wrote no image"
+print(
+    f"quarto rendered a page with a TikZ figure through pdf2svg: "
+    f"{len(svg)} bytes of SVG; {poppler_version.splitlines()[0]}"
+)
 
 node_version = subprocess.run(
     ["node", "--version"], capture_output=True, text=True, check=True
