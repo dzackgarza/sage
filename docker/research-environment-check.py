@@ -321,6 +321,60 @@ assert len(mapped) == 1, (
 print(f"one libflint in the pynormaliz process: {mapped[0]}")
 print("PyNormaliz and Sage agree on the Hilbert basis of [[1,0],[1,2]]: (1,0), (1,1), (1,2)")
 
+# ---- one PARI: cypari2, Sage and the image in one process (sage#32) --------
+# The automorphism count of the ternary form x^2 + xy + y^2 + 9z^2 -- the call
+# sage-extensions' genus computation makes -- aborts in the published image:
+# PARI's stack exhausts itself at 8 GiB inside the system
+# libpari-gmp-tls.so.9 (qfauto -> lllgramint), called from cypari2, while the
+# same call outside the image returns 24 in 0.00 s (lattice-database run
+# 42948978339). Sage's own PARI instance caps its stack at 1 GiB, so the
+# failing half is not the one Sage configures. The repair is one PARI build
+# for cypari2, Sage and the image: the image builds PARI 2.17.4 -- the newest
+# release of the series Sage's tree pins (build/pkgs/pari holds 2.17.1, which
+# upstream no longer serves) -- into the venv, with the configure flags
+# Sage's own spkg-install passes; cypari2's build compiles against it through
+# its documented pari_prefix, which bakes the venv's library into the
+# extension's runtime path; and the one soname the series carries,
+# libpari-gmp-tls.so.9, resolves to the venv's copy for every process,
+# because the ldconfig order the GAP build set puts the venv's lib before the
+# multiarch directories. The call returns its order, and the process maps
+# exactly one libpari: the venv's.
+pari_probe = subprocess.run(
+    [
+        sys.executable, "-c",
+        "from sage.all import QuadraticForm, ZZ; "
+        "print(QuadraticForm(ZZ, 3, [1, 1, 0, 1, 0, 9]).number_of_automorphisms())",
+    ],
+    capture_output=True, text=True, check=False, timeout=600,
+)
+assert pari_probe.returncode == 0, (
+    f"the automorphism count of sage#32 died with {pari_probe.returncode}: "
+    f"{pari_probe.stdout[-2000:]}{pari_probe.stderr[-2000:]}"
+)
+assert pari_probe.stdout.strip().splitlines()[-1] == "24", (
+    pari_probe.stdout, pari_probe.stderr,
+)
+pari_maps = subprocess.run(
+    [
+        sys.executable, "-c",
+        "import sage.all; "
+        "print('\\n'.join(sorted(set(line.split()[-1] for line in open('/proc/self/maps') "
+        "if 'libpari' in line))))",
+    ],
+    capture_output=True, text=True, check=False, timeout=600,
+)
+assert pari_maps.returncode == 0, (pari_maps.stdout, pari_maps.stderr)
+mapped_pari = [line for line in pari_maps.stdout.splitlines() if line.strip()]
+assert len(mapped_pari) == 1, (
+    f"the process maps {len(mapped_pari)} libparis, and one is the whole point (sage#32): "
+    f"{' ; '.join(mapped_pari)}"
+)
+assert mapped_pari[0].startswith("/sage/.venv/lib/"), (
+    f"the image's one PARI is not the build the venv carries (sage#32): {mapped_pari[0]}"
+)
+print(f"one PARI in the process: {mapped_pari[0]}")
+print("QuadraticForm(ZZ, 3, [1,1,0,1,0,9]).number_of_automorphisms(): 24")
+
 # A generated matrix subgroup over F_5, ordered by genss's stabilizer chain in
 # the matrix action rather than through a permutation representation. This is
 # capability evidence and not a certificate: the chain is Monte Carlo bounded by
