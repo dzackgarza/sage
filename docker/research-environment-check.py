@@ -434,20 +434,34 @@ importlib.import_module("sage_categories_homotopy")
 
 # The record: the revision of every research package this image actually carries.
 # A checkout installed editable answers from its git tree; a git wheel answers with
-# the commit_id in its direct_url.json. Both are printed and held to the lock, so a
-# build log states the revisions instead of implying them.
+# the commit_id in its direct_url.json. Neither is held to uv.lock: a research
+# package is installed from its /repos checkout at the main head the build resolved
+# (sage#24), so the lock's commit -- only where the last relock left it -- is not
+# the source of truth for its revision. Each checkout is held to the head the
+# install recorded in /sage/.research-revisions, one "<name> <commit>" per
+# repository -- the file the block above validates, and what a consumer reads in
+# the image -- and both revisions are printed, so a build log states them instead
+# of implying them.
 import json
 import tomllib
 from importlib.metadata import PackageNotFoundError, distribution
 
+installed = dict(
+    line.split(" ", 1)
+    for line in Path("/sage/.research-revisions").read_text(encoding="utf-8").strip().splitlines()
+)
 lock = tomllib.loads(Path("/sage/uv.lock").read_text(encoding="utf-8"))
 for package in sorted(lock["package"], key=lambda entry: entry["name"]):
     source = package.get("source", {}).get("git")
     if source is None:
         continue
-    name, pinned = package["name"], source.split("#")[1]
+    name = package["name"]
     observed = None
-    repository = source.split("#")[0].rsplit("/", 1)[-1].removesuffix(".git")
+    # The repository a git source lives in: the URL's path, its query dropped --
+    # sage-categories-homotopy is installed from a subdirectory of the
+    # sage-categories checkout, and its source URL carries that subdirectory as
+    # ?subdirectory=..., which is not part of any checkout's name.
+    repository = source.split("#")[0].split("?")[0].rsplit("/", 1)[-1].removesuffix(".git")
     checkout = Path("/repos") / repository
     if (checkout / ".git").is_dir():
         observed = subprocess.run(
@@ -466,8 +480,12 @@ for package in sorted(lock["package"], key=lambda entry: entry["name"]):
     if observed is None:
         print(f"research {name}: not installed")
         continue
-    print(f"research {name}: {observed} ({kind}, lock {pinned})")
-    assert observed == pinned, (name, observed, pinned)
+    recorded = installed.get(repository)
+    assert recorded is not None, (
+        f"research {name}: /sage/.research-revisions records no head for {repository}"
+    )
+    print(f"research {name}: {observed} ({kind}, installed {recorded})")
+    assert observed == recorded, (name, observed, recorded)
 
 # sage-categories runs its finite-category engine on GAP releases allocated to its
 # own checkout: every consumer of a presented module fixes each package's path to

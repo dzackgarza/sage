@@ -103,6 +103,15 @@ RUN --mount=type=cache,target=/ccache \
  && just research-environment-venv
 RUN --mount=type=cache,target=/ccache \
     just research-environment-sage && ccache --show-stats
+# The research heads this build installs, one <name>=<commit> pair per
+# repository of docker/research-repositories.txt, resolved by the workflow when
+# the build started (sage#24) -- the argument research-environment.Dockerfile
+# already declares. Without this ARG the build drops it: the install would
+# resolve each head itself only if its layer runs, and a build whose earlier
+# layers are cache hits would republish the heads an earlier build resolved.
+# Declared directly before the install step's RUN, as in the full Dockerfile,
+# so a moved head is what rebuilds the repositories layer.
+ARG RESEARCH_REVISIONS=
 RUN --mount=type=cache,target=/ccache just research-environment-repositories
 RUN --mount=type=cache,target=/ccache just research-environment-lean
 RUN --mount=type=cache,target=/ccache \
