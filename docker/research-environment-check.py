@@ -173,6 +173,23 @@ print(f"kernel_info() under env -i: {probed_version} {probed_roots}; libgap.eval
 
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 
+# The commit of each research repository this image installed
+# (docker/install-research-repositories.sh writes the file, resolved at each
+# repository's main head at build time -- sage#24). Printed here for the
+# consumer to read in the image; the file is the image's own record.
+research_revisions = Path("/sage/.research-revisions")
+assert research_revisions.is_file(), (
+    "the image records no research revisions: /sage/.research-revisions is missing"
+)
+revisions = research_revisions.read_text(encoding="utf-8").strip().splitlines()
+assert revisions, "the image's research-revision record is empty"
+for line in revisions:
+    name, commit = line.split(" ", 1)
+    assert len(commit) == 40 and all(c in "0123456789abcdef" for c in commit), line
+print("the research repositories this image installed, at their main heads (sage#24):")
+for line in revisions:
+    print(f"  {line}")
+
 # ---- one libflint: python-flint and Sage in one process (sage#25) ----------
 # python-flint's wheel vendors its own libflint, and Sage loads the system one:
 # in one process that imports sage.all and then computes with fmpz_mat, the
