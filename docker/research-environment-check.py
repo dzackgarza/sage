@@ -125,7 +125,12 @@ apt_gap = sorted(
 assert not apt_gap, f"apt still carries GAP packages: {apt_gap}"
 for path in debian_gap_tree:
     assert not Path(path).exists(), f"{path} holds a GAP that is not the image's: {path}"
-launcher = Path(__file__).with_name("gap-launcher.sh").read_bytes()
+# The check's own path: under $SAGE_BIN, __file__ is the sage runner's own
+# module (site-packages/sage/all.py), not this script's path, so the launcher
+# cannot be read relative to __file__ (image run 42948264723). sys.argv[0] is
+# the path the check was invoked as, which the sage runner forwards, so the
+# launcher is read from beside the check wherever the check is run from.
+launcher = Path(sys.argv[0]).resolve().with_name("gap-launcher.sh").read_bytes()
 assert Path(launcher_path).is_file(), (
     "/usr/bin/gap is missing: a process whose environment did not come from this image "
     "has no `gap` at all (sage#24)"
