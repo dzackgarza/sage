@@ -197,6 +197,33 @@ jobs:
         test "${#revision}" -eq 40
         echo "revision=$revision" >> "$GITHUB_OUTPUT"
         echo "this build carries mathlib4 master at $revision"
+
+    - name: Resolve the research heads this build installs
+      id: research-heads
+      # Every build installs each research repository at the head of its main
+      # branch as it is when the build starts (sage#24). Reading them here and
+      # passing them as one build argument makes them build inputs: unchanged,
+      # the install step is a cache hit and its layer is reused; moved, the
+      # layer is rebuilt and every layer after it.
+      run: |
+        set -eu
+        revisions=""
+        while read -r url; do
+          case "${url}" in ''|'#'*) continue ;; esac
+          name="$(basename "${url}" .git)"
+          head="$(git ls-remote "${url}" HEAD | awk 'NR == 1 { print $1 }')"
+          case "${head}" in
+            *[!0-9a-f]* | '')
+              echo "${url} did not report a head: '${head}'" >&2
+              exit 1
+              ;;
+          esac
+          test "${#head}" -eq 40
+          revisions="${revisions:+${revisions} }${name}=${head}"
+        done < sage-source/docker/research-repositories.txt
+        echo "revisions=${revisions}" >> "$GITHUB_OUTPUT"
+        echo "this build installs the research heads: ${revisions}"
+
     - name: Select a full or an incremental build
       id: build-kind
       if: steps.image-tag.outputs.exists != 'true'
@@ -230,6 +257,7 @@ jobs:
         build-args: |
           BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
           MATHLIB_REVISION=${{ steps.mathlib.outputs.revision }}
+          RESEARCH_REVISIONS=${{ steps.research-heads.outputs.revisions }}
         outputs: type=image,push=true,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true
         tags: ghcr.io/${{ github.repository_owner }}/sage:${{ 
           steps.image-tag.outputs.tag }}
