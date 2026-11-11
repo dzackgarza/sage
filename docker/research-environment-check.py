@@ -650,7 +650,7 @@ assert not absent, f"the image carries no {absent}"
 # TeX Live's scheme-full. Each is asserted by kpsewhich finding it.
 tex_packages = [
     "amsmath", "amsthm", "amssymb", "amsfonts", "mathtools", "mathrsfs",
-    "bm", "esint", "stmaryrd", "BBM", "upgreek", "iftex", "fontenc",
+    "bm", "esint", "stmaryrd", "bbm", "upgreek", "iftex", "fontenc",
     "graphicx", "subcaption", "xcolor", "amscd", "centernot", "slashed",
     "tikz", "tikz-cd", "tikz-3dplot", "etoolbox", "xparse",
     "dynkin-diagrams", "quiver", "pgfplots", "luatex85", "luahyperbolic",
@@ -659,22 +659,33 @@ tex_packages = [
 ]
 for package in tex_packages:
     found = subprocess.run(
-        ["kpsewhich", f"{package}.sty"], capture_output=True, text=True, check=True,
+        ["kpsewhich", f"{package}.sty"], capture_output=True, text=True,
     ).stdout.strip()
     assert found, f"kpsewhich found no {package}.sty: the image does not carry it"
 
 # The TikZ libraries the same preamble loads.
 tikz_libraries = [
-    "arrows.meta", "cd", "fadings", "patterns", "calc", "matrix",
-    "positioning", "decorations", "shapes", "backgrounds", "fit",
-    "intersections", "hobby", "graphs", "external",
+    "tikzlibrarycd.code.tex",
+    "tikzlibraryfadings.code.tex",
+    "tikzlibrarypatterns.code.tex",
+    "tikzlibrarycalc.code.tex",
+    "tikzlibrarymatrix.code.tex",
+    "tikzlibrarypositioning.code.tex",
+    "tikzlibrarydecorations.code.tex",
+    "tikzlibraryshapes.code.tex",
+    "tikzlibrarybackgrounds.code.tex",
+    "tikzlibraryfit.code.tex",
+    "tikzlibraryintersections.code.tex",
+    "tikzlibraryhobby.code.tex",
+    "tikzlibrarygraphs.code.tex",
+    "tikzlibraryexternal.code.tex",
+    "pgflibraryarrows.meta.code.tex",
 ]
 for library in tikz_libraries:
     found = subprocess.run(
-        ["kpsewhich", f"tikzlibrary{library}.code.tex"],
-        capture_output=True, text=True, check=True,
+        ["kpsewhich", library], capture_output=True, text=True,
     ).stdout.strip()
-    assert found, f"kpsewhich found no tikzlibrary{library}.code.tex: the image does not carry it"
+    assert found, f"kpsewhich found no {library}: the image does not carry it"
 
 quarto_version = subprocess.run(
     ["quarto", "--version"], capture_output=True, text=True, check=True

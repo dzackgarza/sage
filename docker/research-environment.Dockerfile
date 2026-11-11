@@ -114,6 +114,18 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
+# luahyperbolic, the one package research's CI has to fetch from CTAN because the
+# distribution TeX Live does not carry it (research docs.yml, "Install TeX packages
+# newer than Ubuntu TeX Live"): installed the same way, from the CTAN zip into the
+# tree kpsewhich searches, and registered so kpsewhich finds it.
+RUN curl --fail --location --output /tmp/luahyperbolic.zip \
+      https://mirrors.ctan.org/macros/luatex/latex/luahyperbolic.zip \
+ && mkdir -p /usr/local/share/texmf/tex/lualatex \
+ && unzip -q /tmp/luahyperbolic.zip -d /usr/local/share/texmf/tex/lualatex \
+ && rm -f /tmp/luahyperbolic.zip \
+ && mktexlsr /usr/local/share/texmf \
+ && kpsewhich luahyperbolic.sty
+
 # Quarto renders both sites and is not in Debian, so it comes from its release pinned
 # by version and by the digest of the .deb, as julia and pcre do. Its own postinst
 # links /opt/quarto/bin/quarto into /usr/local/bin, which is on PATH.
