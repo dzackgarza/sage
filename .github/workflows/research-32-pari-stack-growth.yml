@@ -51,11 +51,6 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      # The writable depot the cached Julia environment resolves into, in
-      # front of the image's own read-only /opt/julia-depot, exactly as the
-      # composite sage action sets it for the container it starts.
-      JULIA_DEPOT_PATH: "${{ runner.temp }}/julia/depot:/opt/julia-depot:"
     container:
       image: ghcr.io/dzackgarza/sage@sha256:5304338e93819c8f568b7f1f07e1b41afb383f0d18bf22221b8b45de483ad017
       credentials:
@@ -79,6 +74,9 @@ jobs:
       - name: Mark the container checkouts as safe for git
         run: |
           git config --global --add safe.directory "*"
+      - name: Put the writable Julia depot in front of the image depot
+        run: |
+          echo "JULIA_DEPOT_PATH=${RUNNER_TEMP}/julia/depot:/opt/julia-depot:" >> "$GITHUB_ENV"
       # The job's own CI-only gate, verbatim: Just from the action the job
       # pins, ast-grep from npm, and the tensor-boundary recipe of the
       # checkout's justfile, which scans its own tracked source.
