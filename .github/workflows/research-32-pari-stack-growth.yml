@@ -77,16 +77,40 @@ jobs:
       - name: Put the writable Julia depot in front of the image depot
         run: |
           echo "JULIA_DEPOT_PATH=${RUNNER_TEMP}/julia/depot:/opt/julia-depot:" >> "$GITHUB_ENV"
+      # The container's own workspace and temporary paths, written once for
+      # every step that needs them: the runner context expressions resolve to
+      # the host's paths (/home/runner/work/...), which do not exist inside
+      # the container (/__w/...), so each path is read from the container's
+      # own environment instead, exactly as the depot step above does.
+      - name: Put the container's own paths in the step environment
+        run: |
+          {
+            echo "SAGE32_SUITE_PYTHONPATH=${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/_ci-support/ai-review-ci/tool-artifacts/pytest_plugins:${GITHUB_WORKSPACE}/research/src:${GITHUB_WORKSPACE}/src"
+            echo "SAGE32_CONTRACTS_PYTHONPATH=${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}/_ci-support/ai-review-ci/tool-artifacts/pytest_plugins"
+            echo "SAGE32_JULIA_CACHE_DIR=${RUNNER_TEMP}/julia"
+          } >> "$GITHUB_ENV"
+      # The tensor boundary scan needs ast-grep; the image ships no npm, so
+      # the release binary the npm package @ast-grep/cli@0.41.0 wraps is
+      # downloaded pinned by digest instead, and the image's own python
+      # extracts it (the image ships no unzip either).
+      - name: Install the pinned ast-grep for the tensor boundary scan
+        run: |
+          mkdir -p "${RUNNER_TEMP}/ast-grep"
+          curl -fsSL -o "${RUNNER_TEMP}/ast-grep.zip" \
+            https://github.com/ast-grep/ast-grep/releases/download/0.41.0/app-x86_64-unknown-linux-gnu.zip
+          echo "e71afdcbb2e79f7710a56d2f89662bdd0a6e9d639c4abecd5d5f129d80a38bac  ${RUNNER_TEMP}/ast-grep.zip" | sha256sum -c -
+          /sage/.venv/bin/python -m zipfile -e "${RUNNER_TEMP}/ast-grep.zip" "${RUNNER_TEMP}/ast-grep"
+          "${RUNNER_TEMP}/ast-grep/ast-grep" --version
+          echo "${RUNNER_TEMP}/ast-grep" >> "$GITHUB_PATH"
       # The job's own CI-only gate, verbatim: Just from the action the job
-      # pins, ast-grep from npm, and the tensor-boundary recipe of the
-      # checkout's justfile, which scans its own tracked source.
+      # pins, and the tensor-boundary recipe of the checkout's justfile, which
+      # scans its own tracked source with the ast-grep now on PATH.
       - name: Install Just for CI diagnostics
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3
         with:
           just-version: '1.59.0'
       - name: Check architectural tensor ownership (CI only)
         run: |
-          npm install --global @ast-grep/cli@0.41.0
           just tensor-boundary
       # The composite sage action's own first step checks research out here.
       - name: Check out research
@@ -97,7 +121,7 @@ jobs:
       - name: Restore the Julia depot
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
-          path: ${{ runner.temp }}/julia
+          path: ${{ env.SAGE32_JULIA_CACHE_DIR }}
           key: ${{ runner.os }}-julia-bridge-depot-${{ hashFiles('research/pyproject.toml') }}
         id: julia-cache
       # What the composite action's docker run asserts of the image it starts,
@@ -133,7 +157,7 @@ jobs:
         if: steps.julia-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
-          path: ${{ runner.temp }}/julia
+          path: ${{ env.SAGE32_JULIA_CACHE_DIR }}
           key: ${{ steps.julia-cache.outputs.cache-primary-key }}
       # The one addition to the job's invocation, written into this workspace
       # at run time and never an edit of a repository it runs against.
@@ -242,7 +266,7 @@ jobs:
       # capture buffer would die with it unprinted.
       - name: Run every lattice database test, including Sage sessions and source intake
         env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/_ci-support/ai-review-ci/tool-artifacts/pytest_plugins:${{ github.workspace }}/research/src:${{ github.workspace }}/src
+          PYTHONPATH: ${{ env.SAGE32_SUITE_PYTHONPATH }}
         run: |
           /sage/.venv/bin/python -c 'import sage.all, sys, pytest; import sage32_stack_hook; sage32_stack_hook.install(); sys.exit(pytest.main(sys.argv[1:]))' \
             -p qc_sage_session -p qc_unique_inventory -p sage32_stack_hook \
@@ -260,12 +284,15 @@ jobs:
       # and PYTHONPATH made a container step's defaults), with the same two
       # additions as the suite step: the hook installed before the Julia-bridge
       # warm-up so every call in the process is printed, and --capture=no.
+      # The workdir is the container's own sage-extensions checkout, reached
+      # through its $GITHUB_WORKSPACE because the runner context resolves to
+      # the host path the container does not have.
       - name: Validate preamble owner contracts
         if: always()
-        working-directory: ${{ github.workspace }}/sage-extensions
         env:
-          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/_ci-support/ai-review-ci/tool-artifacts/pytest_plugins
+          PYTHONPATH: ${{ env.SAGE32_CONTRACTS_PYTHONPATH }}
         run: |
+          cd "${GITHUB_WORKSPACE}/sage-extensions"
           /sage/.venv/bin/python -c 'import sage.all, sys, pytest; import sage32_stack_hook; sage32_stack_hook.install(); from sage.all import ZZ; from sage_extensions.categories.lattices import Lattices; Lattices(ZZ)([[2, -1], [-1, 2]]).orthogonal_group().order(); sys.exit(pytest.main(sys.argv[1:]))' \
             -p qc_sage_session -p qc_unique_inventory -p sage32_stack_hook --no-time-gates --capture=no \
             tests/lattices/test_lattice_database_owner_contracts.sage \
