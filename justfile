@@ -17,7 +17,19 @@ research-environment-venv:
     sage_python_version="${SAGE_PYTHON_VERSION:-3.14}"
 
     cd "${sage_root}"
-    uv sync --python "${sage_python_version}" --frozen --inexact --no-install-project --group research-environment
+    # python-flint is built from source against the system FLINT -- its wheel
+    # vendors a second libflint, and Sage loads the system one, which is a
+    # SIGSEGV in one process (sage#25; pyproject.toml's no-binary-package
+    # names it). uv does not reinstall a locked version that is already
+    # installed, so a venv synced before that change -- an incremental build's
+    # base image, or a desk venv -- still carries the wheel, and with it
+    # python_flint.libs. The wheel is replaced once, here: a venv without it
+    # (a full build's fresh one) syncs unchanged.
+    reinstall=()
+    if [ -d ".venv/lib/python${sage_python_version}/site-packages/python_flint.libs" ]; then
+        reinstall=(--reinstall-package python-flint)
+    fi
+    uv sync --python "${sage_python_version}" --frozen --inexact --no-install-project --group research-environment "${reinstall[@]}"
 
 # Sage, built and installed into the venv.
 #
