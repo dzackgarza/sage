@@ -171,6 +171,29 @@ assert "/sage/.venv/share/gap/" in probed_roots, probed_roots
 assert probed_sum == "2", probed_sum
 print(f"kernel_info() under env -i: {probed_version} {probed_roots}; libgap.eval('1+1') = {probed_sum}")
 
+# A HOME past GAP's line width (sage#20, sage#27): the roots record GAP prints
+# is broken at the width, and the fix reads it across the break. The import of
+# the interface under that HOME is the acceptance: it succeeds on the image
+# that carries the fix, and dies at ValueError on one that ships the defect.
+long_home = "/workspace/nucleus/work/home" + "/pad" * 20
+long_probe = subprocess.run(
+    [
+        sys.executable, "-c",
+        "import sage.interfaces.gap; "
+        "from sage.libs.gap.kernel_info import kernel_info; "
+        "print(kernel_info()[2])",
+    ],
+    env=dict(os.environ, HOME=long_home),
+    capture_output=True, text=True, check=False, timeout=600,
+)
+assert long_probe.returncode == 0, (
+    f"the import of sage.interfaces.gap under a HOME past GAP's line width died with "
+    f"{long_probe.returncode}: {long_probe.stdout[-2000:]}{long_probe.stderr[-2000:]}"
+)
+assert f"{long_home}/.gap/" in long_probe.stdout, long_probe.stdout
+print(f"import sage.interfaces.gap under a HOME past GAP's line width: ok; "
+      f"the roots carry {long_home}/.gap/")
+
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 
 # The commit of each research repository this image installed
