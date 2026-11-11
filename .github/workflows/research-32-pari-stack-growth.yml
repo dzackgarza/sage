@@ -1,0 +1,285 @@
+# Find where PARI's stack grows to its maximum. The reproduction run
+# 43037793921 of research-32-pari-abort-repro.yml passed inside the published
+# digest sha256:5304338e…: 12 passed, both named forms returning 24, the stack
+# at 2 GiB of an 8 GiB maximum at those calls. The overflow it explains
+# (lattice-database run 42948978339, the same digest) had the stack at 8 GiB --
+# its maximum. So an earlier step of that job's complete project suite leaves
+# the stack at its maximum, and the PARI build is not the cause.
+#
+# This workflow runs that job's full invocation -- "Complete project suite and
+# preamble contracts" of lattice-database's tests workflow -- in the same
+# pinned digest, translated from its docker-exec form to a container job: the
+# provisioning the composite sage action does (research and lattice-database
+# installed editable with their pinned bridge override, the cached Julia depot
+# in front of the image's own, the Oscar project instantiated) and then both
+# test steps in the job's order, the database suite first, the owner contracts
+# after. Nothing is built and nothing is published.
+#
+# The workflow adds one thing to that invocation: a hook module it writes into
+# its own workspace at run time, never an edit of a repository it runs
+# against. The hook wraps QuadraticForm.number_of_automorphisms so that,
+# before every call, the form's Hessian (the matrix sage's __pari__ hands to
+# PARI's qfauto), pari.stacksize(), pari.stacksizemax() and the libpari the
+# process maps are printed and flushed, and the order the call returned is
+# printed after it; and its pytest hooks print pari.stacksize() and
+# pari.stacksizemax() before and after every test, with that test's id on each
+# line. A stack that grows because a computation needs it is not a defect; a
+# stack left at its maximum by an interrupted or leaking computation is, and
+# the first test after which the two numbers are equal names where that
+# happens.
+#
+# What to read in the run: the [sage#32] lines, before and after each test id.
+# The first test after whose before-line or after-line pari.stacksize() equals
+# pari.stacksizemax() is the one to read; the PARI calls it makes, printed
+# between its lines, are the calls to read the source of.
+
+name: Research issue 32 PARI stack growth
+on: workflow_dispatch
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: research-32-pari-stack-growth-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    permissions:
+      contents: read
+      packages: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      # The writable depot the cached Julia environment resolves into, in
+      # front of the image's own read-only /opt/julia-depot, exactly as the
+      # composite sage action sets it for the container it starts.
+      JULIA_DEPOT_PATH: "${{ runner.temp }}/julia/depot:/opt/julia-depot:"
+    container:
+      image: ghcr.io/dzackgarza/sage@sha256:5304338e93819c8f568b7f1f07e1b41afb383f0d18bf22221b8b45de483ad017
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ github.token }}
+    steps:
+      # The job's own first step checks its own repository out; here that
+      # repository is named, so the checkout lands where the job's layout
+      # expects it: the workspace root, with research, the collector and
+      # sage-extensions checked out inside it.
+      - name: Check out lattice-database
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: dzackgarza/lattice-database
+      - name: Check out the shared Sage pytest collector
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: dzackgarza/ai-review-ci
+          ref: e3ecc613e2cc41238f6f3717e8107d2a7c2519ba
+          path: _ci-support/ai-review-ci
+      - name: Mark the container checkouts as safe for git
+        run: |
+          git config --global --add safe.directory "*"
+      # The job's own CI-only gate, verbatim: Just from the action the job
+      # pins, ast-grep from npm, and the tensor-boundary recipe of the
+      # checkout's justfile, which scans its own tracked source.
+      - name: Install Just for CI diagnostics
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3
+        with:
+          just-version: '1.59.0'
+      - name: Check architectural tensor ownership (CI only)
+        run: |
+          npm install --global @ast-grep/cli@0.41.0
+          just tensor-boundary
+      # The composite sage action's own first step checks research out here.
+      - name: Check out research
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: dzackgarza/research
+          path: research
+      - name: Restore the Julia depot
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/julia
+          key: ${{ runner.os }}-julia-bridge-depot-${{ hashFiles('research/pyproject.toml') }}
+        id: julia-cache
+      # What the composite action's docker run asserts of the image it starts,
+      # asserted of the image this job runs in.
+      - name: Verify the Sage environment
+        run: >-
+          /sage/.venv/bin/python -c 'import sys, sage.version, sage.all, sage.interfaces.maxima_lib; assert sys.version_info >= (3, 14); print(sys.version); print(sage.version.version)'
+      # Verbatim from the composite action's install step, minus the
+      # docker-exec wrapper this container job does not need: the two uv
+      # installs run from the workspace root, where the checkout's own
+      # pyproject.toml, its action's provided.txt and overrides.txt resolve.
+      - name: Install current research and lattice database checkouts
+        run: |
+          uv pip install --python /sage/.venv/bin/python --no-deps \
+            --editable "${GITHUB_WORKSPACE}/research" --editable .
+          uv pip install --python /sage/.venv/bin/python \
+            --requirements pyproject.toml --requirements research/pyproject.toml \
+            --group pyproject.toml:dev --group research/pyproject.toml:dev \
+            --excludes .github/actions/sage/provided.txt \
+            --overrides .github/actions/sage/overrides.txt \
+            --reinstall-package pyyaml --only-binary pyyaml pytest
+          uv pip check --python /sage/.venv/bin/python
+      # Verbatim from the composite action's instantiate step: the bridge's
+      # own project, resolved into the cached writable depot in front of the
+      # image's own, with Oscar loaded and its version printed.
+      - name: Instantiate the Oscar project of sage-julia-bridge
+        run: |-
+          project="$(/sage/.venv/bin/python -c "import pathlib, sage_julia_bridge; print(pathlib.Path(sage_julia_bridge.__file__).with_name(\"julia_env\"))")"
+          julia --project="$project" --startup-file=no --color=no -e "
+            using Pkg; Pkg.instantiate(); Pkg.precompile(); using Oscar
+            println(\"Oscar \", oscar.VERSION_NUMBER)"
+      - name: Cache the provisioned Julia environment before computing
+        if: steps.julia-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ runner.temp }}/julia
+          key: ${{ steps.julia-cache.outputs.cache-primary-key }}
+      # The one addition to the job's invocation, written into this workspace
+      # at run time and never an edit of a repository it runs against.
+      - name: Write the stack-growth hook into this workspace
+        run: |
+          cat > sage32_stack_hook.py <<'HOOK'
+          """Stack-growth evidence for dzackgarza/sage#32.
+
+          This module is written into the workspace by
+          .github/workflows/research-32-pari-stack-growth.yml at run time; no repository
+          it runs against is modified. It has two parts:
+
+          * install() wraps QuadraticForm.number_of_automorphisms so that, before every
+            call, the form's Hessian (the matrix sage's __pari__ hands to PARI's qfauto),
+            pari.stacksize(), pari.stacksizemax() and the libpari the process maps are
+            printed and flushed, and the order the call returned is printed after it.
+          * The pytest hooks below print pari.stacksize() and pari.stacksizemax() before
+            and after every test, with that test's id on each line.
+
+          The defect under investigation aborts the process inside a call, so anything
+          still buffered is lost: every line is flushed and also appended to
+          sage32-stack-evidence.log beside this module, which survives the abort.
+          """
+
+          import os
+          import sys
+
+          import pytest
+
+          TAG = "[sage#32] "
+          EVIDENCE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sage32-stack-evidence.log")
+          _calls = [0]
+
+
+          def _mapped_libpari():
+              """The libpari files this process maps, deduplicated."""
+              with open("/proc/self/maps") as maps:
+                  return sorted({line.split()[-1] for line in maps if "libpari" in line})
+
+
+          def _record(text):
+              """Print and flush, and append the same line to the evidence file."""
+              print(TAG + text)
+              sys.stdout.flush()
+              with open(EVIDENCE, "a") as evidence:
+                  evidence.write(TAG + text + "\n")
+
+
+          def _stack_line(paragraph, nodeid):
+              from sage.all import pari
+
+              return (
+                  f"{paragraph} {nodeid}: pari.stacksize() = {pari.stacksize()}, "
+                  f"pari.stacksizemax() = {pari.stacksizemax()}"
+              )
+
+
+          @pytest.hookimpl(hookwrapper=True)
+          def pytest_runtest_protocol(item, nextitem):
+              """Print the PARI stack before and after every test, with its id."""
+              _record(_stack_line("before", item.nodeid))
+              try:
+                  yield
+              finally:
+                  _record(_stack_line("after", item.nodeid))
+
+
+          def install():
+              """Wrap QuadraticForm.number_of_automorphisms with the Hessian prints."""
+              from sage.all import pari
+              from sage.quadratic_forms.quadratic_form import QuadraticForm
+              from sage.quadratic_forms.quadratic_form__automorphisms import (
+                  number_of_automorphisms as original,
+              )
+
+              if getattr(QuadraticForm.number_of_automorphisms, "_sage32_repro", False):
+                  return
+
+              def number_of_automorphisms(self, *args, **kwargs):
+                  _calls[0] += 1
+                  call = _calls[0]
+                  _record(f"number_of_automorphisms() call {call}")
+                  _record(f"Hessian:\n{self.Hessian_matrix()}")
+                  _record(f"pari.stacksize() = {pari.stacksize()}")
+                  _record(f"pari.stacksizemax() = {pari.stacksizemax()}")
+                  for path in _mapped_libpari():
+                      _record(f"libpari mapped: {path}")
+                  order = original(self, *args, **kwargs)
+                  _record(f"number_of_automorphisms() call {call} returned {order}")
+                  return order
+
+              number_of_automorphisms._sage32_repro = True
+              QuadraticForm.number_of_automorphisms = number_of_automorphisms
+              _record("hook installed: QuadraticForm.number_of_automorphisms wrapped")
+              _record(f"pari.stacksize() at install = {pari.stacksize()}")
+              _record(f"pari.stacksizemax() at install = {pari.stacksizemax()}")
+              for path in _mapped_libpari():
+                  _record(f"libpari mapped at install: {path}")
+          HOOK
+          /sage/.venv/bin/python -m py_compile sage32_stack_hook.py
+      # Verbatim from the job's first test step (the composite action's docker
+      # exec, workdir and PYTHONPATH made a container step's defaults), with
+      # two additions: the hook is imported and installed inside the -c
+      # wrapper before pytest starts, and --capture=no so the prints reach the
+      # run's log even where the process dies inside a call, where pytest's
+      # capture buffer would die with it unprinted.
+      - name: Run every lattice database test, including Sage sessions and source intake
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/_ci-support/ai-review-ci/tool-artifacts/pytest_plugins:${{ github.workspace }}/research/src:${{ github.workspace }}/src
+        run: |
+          /sage/.venv/bin/python -c 'import sage.all, sys, pytest; import sage32_stack_hook; sage32_stack_hook.install(); sys.exit(pytest.main(sys.argv[1:]))' \
+            -p qc_sage_session -p qc_unique_inventory -p sage32_stack_hook \
+            --durations=20 --continue-on-collection-errors --capture=no tests
+      # The job's own checkout of the owner library, at main, which is what
+      # the Sage action installs through research; research's preamble is a
+      # shim.
+      - name: Check out sage-extensions (actions/checkout v4)
+        if: always()
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: dzackgarza/sage-extensions
+          path: sage-extensions
+      # Verbatim from the job's owner-contracts step (the docker exec's workdir
+      # and PYTHONPATH made a container step's defaults), with the same two
+      # additions as the suite step: the hook installed before the Julia-bridge
+      # warm-up so every call in the process is printed, and --capture=no.
+      - name: Validate preamble owner contracts
+        if: always()
+        working-directory: ${{ github.workspace }}/sage-extensions
+        env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/_ci-support/ai-review-ci/tool-artifacts/pytest_plugins
+        run: |
+          /sage/.venv/bin/python -c 'import sage.all, sys, pytest; import sage32_stack_hook; sage32_stack_hook.install(); from sage.all import ZZ; from sage_extensions.categories.lattices import Lattices; Lattices(ZZ)([[2, -1], [-1, 2]]).orthogonal_group().order(); sys.exit(pytest.main(sys.argv[1:]))' \
+            -p qc_sage_session -p qc_unique_inventory -p sage32_stack_hook --no-time-gates --capture=no \
+            tests/lattices/test_lattice_database_owner_contracts.sage \
+            tests/lattices/test_coordinate_diagonal_embeddings.py
+      # The evidence file is written beside the hook with one flush per line,
+      # so it survives whatever the process does; this step prints it
+      # whatever the run's exit status was.
+      - name: Print the evidence the hook recorded
+        if: always()
+        run: |
+          if [ -f "${GITHUB_WORKSPACE}/sage32-stack-evidence.log" ]; then
+            cat "${GITHUB_WORKSPACE}/sage32-stack-evidence.log"
+          else
+            echo "the hook wrote no evidence file"
+          fi
