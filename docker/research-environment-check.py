@@ -173,6 +173,47 @@ print(f"kernel_info() under env -i: {probed_version} {probed_roots}; libgap.eval
 
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 
+# ---- one libflint: python-flint and Sage in one process (sage#25) ----------
+# python-flint's wheel vendors its own libflint, and Sage loads the system one:
+# in one process that imports sage.all and then computes with fmpz_mat, the
+# vendored build's symbols bind to the other build's library and the
+# interpreter dies on SIGSEGV (lattice-database#29 found it in the published
+# image). The repair is one libflint: python-flint is built against the flint
+# Sage uses, which python-flint 0.9's build docs accept -- FLINT 3.0-3.6
+# (pypi.org/project/python-flint/0.9.0) -- so the venv's wheel is replaced by a
+# source build. The call of the issue, run in a fresh process, asserts its
+# result; and the process maps exactly one libflint.
+flint_probe = subprocess.run(
+    [
+        sys.executable, "-c",
+        "import sage.all; from flint import fmpz_mat; print(fmpz_mat([[2,1],[1,2]]).det())",
+    ],
+    capture_output=True, text=True, check=False, timeout=600,
+)
+assert flint_probe.returncode == 0, (
+    f"the one-libflint call of sage#25 died with {flint_probe.returncode}: "
+    f"{flint_probe.stdout[-2000:]}{flint_probe.stderr[-2000:]}"
+)
+assert flint_probe.stdout.strip().splitlines()[-1] == "3", (
+    flint_probe.stdout, flint_probe.stderr,
+)
+maps_probe = subprocess.run(
+    [
+        sys.executable, "-c",
+        "import sage.all, flint; "
+        "print('\\n'.join(sorted(set(line.split()[-1] for line in open('/proc/self/maps') if 'libflint' in line))))",
+    ],
+    capture_output=True, text=True, check=False, timeout=600,
+)
+assert maps_probe.returncode == 0, (maps_probe.stdout, maps_probe.stderr)
+mapped = [line for line in maps_probe.stdout.splitlines() if line.strip()]
+assert len(mapped) == 1, (
+    f"the process maps {len(mapped)} libflints, and one is the whole point (sage#25): "
+    f"{' ; '.join(mapped)}"
+)
+print(f"one libflint in the process: {mapped[0]}")
+print("fmpz_mat([[2,1],[1,2]]).det() after import sage.all: 3")
+
 # A generated matrix subgroup over F_5, ordered by genss's stabilizer chain in
 # the matrix action rather than through a permutation representation. This is
 # capability evidence and not a certificate: the chain is Monte Carlo bounded by
