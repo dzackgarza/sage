@@ -351,6 +351,43 @@ RUN set -eu; \
     test -x "$SAGE_LOCAL/bin/normaliz" && "$SAGE_LOCAL/bin/normaliz" -v | head -1; \
     cd /; rm -rf /tmp/normaliz /tmp/normaliz.tar.gz
 
+# PARI, built into $SAGE_LOCAL, so that cypari2, Sage and the image load one
+# PARI build (sage#32). The image's one PARI was Debian's
+# libpari-gmp-tls.so.9 (2.17.2) -- cypari2's build and Sage's find_library
+# both resolve it -- and in the published image the automorphism count of a
+# ternary form aborts with PARI's stack exhausted at 8 GiB inside it, while
+# the same call outside the image returns 24 (lattice-database run
+# 42948978339). Sage's tree pins pari 2.17.1 (build/pkgs/pari), which
+# upstream no longer serves: pub/pari/unix holds 2.17.3, 2.17.4 and 2.19.0.
+# This builds 2.17.4, the newest release of the pinned series, with the
+# configure flags Sage's own spkg-install passes. The series' one soname,
+# libpari-gmp-tls.so.9, is the ABI contract: everything linked against the
+# Debian library resolves the same soname, and the ldconfig order the GAP
+# build set (sage-local.conf precedes the multiarch directories) makes the
+# venv's the one every process loads. cypari2's build compiles against this
+# one (pyproject.toml's config-settings pass its documented pari_prefix),
+# which bakes the venv's library into the extension's runtime path. The
+# files are not Python's and survive `uv sync`, as GAP's do; Debian's pari
+# stays installed, and so does its gp.
+RUN set -eu; \
+    SAGE_LOCAL=/sage/.venv; \
+    sha256="02651d99c391007d384b3fadbc20abc6916b77036f9e496c99e9ce8688ca4b53"; \
+    curl -fsSL -o /tmp/pari.tar.gz "https://pari.math.u-bordeaux.fr/pub/pari/unix/pari-2.17.4.tar.gz"; \
+    echo "${sha256}  /tmp/pari.tar.gz" | sha256sum -c -; \
+    mkdir /tmp/pari; tar -xzf /tmp/pari.tar.gz -C /tmp/pari --strip-components=1; \
+    cd /tmp/pari; \
+    # LANG=C avoids the locale trouble in PARI's Configure, and -j1 on the
+    # install for its race conditions -- both from Sage's own spkg-install.
+    export LANG=C; \
+    bash ./Configure --prefix="$SAGE_LOCAL" --mt=pthread --kernel=gmp --graphic=none; \
+    make -j"$(nproc)" gp; \
+    make install -j1; \
+    ldconfig; \
+    test -f "$SAGE_LOCAL/lib/libpari-gmp-tls.so.9" && test -x "$SAGE_LOCAL/bin/gp"; \
+    "$SAGE_LOCAL/bin/gp" --version | head -1; \
+    test -f "$SAGE_LOCAL/include/pari/pari.h"; \
+    cd /; rm -rf /tmp/pari /tmp/pari.tar.gz
+
 FROM base AS environment
 
 # Julia, because the consumers this image exists for need it: importing
