@@ -11,7 +11,7 @@ on:
     tags-ignore: ['**']
     paths-ignore:
       - docker/**
-      - .github/workflows/research-environment-image.yml
+      - .github/workflows/research-*.yml
       - justfile
   workflow_dispatch:
     # Allow to run manually

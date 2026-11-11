@@ -26,9 +26,6 @@
 name: Research issue 32 PARI stack abort reproduction
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/research-32-pari-abort-repro.yml
 permissions:
   contents: read
   packages: read

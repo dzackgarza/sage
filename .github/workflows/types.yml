@@ -8,7 +8,7 @@ on:
       - develop
     paths-ignore:
       - docker/**
-      - .github/workflows/research-environment-image.yml
+      - .github/workflows/research-*.yml
       - justfile
   pull_request:
   workflow_dispatch:
