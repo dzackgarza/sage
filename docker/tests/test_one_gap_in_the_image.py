@@ -186,11 +186,21 @@ def fake_root(tmp_path: Path, files: dict[str, bytes]) -> tuple[Path, Path]:
 
 
 def run_check_gap(root: Path, stubs: Path, monkeypatch, **environment: str) -> None:
-    """The check's GAP decision, on the fake root; an AssertionError is its verdict."""
+    """The check's GAP decision, on the fake root; an AssertionError is its verdict.
+
+    The block reads its launcher from `sys.argv[0]` (8dadb73e45: under
+    $SAGE_BIN, `__file__` is the sage runner's own module, not the check's
+    path), resolved beside the check as the image runs it --
+    `$SAGE_BIN docker/research-environment-check.py` out of the checkout --
+    so the block gets the module's own `sys`, with the check's path as
+    `argv[0]` and the repository's launcher beside it. The check itself is
+    not changed to suit this harness (sage#30).
+    """
     monkeypatch.setenv("PATH", f"{stubs}:/usr/local/bin:/usr/bin:/bin")
     for name, value in environment.items():
         monkeypatch.setenv(name, value)
-    namespace = {"__file__": str(CHECK), "Path": Path, "subprocess": subprocess}
+    monkeypatch.setattr(sys, "argv", [str(CHECK)])
+    namespace = {"__file__": str(CHECK), "Path": Path, "subprocess": subprocess, "sys": sys}
     exec(compile(check_gap_block(root), "<check-gap>", "exec"), namespace)  # noqa: S102
 
 
