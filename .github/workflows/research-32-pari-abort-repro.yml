@@ -24,21 +24,17 @@
 # does not occur" half of the acceptance.
 
 name: Research issue 32 PARI stack abort reproduction
-
 on:
   workflow_dispatch:
   push:
     paths:
       - .github/workflows/research-32-pari-abort-repro.yml
-
 permissions:
   contents: read
   packages: read
-
 concurrency:
   group: research-32-pari-abort-repro-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
   reproduce:
     runs-on: ubuntu-latest
@@ -67,13 +63,11 @@ jobs:
           done
           "$SAGE_BIN" --version
           /sage/.venv/bin/python -c 'import sys; print(sys.version)'
-
       - name: Check out sage-extensions at main
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: dzackgarza/sage-extensions
           ref: main
-
       # sage-indefinite-port is checked out and installed at main with
       # sage-extensions, the pair lattice-database's job runs through
       # research's dependencies: the module's primitive-orbit-series contract
@@ -87,24 +81,24 @@ jobs:
           repository: dzackgarza/sage-indefinite-port
           ref: main
           path: sage-indefinite-port
-
+      - name: Mark the container checkouts as safe for git
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --global --add safe.directory "$GITHUB_WORKSPACE/sage-indefinite-port"
       - name: Check out the shared Sage pytest collector
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           repository: dzackgarza/ai-review-ci
           ref: e3ecc613e2cc41238f6f3717e8107d2a7c2519ba
           path: _ci-support/ai-review-ci
-
       - name: Install the checked-out sage-extensions source
         run: |
           git rev-parse HEAD
           git log -1 --oneline
           uv pip install --python /sage/.venv/bin/python --no-deps -e .
-
       - name: Install the checked-out sage-indefinite-port source
         run: >-
           uv pip install --python /sage/.venv/bin/python --no-deps -e sage-indefinite-port
-
       # The owner suite's own addopts load pytest-timeout and pytest-reportlog
       # (sage-extensions' pyproject.toml); the image's venv ships pytest alone,
       # so the two plugins are installed for this job the way lattice-database's
@@ -112,7 +106,6 @@ jobs:
       - name: Install the pytest plugins the owner suite's addopts load
         run: >-
           uv pip install --python /sage/.venv/bin/python pytest-timeout pytest-reportlog
-
       - name: Write the reproduction hook into this checkout
         run: |
           cat > sage32_repro_hook.py <<'HOOK'
@@ -184,7 +177,6 @@ jobs:
                   _record(f"libpari mapped at install: {path}")
           HOOK
           /sage/.venv/bin/python -m py_compile sage32_repro_hook.py
-
       # Verbatim from lattice-database's tests workflow (the "Validate preamble
       # owner contracts" step), with two additions: the hook is imported and
       # installed before the Julia-bridge warm-up so every call in the process
@@ -198,7 +190,6 @@ jobs:
           /sage/.venv/bin/python -c 'import sage.all, sys, pytest; import sage32_repro_hook; sage32_repro_hook.install(); from sage.all import ZZ; from sage_extensions.categories.lattices import Lattices; Lattices(ZZ)([[2, -1], [-1, 2]]).orthogonal_group().order(); sys.exit(pytest.main(sys.argv[1:]))' \
             -p qc_sage_session -p qc_unique_inventory --no-time-gates --capture=no \
             tests/lattices/test_lattice_database_owner_contracts.sage
-
       # The evidence file is written beside the hook with one flush per line,
       # so it survives the abort; this step prints it whatever the run's exit
       # status was.
