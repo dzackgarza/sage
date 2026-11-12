@@ -184,7 +184,10 @@ def _get_pari_instance():
         Interface to the PARI C library
     """
     stack_initial = 1024 * 1024
-    stack_max = 1024 * stack_initial
+    # parisizemax only reserves virtual address space; PARI grows the stack into it on demand
+    # (PARI/GP User's Guide, GP defaults, parisizemax). The 1 GB that Sage ships overflows in
+    # qfauto on definite lattices of rank about 10 (E10 vector stabilizers).
+    stack_max = 8 * 1024 * 1024 * 1024
     P = Pari(stack_initial, stack_max)
 
     # pari_init_opts() overrides MPIR's memory allocation functions,
