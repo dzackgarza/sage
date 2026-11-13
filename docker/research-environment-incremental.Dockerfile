@@ -22,11 +22,11 @@ ENV PKG_CONFIG_PATH=/sage/.venv/lib/pkgconfig
 # Normaliz the venv carries (sage#31).
 ENV NORMALIZ_LOCAL_DIR=/sage/.venv
 
-COPY . /tmp/sage-source
-RUN rsync --recursive --links --checksum \
+# The source arrives through a bind mount, so no layer stores a second copy of it.
+RUN --mount=type=bind,source=.,target=/tmp/sage-source \
+    rsync --recursive --links --checksum \
         --exclude /builddir/ --exclude /.venv/ \
-        /tmp/sage-source/ /sage/ \
- && rm -rf /tmp/sage-source
+        /tmp/sage-source/ /sage/
 
 ENV CCACHE_DIR=/ccache
 
@@ -117,7 +117,9 @@ RUN --mount=type=cache,target=/ccache \
 # so a moved head is what rebuilds the repositories layer.
 ARG RESEARCH_REVISIONS=
 RUN --mount=type=cache,target=/ccache just research-environment-repositories
-RUN --mount=type=cache,target=/ccache just research-environment-lean
+# The mathlib cache archives are unpacked into /opt/mathlib; the archives stay out of the layer.
+RUN --mount=type=cache,target=/ccache just research-environment-lean \
+ && rm -rf /root/.cache/mathlib
 RUN --mount=type=cache,target=/ccache \
     just research-environment-pip-check && ccache --show-stats
 

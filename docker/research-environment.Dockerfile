@@ -23,6 +23,19 @@ ENV DEBIAN_FRONTEND=noninteractive
 # repository at the subprojects directory, so the stamp stays at its fallback.
 ENV GIT_CEILING_DIRECTORIES=/sage/subprojects
 
+# No package documentation in the image (Debian's dpkg path-exclude, dpkg(1)
+# --path-exclude; the same configuration as the Ubuntu minimal images). texlive-full
+# depends on every texlive-*-doc package: about 4.1 GB under /usr/share/doc
+# measured in the c2c314e image. Copyright files stay.
+RUN printf '%s\n' \
+      'path-exclude=/usr/share/doc/*' \
+      'path-include=/usr/share/doc/*/copyright' \
+      'path-exclude=/usr/share/man/*' \
+      'path-exclude=/usr/share/info/*' \
+      'path-exclude=/usr/share/texmf/doc/*' \
+      'path-exclude=/usr/share/texlive/texmf-dist/doc/*' \
+      > /etc/dpkg/dpkg.cfg.d/01-nodoc
+
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git \
  && rm -rf /var/lib/apt/lists/*
@@ -514,7 +527,9 @@ RUN --mount=type=cache,target=/ccache \
 # the ones that rebuild.
 ARG RESEARCH_REVISIONS=
 RUN --mount=type=cache,target=/ccache just research-environment-repositories
-RUN --mount=type=cache,target=/ccache just research-environment-lean
+# The mathlib cache archives are unpacked into /opt/mathlib; the archives stay out of the layer.
+RUN --mount=type=cache,target=/ccache just research-environment-lean \
+ && rm -rf /root/.cache/mathlib
 RUN --mount=type=cache,target=/ccache \
     just research-environment-pip-check && ccache --show-stats
 
