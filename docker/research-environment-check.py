@@ -321,6 +321,45 @@ assert len(mapped) == 1, (
 print(f"one libflint in the pynormaliz process: {mapped[0]}")
 print("PyNormaliz and Sage agree on the Hilbert basis of [[1,0],[1,2]]: (1,0), (1,1), (1,2)")
 
+# ---- cdd.gmp: the exact-rational pycddlib backend (sage#34) ----------------
+# sage-indefinite-port's facet-orbit route imports cdd.gmp (facet_orbits.py:154,
+# reached from lorentzian_cells.py), and this image's interpreter carried no
+# pycddlib at all: sage-extensions' run 43445243634, the O(T_Co) plane row of
+# sage-extensions#390, ended there with `ModuleNotFoundError: No module named
+# 'cdd'`. pycddlib is now a locked package of the research-environment group,
+# built from source (pyproject.toml's no-binary-package) against this image's
+# libcdd/libcddgmp. The import is only half of it: one source tree builds `cdd`,
+# which works in doubles, and `cdd.gmp`, which works in exact rationals, and the
+# port's route needs the second. Both are asserted, in a process that has
+# imported sage.all as the port's does, and the module is the venv's -- a
+# pycddlib anywhere else on sys.path is not this environment.
+cdd_probe = subprocess.run(
+    [
+        sys.executable, "-c",
+        "import sage.all, cdd, cdd.gmp; "
+        "from fractions import Fraction; "
+        "out = cdd.gmp.copy_output(cdd.gmp.polyhedron_from_matrix("
+        "cdd.gmp.matrix_from_array([[1, 0, 0], [1, 1, 0], [1, 0, 1]], "
+        "rep_type=cdd.RepType.INEQUALITY))); "
+        "assert out.array == [[Fraction(1), Fraction(-1), Fraction(-1)], "
+        "[Fraction(0), Fraction(1), Fraction(0)], [Fraction(0), Fraction(0), Fraction(1)]], "
+        "out.array; "
+        "print(cdd.gmp.__file__); "
+        "print(out.array)",
+    ],
+    capture_output=True, text=True, check=False, timeout=600,
+)
+assert cdd_probe.returncode == 0, (
+    f"import cdd.gmp in the image's interpreter died with {cdd_probe.returncode}: "
+    f"{cdd_probe.stdout[-2000:]}{cdd_probe.stderr[-2000:]}"
+)
+cdd_lines = [line for line in cdd_probe.stdout.splitlines() if line.strip()]
+assert cdd_lines[0].startswith("/sage/.venv/"), (
+    f"cdd.gmp is not the venv's module (sage#34): {cdd_lines[0]}"
+)
+print(f"cdd.gmp, pycddlib's exact-rational backend: {cdd_lines[0]}")
+print("the cone of [[1,0,0],[1,1,0],[1,0,1]] comes back as exact rationals")
+
 # ---- one PARI: cypari2, Sage and the image in one process (sage#32) --------
 # The automorphism count of the ternary form x^2 + xy + y^2 + 9z^2 -- the call
 # sage-extensions' genus computation makes -- aborts in the published image:
