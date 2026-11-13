@@ -3,7 +3,6 @@
 # the research-environment lock is checked out at the locked commit and its
 # locked packages are installed from it; the others are checked out at their
 # default branch's head.
-https://github.com/dzackgarza/formalization-corpus
 https://github.com/dzackgarza/jupyter-mcp-server
 https://github.com/dzackgarza/lattice-database
 https://github.com/dzackgarza/lattice-research
