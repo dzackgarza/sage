@@ -807,7 +807,9 @@ no-build-isolation-package = ["sagemath"]
 # meson-python, and research-environment-sync configures it with meson-python's
 # own setup arguments, so a lock after a sync finds the tree configured and
 # compiled.
-config-settings-package = { sagemath = { build-dir = "builddir" }, cypari2 = { setup-args = ["-Dpari_prefix=/sage/.venv"] }, tree-sitter-sage = { editable_mode = "strict" } }
+config-settings-package = { cypari2 = { setup-args = [
+  "-Dpari_prefix=/sage/.venv",
+] }, sagemath = { build-dir = "builddir" }, tree-sitter-sage = { editable_mode = "strict" } }
 # Build these packages from source instead of installing pre-built wheels.
 # python-flint's and pynormaliz's wheels vendor their own libflint, and Sage
 # loads the system one: two libflints in one process SIGSEGV (sage#25, sage#31).
@@ -822,7 +824,14 @@ config-settings-package = { sagemath = { build-dir = "builddir" }, cypari2 = { s
 # is the exact-rational backend sage-indefinite-port's facet-orbit route uses
 # (sage#34). Its setup.py builds `cdd` and `cdd.gmp` together, so a source build is
 # the GMP build, and pinning it here keeps it one when a wheel appears.
-no-binary-package = ["cypari2", "pplpy", "primecountpy", "python-flint", "pynormaliz", "pycddlib"]
+no-binary-package = [
+  "cypari2",
+  "pplpy",
+  "primecountpy",
+  "pycddlib",
+  "pynormaliz",
+  "python-flint",
+]
 
 # sage-numerical-backends-coin ships only an sdist whose build requires
 # sagemath-objects 10.7, which does not compile on Python 3.14. uv builds it
