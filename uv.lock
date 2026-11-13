@@ -11,7 +11,7 @@ resolution-markers = [
 [[manifest.dependency-metadata]]
 name = "dzack-research"
 version = "0.1.1"
-requires-dist = ["haystack-ai>=2.31.0", "pandoc-config @ git+https://github.com/dzackgarza/pandoc-config", "python-dotenv>=1.2.2", "python-flint>=0.9", "python-frontmatter>=1.1", "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions@240cd3f845fe2b2d5a46501ae628ccbbb9708c2a", "sage-julia-bridge @ git+https://github.com/dzackgarza/sage-julia-bridge", "streamlit>=1.59.2", "tree-sitter-sage", "vinal @ git+https://github.com/dzackgarza/vinal", "z3-solver>=4.16.0.0"]
+requires-dist = ["haystack-ai>=2.31.0", "pandoc-config @ git+https://github.com/dzackgarza/pandoc-config", "python-dotenv>=1.2.2", "python-flint>=0.9", "python-frontmatter>=1.1", "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions", "sage-julia-bridge @ git+https://github.com/dzackgarza/sage-julia-bridge", "streamlit>=1.59.2", "tree-sitter-sage", "vinal @ git+https://github.com/dzackgarza/vinal", "z3-solver>=4.16.0.0"]
 
 [[manifest.dependency-metadata]]
 name = "jupymake"
@@ -20,7 +20,7 @@ version = "0.9"
 [[manifest.dependency-metadata]]
 name = "sage-indefinite-port"
 version = "0.1.0"
-requires-dist = ["pynormaliz", "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions@240cd3f845fe2b2d5a46501ae628ccbbb9708c2a"]
+requires-dist = ["pynormaliz", "sage-extensions @ git+https://github.com/dzackgarza/sage-extensions"]
 
 [[manifest.dependency-metadata]]
 name = "sage-numerical-backends-coin"
@@ -3138,6 +3138,12 @@ wheels = [
 ]
 
 [[package]]
+name = "pycddlib"
+version = "3.0.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d2/25/85e2e17491a4d51f796f7212a13cef7d6d3b2967dfba104627a465224f06/pycddlib-3.0.2.tar.gz", hash = "sha256:50f43f039818ab97c8cb44345eed9a365dae66789ce11cc8c95a74134a8907a7", size = 31621, upload-time = "2025-01-13T10:18:41.869Z" }
+
+[[package]]
 name = "pycodestyle"
 version = "2.15.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4012,7 +4018,7 @@ source = { git = "https://github.com/dzackgarza/sage-categories?subdirectory=nat
 [[package]]
 name = "sage-extensions"
 version = "0.1.0"
-source = { git = "https://github.com/dzackgarza/sage-extensions?rev=240cd3f845fe2b2d5a46501ae628ccbbb9708c2a#240cd3f845fe2b2d5a46501ae628ccbbb9708c2a" }
+source = { git = "https://github.com/dzackgarza/sage-extensions#634af9c886fe60f793282b377cbf9aeb97570289" }
 dependencies = [
     { name = "networkx" },
     { name = "sage-categories" },
@@ -4159,6 +4165,7 @@ research-environment = [
     { name = "latticedb" },
     { name = "lrcalc" },
     { name = "mypy" },
+    { name = "pycddlib" },
     { name = "pycosat" },
     { name = "pynormaliz" },
     { name = "sage-categories" },
@@ -4262,11 +4269,12 @@ research-environment = [
     { name = "latticedb", git = "https://github.com/dzackgarza/lattice-database" },
     { name = "lrcalc", specifier = "~=2.1" },
     { name = "mypy" },
+    { name = "pycddlib", specifier = ">=3.0.2" },
     { name = "pycosat", specifier = ">=0.6.3" },
     { name = "pynormaliz", specifier = ">=2.18" },
     { name = "sage-categories", git = "https://github.com/dzackgarza/sage-categories" },
     { name = "sage-categories-homotopy", git = "https://github.com/dzackgarza/sage-categories?subdirectory=native%2Fhomotopy-python" },
-    { name = "sage-extensions", git = "https://github.com/dzackgarza/sage-extensions?rev=240cd3f845fe2b2d5a46501ae628ccbbb9708c2a" },
+    { name = "sage-extensions", git = "https://github.com/dzackgarza/sage-extensions" },
     { name = "sage-indefinite-port", git = "https://github.com/dzackgarza/sage-indefinite-port" },
     { name = "sage-julia-bridge", git = "https://github.com/dzackgarza/sage-julia-bridge" },
     { name = "sage-lsp", git = "https://github.com/dzackgarza/sage-lsp-server" },

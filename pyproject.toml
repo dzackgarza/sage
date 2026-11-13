@@ -264,6 +264,11 @@ research-environment = [
   "latticedb",
   "lrcalc ~=2.1",
   "mypy",
+  # cdd.gmp, the facet-orbit route of sage-indefinite-port imports it
+  # (facet_orbits.py:154); built from source against the image's libcddgmp, which
+  # is what makes `cdd.gmp` the exact-rational backend rather than `cdd`'s doubles
+  # (sage#34).
+  "pycddlib >=3.0.2",
   "pycosat >=0.6.3",
   "pynormaliz >=2.18",
   "sage-categories",
@@ -812,7 +817,12 @@ config-settings-package = { sagemath = { build-dir = "builddir" }, cypari2 = { s
 # the venv from the release Sage's package metadata pins (build/pkgs/normaliz,
 # NORMALIZ_LOCAL_DIR): Debian's 3.10.4 is older than pynormaliz's own source
 # accepts (NormalizModule.cpp: NMZ_RELEASE >= 31100).
-no-binary-package = ["cypari2", "pplpy", "primecountpy", "python-flint", "pynormaliz"]
+# pycddlib is here in the other direction: its distribution has no Linux wheel, and
+# what the image needs is the module built against the image's libcddgmp -- `cdd.gmp`
+# is the exact-rational backend sage-indefinite-port's facet-orbit route uses
+# (sage#34). Its setup.py builds `cdd` and `cdd.gmp` together, so a source build is
+# the GMP build, and pinning it here keeps it one when a wheel appears.
+no-binary-package = ["cypari2", "pplpy", "primecountpy", "python-flint", "pynormaliz", "pycddlib"]
 
 # sage-numerical-backends-coin ships only an sdist whose build requires
 # sagemath-objects 10.7, which does not compile on Python 3.14. uv builds it
