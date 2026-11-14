@@ -143,7 +143,11 @@ The research checkouts are at the head of each repository's main branch, not
 at the commit `uv.lock` holds (`#24`): every build resolves them at build
 time. The image records the commit of each repository it installed in
 `/sage/.research-revisions` — one `<name> <commit>` per line — so a consumer
-can read, in the image, the revision it is running.
+can read, in the image, the revision it is running. A git source of the lock
+that is not a repository of `docker/research-repositories.txt` is a dependency
+rather than a checkout: `microsoft-python-type-stubs` is installed from its URL,
+no build records a head for it, and the image check holds it to the commit the
+lock pins (`#37`).
 
 A research checkout's suite runs with the test tooling that repository declares,
 and the image is where that declaration is read. Each repository of

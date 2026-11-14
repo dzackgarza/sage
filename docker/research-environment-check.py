@@ -597,10 +597,36 @@ importlib.import_module("sage_categories_homotopy")
 # repository -- the file the block above validates, and what a consumer reads in
 # the image -- and both revisions are printed, so a build log states them instead
 # of implying them.
+#
+# A git source of the lock is one of two things, and only the first is a research
+# checkout: a package installed from a repository of docker/research-repositories.txt
+# -- checked out under /repos and recorded in /sage/.research-revisions -- or a
+# dependency taken from a git URL outside that list, which no build checks out.
+# The list is the install's own input, so this block reads it instead of taking
+# every git source for a repository of the image: uv.lock's
+# microsoft-python-type-stubs (sage-stubs' declared test dependency, sage#37) is
+# at https://github.com/dzackgarza/python-type-stubs, and image run 43535626055
+# held it to a /repos checkout and a recorded head that no build writes, which
+# stopped the publish on a repository the image never carries. A dependency's
+# provenance is the commit uv.lock pins, which is what `uv sync --frozen`
+# installs it at.
 import json
 import tomllib
 from importlib.metadata import PackageNotFoundError, distribution
 
+research_list = Path("/sage/docker/research-repositories.txt")
+assert research_list.is_file(), (
+    f"{research_list} is missing: it names the repositories the install checks out, "
+    "and both the install and this block read it"
+)
+research_locations = {
+    location.rstrip("/").removesuffix(".git")
+    for location in (
+        line.strip() for line in research_list.read_text(encoding="utf-8").splitlines()
+    )
+    if location and not location.startswith("#")
+}
+assert research_locations, f"{research_list} names no repository"
 installed = dict(
     line.split(" ", 1)
     for line in Path("/sage/.research-revisions").read_text(encoding="utf-8").strip().splitlines()
@@ -612,11 +638,30 @@ for package in sorted(lock["package"], key=lambda entry: entry["name"]):
         continue
     name = package["name"]
     observed = None
-    # The repository a git source lives in: the URL's path, its query dropped --
+    # Where a git source lives: its URL's path with the query dropped --
     # sage-categories-homotopy is installed from a subdirectory of the
     # sage-categories checkout, and its source URL carries that subdirectory as
-    # ?subdirectory=..., which is not part of any checkout's name.
-    repository = source.split("#")[0].split("?")[0].rsplit("/", 1)[-1].removesuffix(".git")
+    # ?subdirectory=..., which is not part of any checkout's name -- and the
+    # checkout is named for the path's last segment.
+    location = source.split("#", maxsplit=1)[0].split("?", maxsplit=1)[0].rstrip("/").removesuffix(".git")
+    repository = location.rsplit("/", 1)[-1]
+    if location not in research_locations:
+        # Not a repository of the image: nothing checks it out and the install
+        # records no head for it, so the lock's commit is what it must be.
+        pinned = source.rsplit("#", 1)[-1]
+        try:
+            direct = distribution(name).read_text("direct_url.json")
+        except PackageNotFoundError:
+            direct = None
+        observed = json.loads(direct).get("vcs_info", {}).get("commit_id") if direct else None
+        if observed is None:
+            print(f"dependency {name}: not installed")
+            continue
+        assert observed == pinned, (
+            f"dependency {name}: installed from {observed}, and uv.lock pins {pinned}"
+        )
+        print(f"dependency {name}: {observed} (git wheel, the lock's commit)")
+        continue
     checkout = Path("/repos") / repository
     if (checkout / ".git").is_dir():
         observed = subprocess.run(
