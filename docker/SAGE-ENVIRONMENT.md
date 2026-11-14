@@ -137,7 +137,11 @@ resolved depot, the one shared Lean project and the research checkouts, and the
 document toolchain the two site builds outside this repository install for
 themselves at every run — quarto, `texlive-full`, pdf2svg, poppler-utils and node
 (`#22`). That last component is the largest addition the image has taken, about
-5 GiB, and a site build now installs nothing.
+5 GiB, and a site build now installs nothing. `luahyperbolic.sty` is the one
+package outside `texlive-full`: it comes from a named mirror's copy of the CTAN
+archive, checked against its SHA-256, because `mirrors.ctan.org` redirects each
+request to a mirror of its own choosing and one of them serves an incomplete
+certificate chain (`#38`).
 
 The research checkouts are at the head of each repository's main branch, not
 at the commit `uv.lock` holds (`#24`): every build resolves them at build

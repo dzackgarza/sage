@@ -131,13 +131,34 @@ RUN apt-get update \
 # distribution TeX Live does not carry it (research docs.yml, "Install TeX packages
 # newer than Ubuntu TeX Live"): installed the same way, from the CTAN zip into the
 # tree kpsewhich searches, and registered so kpsewhich finds it.
-RUN curl --fail --location --output /tmp/luahyperbolic.zip \
-      https://mirrors.ctan.org/macros/luatex/latex/luahyperbolic.zip \
- && mkdir -p /usr/local/share/texmf/tex/lualatex \
- && unzip -q /tmp/luahyperbolic.zip -d /usr/local/share/texmf/tex/lualatex \
- && rm -f /tmp/luahyperbolic.zip \
- && mktexlsr /usr/local/share/texmf \
- && kpsewhich luahyperbolic.sty
+#
+# From ONE mirror, checked against its digest, as quarto's release is. CTAN has no
+# download host of its own: mirrors.ctan.org -- and ctan.org's /tex-archive -- answer
+# with a redirect to a mirror picked per request, so the image's input was whatever
+# that request happened to draw. Image run 43544885598 stopped here twice with
+# "curl: (60) SSL certificate problem: unable to get local issuer certificate": the
+# mirror it picked then (ctan.math.utah.edu, certificate issued by InCommon RSA OV
+# SSL CA 3) does not serve that intermediate, and no client can complete the chain.
+# The drawn mirror also decides the CONTENT: on the day of that run, dotsrc and
+# Oxford still served the 2026-03-16 archive (3556123 bytes,
+# 9d65ab6128263ee88f07816637089026942ceba2e171b87d63d5846086775174) while CTAN
+# carried the 2026-11-13 one, so an unpinned fetch is not one input but whichever
+# input the request drew. ftp.gwdg.de is a fixed host (Gesellschaft für
+# wissenschaftliche Datenverarbeitung, Göttingen) serving the leaf plus the GEANT TLS
+# RSA 1 intermediate up to HARICA TLS RSA Root CA 2021, which ca-certificates
+# carries; the digest below is the archive CTAN carried on 2026-11-13, 3828806 bytes.
+# A moved package changes the digest and fails here, loudly: bumping it is a
+# deliberate input change.
+RUN set -eu; \
+    sha256=586c380a4ab18638ce6e8a0e865b6a0b450fa2317b45cadf3e682867e9e433cf; \
+    curl -fsSL --output /tmp/luahyperbolic.zip \
+        "https://ftp.gwdg.de/pub/ctan/macros/luatex/latex/luahyperbolic.zip"; \
+    echo "$sha256  /tmp/luahyperbolic.zip" | sha256sum -c -; \
+    mkdir -p /usr/local/share/texmf/tex/lualatex; \
+    unzip -q /tmp/luahyperbolic.zip -d /usr/local/share/texmf/tex/lualatex; \
+    rm -f /tmp/luahyperbolic.zip; \
+    mktexlsr /usr/local/share/texmf; \
+    kpsewhich luahyperbolic.sty
 
 # Quarto renders both sites and is not in Debian, so it comes from its release pinned
 # by version and by the digest of the .deb, as julia and pcre do. Its own postinst
