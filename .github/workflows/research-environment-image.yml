@@ -331,15 +331,56 @@ jobs:
       with:
         repository: dzackgarza/sage-extensions
         ref: main
-    - name: Install the checked-out sage-extensions source
-      run: >-
-        uv pip install --python /sage/.venv/bin/python --no-deps -e .
     - name: Install the Sage pytest collector plugin
       uses: actions/checkout@v4
       with:
         repository: dzackgarza/ai-review-ci
         ref: main
         path: .qc-infra
+      # sage#37's acceptance: the image runs sage-extensions' entry point on the
+      # checkout the image built, with the pytest options that repository declares. The
+      # suite step at the end of this job passes `-o addopts=` and is about the image's
+      # packages, so nothing in this workflow ran `just test` -- and an image could
+      # publish while pytest exited 4 before collection on an option none of its
+      # installed plugins registered.
+      #
+      # The two checkouts above are in this order for a reason, and this step is between
+      # them and the install below for another. actions/checkout deletes the contents of
+      # its target path when that path is not already a repository of its remote (v4,
+      # src/git-directory-helper.ts: "Deleting the contents of"), so checking
+      # sage-extensions out to the workspace root after .qc-infra exists would take
+      # .qc-infra with it -- and the PYTHONPATH the later steps read it for. And running
+      # before the install below is what makes the run the image's: after it, the
+      # workspace checkout is the `sage_extensions` on the interpreter's path.
+      #
+      # No argument beyond the file and no option overrides: the run is the
+      # repository's, so its pyproject.toml decides the options in force and its own
+      # exit status is the observation. The report log it writes is printed either way,
+      # so the job log carries the result and not only the verdict.
+    - name: Run sage-extensions' own `just test` on the checkout the image installed
+      run: |
+        set -eu
+        checkout=/repos/sage-extensions
+        test -d "${checkout}/tests/lattices"
+        git -C "${checkout}" rev-parse HEAD
+        # The recipe reads the QC plugins and sage.just from ~/ai-review-ci, which the
+        # desk has there and this job has at its checkout of that repository.
+        mkdir -p "${HOME}"
+        ln -sfn "${GITHUB_WORKSPACE}/.qc-infra" "${HOME}/ai-review-ci"
+        cd "${checkout}"
+        status=0
+        just test tests/lattices/test_isotropic_transport_retains_parabolic_structure.sage || status=$?
+        if [ -s tests/.report/run.jsonl ]; then
+          printf '%s\n' "--- tests/.report/run.jsonl, the last events of the run"
+          tail -n 15 tests/.report/run.jsonl
+        else
+          printf '%s\n' "error: the run wrote no tests/.report/run.jsonl, so the options of ${checkout}/pyproject.toml did not take effect" >&2
+          status=1
+        fi
+        exit "${status}"
+    - name: Install the checked-out sage-extensions source
+      run: >-
+        uv pip install --python /sage/.venv/bin/python --no-deps -e .
       # The spinor assertion is about the isolated image built from a Sage PR commit:
       # it pins a sage-extensions `main` checkout and a test whose subject is that
       # commit's genus correction. An ordinary develop image has no such patch to
