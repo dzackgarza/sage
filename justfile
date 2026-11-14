@@ -34,7 +34,12 @@ research-environment-venv:
             reinstall+=(--reinstall-package "${wheel}")
         fi
     done
-    uv sync --python "${sage_python_version}" --frozen --inexact --no-install-project --group research-environment "${reinstall[@]}"
+    # research-environment-tests is the other lock input: the test dependencies
+    # each research repository declares, generated into pyproject.toml by
+    # docker/research-test-dependencies.py (sage#37). The venv has to carry them
+    # -- a repository's own pytest configuration names their options, and pytest
+    # exits before collection on an option no installed plugin registered.
+    uv sync --python "${sage_python_version}" --frozen --inexact --no-install-project --group research-environment --group research-environment-tests "${reinstall[@]}"
 
 # Sage, built and installed into the venv.
 #

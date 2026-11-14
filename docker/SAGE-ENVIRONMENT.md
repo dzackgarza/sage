@@ -145,6 +145,23 @@ time. The image records the commit of each repository it installed in
 `/sage/.research-revisions` — one `<name> <commit>` per line — so a consumer
 can read, in the image, the revision it is running.
 
+A research checkout's suite runs with the test tooling that repository declares,
+and the image is where that declaration is read. Each repository of
+`docker/research-repositories.txt` states its own in its `pyproject.toml` —
+sage-extensions' `[dependency-groups] dev` is where its pytest plugins are — and
+`docker/research-test-dependencies.py` derives the set from those declarations,
+writing it into `pyproject.toml`'s `[dependency-groups] research-environment-tests`.
+`uv.lock` then pins it like any other package of the environment and
+`research-environment-venv` syncs it, `--frozen`. A repository's `test` group or
+`test` extra is taken where it declares one, and its `dev` group otherwise, so a
+linter a project keeps apart from its suite stays out of the image. The lock is
+the environment: a checkout that declares a plugin the lock does not carry yet is
+a `note:` in the image check and a relock to repair
+(`docker/research-test-dependencies.py --write`, then `uv lock`), not a reason to
+stop publishing — while a plugin the group carries and pytest does not register
+is a build failure, because that is `just test` exiting 4 on an unrecognized
+argument before collection (`#37`).
+
 A published tag with
 fewer components is not a smaller environment, it is a different one, and consumers
 written against this environment cannot be relied on to say which they need — the

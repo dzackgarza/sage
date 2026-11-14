@@ -642,6 +642,7 @@ for package in sorted(lock["package"], key=lambda entry: entry["name"]):
     print(f"research {name}: {observed} ({kind}, installed {recorded})")
     assert observed == recorded, (name, observed, recorded)
 
+
 # sage-categories runs its finite-category engine on GAP releases allocated to its
 # own checkout: every consumer of a presented module fixes each package's path to
 # .gap/pkg before the first LoadPackage, so the image's GAP cannot substitute for
@@ -670,6 +671,106 @@ pinned = tuple(
 )
 assert len(pinned) == len({package.name for package in pinned}), pinned
 assert len(load_packages(pinned)) == len(pinned), len(pinned)
+
+# ---- the research repositories' test dependencies (sage#37)
+#
+# The test dependencies each research repository declares are in the venv, and
+# pytest loads them. They arrive the way every other Python package of
+# this image does: docker/research-test-dependencies.py reads each checkout's own
+# declaration into pyproject.toml's research-environment-tests group, uv.lock pins
+# that group, and research-environment-venv's `uv sync --frozen` installs it. What
+# this block asserts is the consumer's side of it -- the package a repository's
+# pytest configuration needs is present, at a version its declaration allows, and
+# registered with pytest -- because a plugin that is installed and not registered,
+# or not installed at all, is a `just test` that exits 4 before collection:
+# sage-extensions' addopts name `--timeout=60 --timeout-method=signal` and
+# `--report-log=...`, and pytest calls all three unrecognized arguments when
+# pytest-timeout and pytest-reportlog are absent.
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+
+test_dependencies = [
+    Requirement(line) for line in tomllib.loads(
+        Path("/sage/pyproject.toml").read_text(encoding="utf-8")
+    )["dependency-groups"]["research-environment-tests"]
+]
+for requirement in test_dependencies:
+    try:
+        observed = distribution(requirement.name).version
+    except PackageNotFoundError:
+        raise AssertionError(
+            f"{requirement.name}: a research repository declares it among its test "
+            "dependencies and the venv does not have it; uv.lock's "
+            "research-environment-tests group is where it comes from"
+        )
+    assert requirement.specifier.contains(observed, prereleases=True), (
+        f"{requirement.name} {observed} does not satisfy {requirement.specifier}"
+    )
+print(f"the research test dependencies: {len(test_dependencies)} installed")
+
+# A pytest plugin takes effect only through the entry point its distribution
+# declares in the `pytest11` group, so asking pytest which plugins it registers is
+# the difference between a package that is installed and one that is loaded.
+plugin_modules = {
+    canonicalize_name(requirement.name): entry_point.value.split(":")[0].strip()
+    for requirement in test_dependencies
+    for entry_point in distribution(requirement.name).entry_points
+    if entry_point.group == "pytest11"
+}
+with tempfile.TemporaryDirectory() as probe_directory:
+    probe = subprocess.run(
+        [sys.executable, "-m", "pytest", "--trace-config", "--collect-only", "-q",
+         "--noconftest", "-p", "no:cacheprovider"],
+        cwd=probe_directory, capture_output=True, text=True, check=False,
+    )
+assert probe.returncode in (0, 5), (probe.returncode, probe.stdout[-2000:], probe.stderr[-2000:])
+# Each line is `PLUGIN registered: <module 'x.y' from '...'>`, or the same module
+# unquoted; the module's name is what the entry point declared.
+registered = set()
+for line in probe.stdout.splitlines():
+    if line.startswith("PLUGIN registered: <module "):
+        registered.add(
+            line.removeprefix("PLUGIN registered: <module ").lstrip("'").split("'")[0].split(" ")[0].rstrip(">")
+        )
+unloaded = sorted(
+    f"{name} ({module})"
+    for name, module in plugin_modules.items()
+    if module not in registered and module.split(".")[0] not in registered
+)
+assert not unloaded, (unloaded, probe.stdout, probe.stderr)
+print(f"pytest loads {len(plugin_modules)} of them as plugins: {' '.join(sorted(plugin_modules))}")
+
+# The checkouts move at every build (sage#24) and a repository may declare a test
+# dependency the lock does not carry yet. That is a note, not a failure: the image's
+# environment is its lock, so the repair is a relock -- re-running the generator and
+# `uv lock`, which changes a build input rather than repairing a build -- while a
+# repository pushing a linter into its dev group must not stop this one publishing.
+import importlib.util
+
+generator = importlib.util.spec_from_file_location(
+    "research_test_dependencies", "/sage/docker/research-test-dependencies.py"
+)
+assert generator is not None and generator.loader is not None, generator
+module = importlib.util.module_from_spec(generator)
+generator.loader.exec_module(module)
+try:
+    declared_now = module.collect(Path("/sage"), Path("/repos"))
+except SystemExit as error:
+    print(f"note: the checkouts' test dependencies could not be read whole: {error}")
+else:
+    carried = {canonicalize_name(requirement.name) for requirement in test_dependencies}
+    absent = [
+        line for line in declared_now
+        if canonicalize_name(Requirement(line).name) not in carried
+    ]
+    if absent:
+        print(
+            "note: the checkouts declare test dependencies uv.lock does not carry, so "
+            "this image's `just test` in those repositories will not have them "
+            "(relock: docker/research-test-dependencies.py --write, then uv lock): "
+            + " ".join(absent)
+        )
+# ---- end: the research repositories' test dependencies
 
 # The canonical pair: the port reads sage-extensions, and nothing revives the
 # predecessor research library it used to read. A stale pair still loads, so

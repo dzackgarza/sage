@@ -284,6 +284,32 @@ research-environment = [
 ]
 test = ["coverage", "pytest"]
 
+# >>> generated: research-environment-tests (docker/research-test-dependencies.py)
+research-environment-tests = [
+  "coverage>=7.10",
+  "hypothesis>=6.167.1,>=6.165,<7",
+  "ipykernel",
+  "ipython>=9.16.1",
+  "jupyter-server>=1.6,<3",
+  "jupyterlab",
+  "microsoft-python-type-stubs @ git+https://github.com/dzackgarza/python-type-stubs.git@main",
+  "mypy>=2",
+  "openapi-spec-validator",
+  "pillow>=10.0.0",
+  "pytest>=7.0,>=8,>=9.1,<10",
+  "pytest-asyncio",
+  "pytest-cov>=7.0",
+  "pytest-reportlog>=1.0.0",
+  "pytest-timeout>=2.1.0,>=2.4.0",
+  "pytest-xdist>=3.8",
+  "pyyaml>=6.0.3,>=6",
+  "ruff>=0.16.5,<1",
+  "sage-mypy-category-plugin",
+  "sage-stubs",
+  "types-pyyaml>=6,>=6.0.12.20260906",
+]
+# <<< generated: research-environment-tests
+
 # Every research project is fetched from its repository, so this environment is
 # constructible anywhere -- a container, a CI runner, a second machine -- and
 # not only in one directory layout on one desk. A sibling path here is baked
