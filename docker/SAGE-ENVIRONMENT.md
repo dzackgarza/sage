@@ -402,3 +402,48 @@ fix and its check layer completed in 90 s. The pair is the control and the
 result for that branch.
 
 ## Checking a change to the image
+
+## Run timings and consumer test reports
+
+A timing question about an image build or a consumer run is answered from two records, and
+neither is written by this repository: the runner keeps the first, and the workflow uploads
+the second.
+
+**Step wall times** are the runner's own, per job and per step, from the jobs API. Nothing in
+the workflow measures them:
+
+```sh
+gh api repos/dzackgarza/sage/actions/runs/<run>/jobs \
+  --jq '.jobs[]|{name, steps: [.steps[]|{name, started_at, completed_at, conclusion}]}'
+```
+
+Each step carries `started_at`, `completed_at` and `conclusion`; a skipped step has null
+timestamps and a skipped job has no entry in the run. The record lives as long as the run
+does, and reading it needs no more than `actions: read`.
+
+**Consumer test reports** are artifacts of `.github/workflows/research-environment-image.yml`,
+named `consumer-report-<job>` for each of its consumer jobs — `consumer-mathematics`,
+`consumer-certify`, `consumer-records`, `consumer-contracts`, `consumer-chamber` — uploaded
+with `if: always()`, so a failing job's record survives it, and kept 90 days
+(`retention-days: 90`).
+
+Each holds the `tests/.report/` of both checkouts a job may run pytest in: the image's
+`/repos/sage-extensions` and the job's own checkout of `sage-extensions`.
+
+| file | what it answers |
+|---|---|
+| `run.jsonl` | pytest's report log: one event per test, with its start time and its duration |
+| `junit.xml` | the JUnit file: per-test `time`, and the suite's totals |
+| `pytest.log` | the run's log at DEBUG, when the consumer's own options wrote it |
+
+The two invocations that pass `-o addopts=` — the isotropic-line-orbit suite and
+lattice-database's owner contracts — name `--junit-xml` and `--report-log` themselves, because
+`-o addopts=` is what switches off the consumer's options that write them; the
+isotropic-line-orbit run writes `junit-isotropic-line-orbits.xml` and
+`run-isotropic-line-orbits.jsonl`, so the record of the `just test` step beside it is not
+overwritten. A job that ran no pytest has an empty folder and uploads no artifact, which the
+job's log states as a warning.
+
+```sh
+gh run download <run> -n consumer-report-consumer-contracts   # one job's report folder
+```
