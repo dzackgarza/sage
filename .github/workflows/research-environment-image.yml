@@ -570,6 +570,7 @@ jobs:
           ${{ github.workspace }}/tests/.report/
         retention-days: 90
         if-no-files-found: warn
+        include-hidden-files: true
 
 # Card 6JRR, its certificates and -- from this change -- the card and the child's log, so a
 # certificate hash can be checked against the values that produced it.
@@ -679,6 +680,7 @@ jobs:
           ${{ github.workspace }}/tests/.report/
         retention-days: 90
         if-no-files-found: warn
+        include-hidden-files: true
 
       # The stage-1 research records, reproduced inside the image. Each record is a
       # script beside the `-run.txt` it produced; that file opens with the block the
@@ -951,6 +953,7 @@ jobs:
           ${{ github.workspace }}/tests/.report/
         retention-days: 90
         if-no-files-found: warn
+        include-hidden-files: true
 
   # The image is also the environment for hosts that cannot run Docker, chroot
   # or PRoot, which docker/sage-image.py provides by unpacking the image and
@@ -1054,6 +1057,7 @@ jobs:
           ${{ github.workspace }}/tests/.report/
         retention-days: 90
         if-no-files-found: warn
+        include-hidden-files: true
 
 # CoxIter on the I_{1,8} chamber (#18): seconds of work that a serial job put last, where
 # two runs in a row never reached it.
@@ -1189,6 +1193,7 @@ jobs:
           ${{ github.workspace }}/tests/.report/
         retention-days: 90
         if-no-files-found: warn
+        include-hidden-files: true
 
   no-runtime:
     needs: publish
