@@ -533,7 +533,14 @@ jobs:
         checkout=/repos/sage-extensions
         test -d "${checkout}/tests/lattices"
         git -C "${checkout}" rev-parse HEAD
+        # sage#40: `-o addopts=` drops the consumer's own --junit-xml and --report-log, so they
+        # are named here, in the consumer's report folder that the job uploads, under names the
+        # `just test` step above does not use (both records then travel, not the later one).
+        report="${checkout}/tests/.report"
+        mkdir -p "${report}"
         /sage/.venv/bin/python -m pytest -o addopts= \
+          --junit-xml="${report}/junit-isotropic-line-orbits.xml" \
+          --report-log="${report}/run-isotropic-line-orbits.jsonl" \
           "${checkout}/tests/lattices/test_isotropic_line_orbits_of_small_indefinite_lattices.sage" \
           -q -p qc_sage_session
 
@@ -549,6 +556,20 @@ jobs:
       env:
         PYTHONPATH: ${{ github.workspace 
           }}/.qc-infra/tool-artifacts/pytest_plugins
+
+    # sage#40: the consumer's report folder -- the report log, which carries every test's
+    # duration, and the JUnit file -- travels with the job, pass or fail, from both checkouts a
+    # job may run tests in: the image's /repos/sage-extensions and its own checkout of it.
+    - name: Upload the consumer's pytest report log and JUnit file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: consumer-report-${{ github.job }}
+        path: |
+          /repos/sage-extensions/tests/.report/
+          ${{ github.workspace }}/tests/.report/
+        retention-days: 90
+        if-no-files-found: warn
 
 # Card 6JRR, its certificates and -- from this change -- the card and the child's log, so a
 # certificate hash can be checked against the values that produced it.
@@ -643,6 +664,20 @@ jobs:
           /repos/lattice-database/certificates/
           /repos/lattice-database/lattices/6JRR.md
           /tmp/certify-6JRR.log
+        if-no-files-found: warn
+
+    # sage#40: the consumer's report folder -- the report log, which carries every test's
+    # duration, and the JUnit file -- travels with the job, pass or fail, from both checkouts a
+    # job may run tests in: the image's /repos/sage-extensions and its own checkout of it.
+    - name: Upload the consumer's pytest report log and JUnit file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: consumer-report-${{ github.job }}
+        path: |
+          /repos/sage-extensions/tests/.report/
+          ${{ github.workspace }}/tests/.report/
+        retention-days: 90
         if-no-files-found: warn
 
       # The stage-1 research records, reproduced inside the image. Each record is a
@@ -903,6 +938,20 @@ jobs:
           /tmp/coxiter-I18.out
         if-no-files-found: warn
 
+    # sage#40: the consumer's report folder -- the report log, which carries every test's
+    # duration, and the JUnit file -- travels with the job, pass or fail, from both checkouts a
+    # job may run tests in: the image's /repos/sage-extensions and its own checkout of it.
+    - name: Upload the consumer's pytest report log and JUnit file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: consumer-report-${{ github.job }}
+        path: |
+          /repos/sage-extensions/tests/.report/
+          ${{ github.workspace }}/tests/.report/
+        retention-days: 90
+        if-no-files-found: warn
+
   # The image is also the environment for hosts that cannot run Docker, chroot
   # or PRoot, which docker/sage-image.py provides by unpacking the image and
   # running it under bubblewrap. This job is the only place that path runs on a
@@ -968,8 +1017,13 @@ jobs:
         module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
         test -f "${module}"
         /sage/.venv/bin/python -c 'import sage_extensions, sage_julia_bridge; print(sage_extensions.__file__); print(sage_julia_bridge.__file__)'
+        # sage#40: as above, `-o addopts=` drops the consumer's own report options; this run's
+        # per-test durations reach the job's report artifact through these two.
+        report="${checkout}/tests/.report"
+        mkdir -p "${report}"
         set +e
         timeout 1500 /sage/.venv/bin/python -m pytest -o addopts= \
+          --junit-xml="${report}/junit.xml" --report-log="${report}/run.jsonl" \
           --durations=0 -q -p qc_sage_session "${module}"
         status=$?
         set -e
@@ -986,6 +1040,20 @@ jobs:
       env:
         PYTHONPATH: ${{ github.workspace 
           }}/.qc-infra/tool-artifacts/pytest_plugins
+
+    # sage#40: the consumer's report folder -- the report log, which carries every test's
+    # duration, and the JUnit file -- travels with the job, pass or fail, from both checkouts a
+    # job may run tests in: the image's /repos/sage-extensions and its own checkout of it.
+    - name: Upload the consumer's pytest report log and JUnit file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: consumer-report-${{ github.job }}
+        path: |
+          /repos/sage-extensions/tests/.report/
+          ${{ github.workspace }}/tests/.report/
+        retention-days: 90
+        if-no-files-found: warn
 
 # CoxIter on the I_{1,8} chamber (#18): seconds of work that a serial job put last, where
 # two runs in a row never reached it.
@@ -1107,6 +1175,20 @@ jobs:
         grep -q "Number of vertices: 9" /tmp/coxiter-I18.out
         grep -q "Guessed dimension: 8" /tmp/coxiter-I18.out
         echo "CoxIter read the nine-wall chamber of ${record}: labelled adjacencies equal to its edge list"
+
+    # sage#40: the consumer's report folder -- the report log, which carries every test's
+    # duration, and the JUnit file -- travels with the job, pass or fail, from both checkouts a
+    # job may run tests in: the image's /repos/sage-extensions and its own checkout of it.
+    - name: Upload the consumer's pytest report log and JUnit file
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: consumer-report-${{ github.job }}
+        path: |
+          /repos/sage-extensions/tests/.report/
+          ${{ github.workspace }}/tests/.report/
+        retention-days: 90
+        if-no-files-found: warn
 
   no-runtime:
     needs: publish
