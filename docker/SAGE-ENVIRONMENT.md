@@ -90,6 +90,11 @@ Requirements, both checked before anything runs:
   such a host is reported as unsupported, and the image runs there through
   Docker or as a CI job container instead.
 
+`fetch` unpacks layers the image is published with, and those are zstd-compressed
+(the build passes `compression=zstd`): it needs the `zstd` binary
+(`apt install zstd`) unless the host's Python is 3.14 or later, whose
+`compression.zstd` reads them. `run` and `check` need neither.
+
 `run` stops with the missing piece named.  The cache lives in
 `$XDG_CACHE_HOME/sage-image` and is reused only when its recorded manifest
 matches the requested one, so a pinned digest and a moved tag cannot be

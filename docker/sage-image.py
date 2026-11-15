@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import http.client
 import json
 import os
 import shutil
@@ -48,9 +49,11 @@ IMAGE = "dzackgarza/sage"
 REFERENCE = "develop"
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "sage-image"
 STAMP = "image.json"
+PROGRESS = "image.partial.json"
 
 ACCEPT_INDEX = "application/vnd.oci.image.index.v1+json"
 ACCEPT_MANIFEST = "application/vnd.oci.image.manifest.v1+json"
+ACCEPT_EITHER = f"{ACCEPT_INDEX},{ACCEPT_MANIFEST}"
 
 
 def log(message: str) -> None:
@@ -77,16 +80,32 @@ def read_json(credentials: str, image: str, path: str, accept: str) -> tuple[byt
 
 
 def resolve(credentials: str, image: str, reference: str) -> dict:
-    """Return the linux/amd64 manifest and the digests that name it."""
-    body, index = read_json(credentials, image, f"manifests/{reference}", ACCEPT_INDEX)
-    index_digest = "sha256:" + hashlib.sha256(body).hexdigest()
-    entry = next(
-        manifest
-        for manifest in index["manifests"]
-        if manifest.get("platform", {}).get("os") == "linux"
-        and manifest.get("platform", {}).get("architecture") == "amd64"
-    )
-    _, manifest = read_json(credentials, image, f"manifests/{entry['digest']}", ACCEPT_MANIFEST)
+    """Return the linux/amd64 manifest and the digests that name it.
+
+    `reference` is a tag, an index digest, or the linux/amd64 manifest's own digest:
+    `info` prints all three and `--digest` takes the last. So the request accepts
+    either media type and the answer says which it is -- a registry does not
+    negotiate down, and asking for an *index* with an index's Accept header answers
+    404 for a platform manifest that is there.
+    """
+    body, document = read_json(credentials, image, f"manifests/{reference}", ACCEPT_EITHER)
+    digest = "sha256:" + hashlib.sha256(body).hexdigest()
+    if "manifests" in document:
+        entry = next(
+            manifest
+            for manifest in document["manifests"]
+            if manifest.get("platform", {}).get("os") == "linux"
+            and manifest.get("platform", {}).get("architecture") == "amd64"
+        )
+        _, manifest = read_json(credentials, image, f"manifests/{entry['digest']}", ACCEPT_MANIFEST)
+        index_digest = digest
+    else:
+        # The reference named the platform manifest itself, which is what `--digest`
+        # pins: there is no index above it to record, and the digest that names the
+        # cache is the one that was asked for.
+        entry = {"digest": digest}
+        manifest = document
+        index_digest = digest
     return {
         "image": image,
         "reference": reference,
@@ -108,15 +127,52 @@ def read_stamp(cache: Path) -> dict | None:
         return None
 
 
-def fetch_blob(credentials: str, image: str, digest: str, destination: Path) -> None:
-    sha = hashlib.sha256()
-    with urllib.request.urlopen(blob_request(credentials, image, f"blobs/{digest}", "*/*"), timeout=300) as response:
-        with destination.open("wb") as handle:
-            while chunk := response.read(1 << 22):
-                sha.update(chunk)
-                handle.write(chunk)
-    if "sha256:" + sha.hexdigest() != digest:
-        raise SystemExit(f"layer {digest} does not match its digest; the registry or the transfer is corrupt")
+def progress_path(cache: Path) -> Path:
+    return cache / PROGRESS
+
+
+def resume_point(cache: Path, manifest: str, root: Path) -> int:
+    """How many layers of `manifest` an interrupted fetch left applied in `root`.
+
+    A fetch that dies on one layer -- a dropped transfer, a full disk -- has every
+    layer before it unpacked already, and fetching them again costs the whole
+    download. The record is written after each layer is applied, so a layer that was
+    only partly applied is applied again from its own start, which is safe: applying
+    a layer rewrites its members.
+    """
+    try:
+        record = json.loads(progress_path(cache).read_text())
+    except (FileNotFoundError, ValueError):
+        return 0
+    if record.get("manifest") != manifest or not root.is_dir():
+        return 0
+    return int(record.get("layers", 0))
+
+
+def fetch_blob(credentials: str, image: str, digest: str, destination: Path, attempts: int = 3) -> None:
+    """Download one blob, verifying it, and retry a transfer that did not verify.
+
+    A registry connection that ends early leaves a short body and no exception, and
+    the digest is what catches it: the layer a reader receives is only the layer the
+    manifest named if the hash matches. Retrying here restarts this one blob, which
+    is seconds of a layer that costs minutes to unpack again from the first.
+    """
+    for attempt in range(1, attempts + 1):
+        sha = hashlib.sha256()
+        try:
+            with urllib.request.urlopen(blob_request(credentials, image, f"blobs/{digest}", "*/*"), timeout=300) as response:
+                with destination.open("wb") as handle:
+                    while chunk := response.read(1 << 22):
+                        sha.update(chunk)
+                        handle.write(chunk)
+        except (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError) as error:
+            log(f"layer {digest[:19]} attempt {attempt}/{attempts}: {error}")
+            time.sleep(attempt)
+            continue
+        if "sha256:" + sha.hexdigest() == digest:
+            return
+        log(f"layer {digest[:19]} attempt {attempt}/{attempts}: the transfer does not match its digest")
+    raise SystemExit(f"layer {digest} does not match its digest; the registry or the transfer is corrupt")
 
 
 def clear(directory: Path) -> None:
@@ -127,33 +183,87 @@ def clear(directory: Path) -> None:
             entry.unlink(missing_ok=True)
 
 
-def apply_layer(blob: Path, root: Path) -> int:
-    """Apply one OCI layer, resolving whiteouts; return the members skipped."""
+def layer_stream(blob: Path, media_type: str) -> tuple[object, subprocess.Popen | None]:
+    """The layer's bytes as ``tarfile`` reads them, and the process producing them.
+
+    The image is published with zstd layers -- the build passes `compression=zstd`,
+    which is most of why its one 3 GB layer transfers at all -- and `tarfile` reads
+    zstd only from Python 3.14. This script runs on the host's interpreter, so a zstd
+    layer is piped through the `zstd` binary where the host has one, or through
+    `compression.zstd` where its Python does, and handed to `tarfile` decompressed.
+    Nothing is buffered whole: the largest layer unpacks to several gigabytes.
+    """
+    if not media_type.endswith("zstd"):
+        return blob.open("rb"), None
+    if shutil.which("zstd") is not None:
+        process = subprocess.Popen(
+            ["zstd", "--decompress", "--stdout", "--quiet", str(blob)],
+            stdout=subprocess.PIPE,
+        )
+        return process.stdout, process
+    try:
+        from compression import zstd
+    except ImportError:
+        raise SystemExit(
+            f"{blob.name} is a zstd layer, and this host has neither the zstd binary "
+            "nor Python 3.14's compression.zstd: install zstd (apt install zstd), or "
+            "run this script with Python 3.14 or later"
+        ) from None
+    return zstd.open(blob, "rb"), None
+
+
+def apply_layer(blob: Path, root: Path, media_type: str) -> int:
+    """Apply one OCI layer, resolving whiteouts; return the members skipped.
+
+    The archive is read as a stream, one member at a time, because a decompressed
+    layer is a pipe: `getmembers()` would have to hold it and `extract()` would then
+    find nothing behind it.
+    """
     skipped = 0
-    with tarfile.open(blob) as archive:
-        for member in archive.getmembers():
-            name = member.name
-            base = os.path.basename(name)
-            parent = root / os.path.dirname(name)
-            if base == ".wh..wh..opq":
-                if parent.is_dir():
-                    clear(parent)
-                continue
-            if base.startswith(".wh."):
-                target = parent / base[4:]
-                if target.is_dir() and not target.is_symlink():
-                    shutil.rmtree(target, ignore_errors=True)
-                else:
-                    target.unlink(missing_ok=True)
-                continue
-            if not (member.isreg() or member.isdir() or member.issym() or member.islnk()):
-                continue
-            try:
-                archive.extract(member, root, filter="fully_trusted", set_attrs=True)
-            except (PermissionError, OSError):
-                # A path this user may not write, or an owner it may not set:
-                # the content that matters to Sage is readable without it.
-                skipped += 1
+    stream, process = layer_stream(blob, media_type)
+    try:
+        with tarfile.open(fileobj=stream, mode="r|" if process else "r|*") as archive:
+            for member in archive:
+                name = member.name
+                base = os.path.basename(name)
+                parent = root / os.path.dirname(name)
+                if base == ".wh..wh..opq":
+                    if parent.is_dir():
+                        clear(parent)
+                    continue
+                if base.startswith(".wh."):
+                    target = parent / base[4:]
+                    if target.is_dir() and not target.is_symlink():
+                        shutil.rmtree(target, ignore_errors=True)
+                    else:
+                        target.unlink(missing_ok=True)
+                    continue
+                if not (member.isreg() or member.isdir() or member.issym() or member.islnk()):
+                    continue
+                if member.islnk():
+                    # A hard link names a member of the same layer, and `tarfile`
+                    # extracts one by copying that member's data -- a seek backwards,
+                    # which a decompressed stream refuses. Link the two paths in the
+                    # tree instead, which is what the image has.
+                    target = root / member.linkname
+                    link = root / member.name
+                    link.parent.mkdir(parents=True, exist_ok=True)
+                    link.unlink(missing_ok=True)
+                    try:
+                        os.link(target, link)
+                    except OSError:
+                        shutil.copy2(target, link)
+                    continue
+                try:
+                    archive.extract(member, root, filter="fully_trusted", set_attrs=True)
+                except (PermissionError, OSError):
+                    # A path this user may not write, or an owner it may not set:
+                    # the content that matters to Sage is readable without it.
+                    skipped += 1
+    finally:
+        stream.close()
+        if process is not None:
+            process.wait()
     return skipped
 
 
@@ -173,17 +283,25 @@ def unpack(cache: Path, image: str, reference: str, digest: str | None) -> dict:
     # What the image declares for its own processes: JULIA_DEPOT_PATH, SAGE_BIN,
     # PATH and the rest. A container runtime applies these; so does this one.
     resolved["env"] = config.get("config", {}).get("Env", []) or []
-    if root.exists():
-        shutil.rmtree(root)
-    root.mkdir(parents=True)
+    applied = resume_point(cache, resolved["manifest"], root)
+    if applied:
+        log(f"resuming {root}: the {applied} layers an earlier fetch applied are kept")
+    else:
+        if root.exists():
+            shutil.rmtree(root)
+        root.mkdir(parents=True)
     log(f"{len(resolved['layers'])} layers, {sum(layer['size'] for layer in resolved['layers']) / 1e9:.2f} GB compressed")
     blob = cache / "layer.blob"
     skipped = 0
     for position, layer in enumerate(resolved["layers"], start=1):
+        if position <= applied:
+            continue
         log(f"[{position}/{len(resolved['layers'])}] {layer['size'] / 1e6:.1f} MB {layer['digest'][:19]}")
         fetch_blob(credentials, image, layer["digest"], blob)
-        skipped += apply_layer(blob, root)
+        skipped += apply_layer(blob, root, layer.get("mediaType", ""))
         blob.unlink()
+        progress_path(cache).write_text(json.dumps({"manifest": resolved["manifest"], "layers": position}) + "\n")
+    progress_path(cache).unlink(missing_ok=True)
     if skipped:
         log(f"{skipped} files not writable by this user; the rest of the image is intact")
     record = {key: resolved[key] for key in ("image", "reference", "index", "manifest", "config", "revision", "env")}
