@@ -333,6 +333,14 @@ print("PyNormaliz and Sage agree on the Hilbert basis of [[1,0],[1,2]]: (1,0), (
 # port's route needs the second. Both are asserted, in a process that has
 # imported sage.all as the port's does, and the module is the venv's -- a
 # pycddlib anywhere else on sys.path is not this environment.
+#
+# Its GMP half is a system dependency, and that is what the rest of the stage
+# states (sage#41): `cdd.gmp` binds libcddgmp and libcdd, and the process must
+# carry one of each, from the image and not from a wheel's bundled copy -- the
+# defect class of sage#25's libflint and sage#31's Normaliz. They arrive with
+# Sage's own package metadata, which is why the source build links them: cddlib
+# is a standard package, so `sage-get-system-packages debian :standard:` installs
+# Debian's libcdd-dev into the image that builds this module.
 cdd_probe = subprocess.run(
     [
         sys.executable, "-c",
@@ -345,7 +353,9 @@ cdd_probe = subprocess.run(
         "[Fraction(0), Fraction(1), Fraction(0)], [Fraction(0), Fraction(0), Fraction(1)]], "
         "out.array; "
         "print(cdd.gmp.__file__); "
-        "print(out.array)",
+        "print(out.array); "
+        "print('\\n'.join(sorted(set(line.split()[-1] for line in open('/proc/self/maps') "
+        "if '/libcdd' in line))))",
     ],
     capture_output=True, text=True, check=False, timeout=600,
 )
@@ -357,8 +367,31 @@ cdd_lines = [line for line in cdd_probe.stdout.splitlines() if line.strip()]
 assert cdd_lines[0].startswith("/sage/.venv/"), (
     f"cdd.gmp is not the venv's module (sage#34): {cdd_lines[0]}"
 )
+mapped = cdd_lines[2:]
+# A vendored copy is mangled by its wheel (gmpy2's is libgmp-a6f47472.so.10.5.0),
+# so the libraries are told apart by substring, not by prefix.
+vendored = [path for path in mapped if "site-packages" in path]
+cdd_gmp_libs = [path for path in mapped if "libcddgmp" in path.rsplit("/", 1)[-1]]
+cdd_libs = []
+for path in mapped:
+    name = path.rsplit("/", 1)[-1]
+    if "libcdd" in name and "libcddgmp" not in name:
+        cdd_libs.append(path)
+assert not vendored, (
+    f"cdd.gmp binds a cddlib from site-packages, not one this image installs (sage#41): "
+    f"{' ; '.join(vendored)}"
+)
+assert len(cdd_gmp_libs) == 1, (
+    f"the cdd process maps {len(cdd_gmp_libs)} libcddgmp, and one is the whole point (sage#41): "
+    f"{' ; '.join(mapped) or 'none'}"
+)
+assert len(cdd_libs) == 1, (
+    f"the cdd process maps {len(cdd_libs)} libcdd, and one is the whole point (sage#41): "
+    f"{' ; '.join(mapped) or 'none'}"
+)
 print(f"cdd.gmp, pycddlib's exact-rational backend: {cdd_lines[0]}")
 print("the cone of [[1,0,0],[1,1,0],[1,0,1]] comes back as exact rationals")
+print(f"one libcdd and one libcddgmp, both the image's: {cdd_libs[0]} and {cdd_gmp_libs[0]}")
 
 # ---- one PARI: cypari2, Sage and the image in one process (sage#32) --------
 # The automorphism count of the ternary form x^2 + xy + y^2 + 9z^2 -- the call

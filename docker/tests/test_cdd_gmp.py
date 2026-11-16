@@ -22,6 +22,11 @@ process starts with the environment the image declares for itself. It imports
 the cone of ``[[1,0,0],[1,1,0],[1,0,1]]`` in inequality representation, whose
 generators must come back as ``Fraction`` -- a doubles backend cannot.
 
+It also reads the process's own maps, because the GMP half is a system
+dependency (sage#41): the module is the venv's, and the libcdd and libcddgmp it
+binds must be one each and must not come from ``site-packages`` -- a wheel's
+bundled copy is the defect class of sage#25's libflint and sage#31's Normaliz.
+
     pytest docker/tests/test_cdd_gmp.py
     SAGE_IMAGE_ROOTFS=~/sage-image/rootfs pytest docker/tests/test_cdd_gmp.py
 """
@@ -58,6 +63,9 @@ expected = [
 assert out.array == expected, out.array
 print("cdd.gmp", cdd.gmp.__file__)
 print("generators", out.array)
+print("cddlibs", " ".join(sorted(set(
+    line.split()[-1] for line in open("/proc/self/maps") if "/libcdd" in line
+))))
 """
 
 
@@ -87,3 +95,18 @@ def test_cdd_gmp_computes_with_exact_rationals() -> None:
         f"cdd.gmp is not the venv's module (sage#34): {module}"
     )
     assert "Fraction" in lines[1], (result.stdout, result.stderr)
+    cddlibs = lines[2].split()[1:] if len(lines) > 2 else []
+    # A vendored copy is mangled by its wheel, so tell the libraries apart by
+    # substring and reject anything that came out of site-packages (sage#41).
+    vendored = [path for path in cddlibs if "site-packages" in path]
+    assert not vendored, (
+        f"cdd.gmp binds a cddlib from site-packages, not one this image installs (sage#41): {vendored}"
+    )
+    gmp_copies = [path for path in cddlibs if "libcddgmp" in path.rsplit("/", 1)[-1]]
+    plain_copies = []
+    for path in cddlibs:
+        name = path.rsplit("/", 1)[-1]
+        if "libcdd" in name and "libcddgmp" not in name:
+            plain_copies.append(path)
+    assert len(gmp_copies) == 1, (cddlibs, result.stdout, result.stderr)
+    assert len(plain_copies) == 1, (cddlibs, result.stdout, result.stderr)
