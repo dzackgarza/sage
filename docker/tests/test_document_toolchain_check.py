@@ -20,10 +20,12 @@ import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 CHECK = REPOSITORY / "docker" / "research-environment-check.py"
-BLOCK_START = "# ---- the document toolchain the project sites build with (sage#22)"
+BLOCK_START = "document_tools = ["
 BLOCK_END = 'print(f"node {node_version}")'
 
 QUARTO = "1.11.9"
+PANDOC = "pandoc 3.14"
+MISSING_PARTIAL = "Could not find data file /usr/share/pandoc/data/templates/passoptions.latex"
 NODE = "v20.19.0"
 LUA = "LuaHBTeX, Version 1.23.0 (TeX Live 2025)"
 
@@ -44,7 +46,8 @@ def tool(stubs: Path, name: str, body: str) -> None:
 
 
 def stubs_for(tmp_path: Path, omit: tuple[str, ...] = (), no_tex: tuple[str, ...] = (),
-              texlive_installed: bool = True, pdf2svg_breaks: bool = False) -> Path:
+              texlive_installed: bool = True, pdf2svg_breaks: bool = False,
+              pandoc_lacks_partial: bool = False) -> Path:
     """Every tool the block asks for, except the ones a test withholds.
 
     The PATH the block runs under holds these and nothing else, so "absent" means
@@ -78,6 +81,18 @@ def stubs_for(tmp_path: Path, omit: tuple[str, ...] = (), no_tex: tuple[str, ...
             "name = sys.argv[1]\n"
             "print('' if name in no_tex else f'/usr/share/texlive/texmf-dist/tex/latex/{name}')\n"
         ),
+        "pandoc": (
+            "import sys\n"
+            "from pathlib import Path\n"
+            "if sys.argv[1:2] == ['--version']:\n"
+            f"    print({PANDOC!r})\n"
+            "    raise SystemExit(0)\n"
+            + (
+                f"print({MISSING_PARTIAL!r}, file=sys.stderr)\nraise SystemExit(97)\n"
+                if pandoc_lacks_partial else
+                "Path(sys.argv[sys.argv.index('-o') + 1]).write_text('\\\\documentclass{book}')\n"
+            )
+        ),
         "node": f"print({NODE!r})\n",
         "lualatex": f"print({LUA!r})\n",
         "dpkg-query": (
@@ -94,7 +109,7 @@ def stubs_for(tmp_path: Path, omit: tuple[str, ...] = (), no_tex: tuple[str, ...
 def run_block(tmp_path: Path, stubs: Path) -> subprocess.CompletedProcess:
     harness = tmp_path / "check-documents.py"
     harness.write_text(
-        "import subprocess, tempfile\nfrom pathlib import Path\n" + document_block(),
+        "import shutil, subprocess, tempfile\nfrom pathlib import Path\n" + document_block(),
         encoding="utf-8",
     )
     return subprocess.run(
@@ -111,9 +126,20 @@ def test_every_document_tool_present_passes_and_reports_each(tmp_path):
     assert "texlive-full with 12 files the sites load" in result.stdout
     assert "quarto rendered a page with a TikZ figure through pdf2svg: " in result.stdout
     assert f"node {NODE}" in result.stdout
+    assert f"{PANDOC} renders pandoc-config's dissertation and draft templates" in result.stdout
 
 
-@pytest.mark.parametrize("missing", ["quarto", "pdf2svg", "pdftoppm", "node", "lualatex", "kpsewhich"])
+def test_a_pandoc_without_the_partials_of_the_templates_fails_the_check(tmp_path):
+    """pandoc-config's templates include `$passoptions.latex()$`; Debian's pandoc 3.1.11 has
+    no such partial, so research's dissertation compile stops at its first step
+    (dzackgarza/pandoc-config#15)."""
+    result = run_block(tmp_path, stubs_for(tmp_path, pandoc_lacks_partial=True))
+    assert result.returncode != 0, result.stdout
+    assert "cannot render pandoc-config's uga-dissertation.tex" in result.stderr, result.stderr
+    assert "passoptions.latex" in result.stderr, result.stderr
+
+
+@pytest.mark.parametrize("missing", ["quarto", "pandoc", "pdf2svg", "pdftoppm", "node", "lualatex", "kpsewhich"])
 def test_an_absent_tool_fails_the_check_naming_it(tmp_path, missing):
     result = run_block(tmp_path, stubs_for(tmp_path, omit=(missing,)))
     assert result.returncode != 0, result.stdout
