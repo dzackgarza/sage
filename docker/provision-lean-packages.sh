@@ -1,40 +1,4 @@
 #!/usr/bin/env bash
-# Provision the image's one shared Lean project, and bind every Lean checkout
-# under the repository root to it.
-#
-# The image carries a single Lean project -- mathlib4 at the head of its master
-# branch, on the toolchain that revision pins, with its whole dependency closure
-# built inside it and Mathlib's oleans from the official cache. Every build moves
-# to the head of that branch as it is when the build starts, incremental builds
-# included: this script compares the head with the record the image already
-# carries (MATHLIB_RECORD) and rebuilds the closure only when the head has moved.
-# When it has not, nothing is written -- the files stay byte for byte what the
-# base image carries, so the layer that holds them is reused rather than
-# republished (sage#13).
-#
-# Every checkout under the repository root that carries a lake-manifest.json
-# resolves mathlib and its closure from that project: provisioning sets the
-# checkout's manifest entries for mathlib and every package of the shared
-# project's manifest to the shared project's revisions, and links its packages
-# directory to the project's built copies -- the project itself for mathlib,
-# the project's .lake/packages/<name> for the others. A package the checkout
-# needs that the shared project does not carry keeps the revision the checkout
-# pinned; Lake clones a missing dependency at the manifest revision when the
-# checkout is next built or `lake env` runs. Holding the Lean repositories to
-# the image is each repository's own CI (lean-categories#118,
-# lean-cas-dsl#90), never this image's run.
-#
-# An image that was unpacked before this was introduced reaches the same state
-# without being rebuilt; see docker/SAGE-ENVIRONMENT.md.
-#
-#   docker/provision-lean-packages.sh [REPOSITORIES_ROOT] [--dry-run]
-#
-# --dry-run prints what would be done and touches nothing.
-#
-# Environment: MATHLIB_REVISION (the head this build resolved; without it the head
-# is read here), MATHLIB_PROJECT (default /opt/mathlib), MATHLIB_RECORD (default
-# /opt/lean-image.json), MATHLIB_REPOSITORY (default
-# https://github.com/leanprover-community/mathlib4), PYTHON (default python3).
 set -euo pipefail
 
 repositories_root="${1:-${REPOSITORIES_ROOT:-/repos}}"
@@ -48,9 +12,6 @@ record="${MATHLIB_RECORD:-/opt/lean-image.json}"
 repository="${MATHLIB_REPOSITORY:-https://github.com/leanprover-community/mathlib4}"
 python_bin="${PYTHON:-python3}"
 
-# The image keeps elan and its toolchains under /opt/elan. A runner that does
-# not apply the image's environment -- PRoot over the unpacked filesystem, a
-# bare exec -- still reaches them through these two lines.
 if ! command -v elan > /dev/null 2>&1 && [ -x /opt/elan/bin/elan ]; then
     PATH="/opt/elan/bin:${PATH}"
     export PATH
@@ -60,12 +21,8 @@ if [ -z "${ELAN_HOME:-}" ] && [ -d /opt/elan ]; then
     export ELAN_HOME
 fi
 
-# A directory that is not a repository, or has no commit yet, is "no revision".
 git_head() { git -C "$1" rev-parse --verify --quiet HEAD 2>/dev/null || true; }
 
-# The head of the repository's branch, as one revision -- the only place the image
-# decides which Mathlib it carries. No tag and no revision is written here. The
-# branch is master, which is what mathlib4 develops on.
 resolve_head() {
     local head
     head="$(git ls-remote "${repository}" refs/heads/master | awk 'NR == 1 { print $1 }')"
@@ -82,10 +39,6 @@ record_field() {
 
 olean="${project}/.lake/build/lib/lean/Mathlib.olean"
 
-# What this build carries. The workflow reads the head for the build and passes it,
-# so a head that has not moved leaves this step's inputs unchanged and its result is
-# reused; a moved head is a different input, and the closure is rebuilt. Without the
-# value -- an unpacked image, a local run -- the head is read here.
 image_revision="${MATHLIB_REVISION:-}"
 if [ -z "${image_revision}" ]; then
     image_revision="$(resolve_head)"
@@ -113,10 +66,6 @@ fi
 
 project_head="$(git_head "${project}")"
 if [ "${recorded_revision}" = "${image_revision}" ]; then
-    # The build resolved the head the image already carries. Nothing is written, so
-    # the files keep their content and the layer holding them is reused -- provided
-    # the project really is that revision, with a built Mathlib. A record that
-    # disagrees with the tree is a broken image, not a cache hit.
     if [ "${project_head}" != "${image_revision}" ]; then
         printf 'error: %s is at %s, not the %s its record names; the image does not carry one built project\n' \
             "${project}" "${project_head:-no revision}" "${image_revision}" >&2
@@ -142,10 +91,6 @@ else
     if [ -n "${recorded_revision}" ]; then
         printf 'the head moved from %s to %s: rebuilding the shared project and its closure\n' \
             "${recorded_revision}" "${image_revision}"
-        # A Lean release refuses another release's oleans, and so does every package
-        # it imports: the build tree of the revision being left behind goes whole --
-        # packages included -- and Lake fetches the new revision's closure and builds
-        # it once. That is the closure layer being rebuilt, and the only time it is.
         rm -rf "${project}/.lake"
     else
         printf 'resolving mathlib at %s, the head of this build\n' "${image_revision}"
@@ -156,10 +101,6 @@ else
     fi
     git -C "${project}" remote add origin "${repository}" 2>/dev/null \
         || git -C "${project}" remote set-url origin "${repository}"
-    # One revision, not the history: Lake reads the lakefile and the manifest, and
-    # the record is what a consumer reads for provenance. A server that will not
-    # serve a revision by name still serves its head, which is what this build
-    # resolved.
     git -C "${project}" fetch --quiet --depth 1 origin "${image_revision}" \
         || git -C "${project}" fetch --quiet origin "${image_revision}" \
         || git -C "${project}" fetch --quiet --depth 1 origin HEAD
@@ -169,17 +110,9 @@ else
             "${project}" "$(git_head "${project}")" "${image_revision}" >&2
         exit 1
     fi
-    # The toolchain is not chosen here either: it is the one that revision pins.
     image_toolchain="$(cat "${project}/lean-toolchain")"
     elan toolchain install "${image_toolchain}"
     elan default "${image_toolchain}"
-    # Mathlib itself comes from the official cache for this exact revision, so it
-    # is never compiled; the packages it imports are built once, here, by this
-    # toolchain, and that built closure is what every checkout resolves. The
-    # packages the manifest pins but Mathlib's own target never imports -- Cli,
-    # on 4365edbea6's evidence -- are built too, each by name, so the closure is
-    # complete: the environment check asserts a build directory for every
-    # package the manifest pins (sage#13).
     ( cd "${project}" && lake exe cache get )
     closure="$("${python_bin}" - "${project}/lake-manifest.json" <<'PY'
 import json, sys
@@ -198,9 +131,6 @@ import sys
 import time
 
 record, project, repository, revision, toolchain = sys.argv[1:6]
-# `master_head_at_resolution` is what the environment check reads back: it is the
-# revision this build asked for, so a project at another revision is a defect and
-# not a stale record.
 with open(record, "w") as handle:
     json.dump(
         {
@@ -221,24 +151,6 @@ PY
     printf 'recorded mathlib %s on %s in %s\n' "${image_revision}" "${image_toolchain}" "${record}"
 fi
 
-# One plan, computed once: every Lean checkout's manifest is resolved at the
-# shared project's revisions -- the shared lake-manifest.json is the source, and
-# the checkout's entries for mathlib and every package of that manifest are set
-# to it -- and the checkout's packages are the shared project's built copies: a
-# link per package in the checkout's packagesDir, to the project itself for
-# mathlib and the project's .lake/packages/<name> for the others. Lake's own
-# documentation is what these links rest on: "packagesDir: The directory to
-# which Lake should download remote dependencies" and "a manifest tracks the
-# specific versions of other packages that are used in a package ... Before
-# building, Lake synchronizes the local copy of each dependency with the version
-# specified in the manifest" (the Lean Language Reference's Lake chapter), so a
-# checkout whose manifest pins the shared revisions and whose packagesDir holds
-# links to the shared project's copies resolves at exactly those revisions, with
-# no second Mathlib clone and no cache download per checkout. A package the
-# checkout needs and the shared project does not carry needs no update command:
-# its manifest entry keeps the checkout's pin, and Lake clones a missing
-# dependency at the manifest revision when the checkout is next built or
-# `lake env` runs.
 plan="$("${python_bin}" - "${repositories_root}" "${project}" <<'PY'
 import os
 import sys
@@ -268,13 +180,6 @@ fi
 problems=0
 while IFS=$'\t' read -r kind checkout; do
     [ "${kind}" = RESOLVE ] || continue
-    # The binding: the checkout's manifest entries for mathlib and every
-    # package of the shared project's manifest are set to the shared project's
-    # revisions, and the checkout's packages are the shared project's built
-    # copies -- a link per package in the checkout's packagesDir. A package the
-    # checkout needs and the shared project does not carry keeps the revision
-    # the checkout pinned; Lake clones a missing dependency at the manifest
-    # revision when the checkout is next built or `lake env` runs.
     printf 'resolving %s at the revisions of the shared project\n' "${checkout}"
     "${python_bin}" - "${checkout}" "${project}" "${record}" <<'PY' || problems=1
 import json
@@ -317,11 +222,11 @@ with open(manifest_path, "w") as handle:
     json.dump(manifest, handle, indent=2, sort_keys=True)
     handle.write("\n")
 
-# The links: mathlib to the project itself, every shared package to the
-# project's own copy of it. A package the checkout needs that the shared
-# project does not carry needs no update command: its manifest entry keeps
-# the checkout's pin, and Lake clones a missing dependency at the manifest
-# revision when the checkout is next built or `lake env` runs.
+with open(os.path.join(project, "lean-toolchain"), encoding="utf-8") as handle:
+    toolchain = handle.read()
+with open(os.path.join(checkout, "lean-toolchain"), "w", encoding="utf-8") as handle:
+    handle.write(toolchain)
+
 os.makedirs(packages_dir, exist_ok=True)
 for package in manifest["packages"]:
     if package.get("type") != "git":
@@ -341,7 +246,7 @@ for package in manifest["packages"]:
         shutil.rmtree(link)
     os.symlink(target, link)
 
-print(f"{checkout}: {resolved} entries resolved at the shared project's revisions")
+print(f"{checkout}: {resolved} entries resolved at the shared project's revisions, on {toolchain.strip()}")
 PY
 done <<< "${plan}"
 

@@ -13,8 +13,10 @@ names the commit it was built from.
 
 ## What the image is pinned to
 
+`info` prints the index, the manifest, the config and the revision of the cache:
+
 ```sh
-docker/sage-image.py info        # index, manifest, config, revision of the cache
+docker/sage-image.py info
 ```
 
 `info` and `fetch` print the digests a consumer can pin: the OCI index, the
@@ -50,18 +52,25 @@ A container image is a filesystem and a process.  `docker/sage-image.py`
 fetches the image from the registry without a daemon, verifies the digest of
 every layer, unpacks it into a cache directory, and runs commands in that tree
 with [bubblewrap](https://github.com/containers/bubblewrap)'s unprivileged user
-namespaces — no root, no chroot, no ptrace, no container runtime:
+namespaces — no root, no chroot, no ptrace, no container runtime.
+
+`fetch` runs once per image: the current develop, then the same image pinned:
 
 ```sh
-# once per image: the current develop, then the same image pinned
 docker/sage-image.py fetch
 docker/sage-image.py fetch --digest sha256:<the manifest it printed>
+```
 
-# the same interpreter, Sage build and libraries the image ships
+`run` uses the same interpreter, Sage build and libraries that the image ships:
+
+```sh
 docker/sage-image.py run -- sage -c 'print(ZZ(2)**10)'
 docker/sage-image.py run -- /sage/.venv/bin/python -m pytest tests/
+```
 
-# the image's own environment check, which its build runs too
+`check` runs the environment check of the image, which its build runs too:
+
+```sh
 docker/sage-image.py check
 ```
 
@@ -206,8 +215,22 @@ python3 docker/sage-image.py --rootfs ~/sage-image/rootfs run \
 speaks for itself in the working directory: it walks `/repos` itself. It moves the
 shared Lean project to the head of mathlib4 master — as a build does — or keeps the
 revision `MATHLIB_REVISION` names, rebuilds its closure only if it moved, links each
-checkout's Mathlib pins to it, and stops unless Mathlib builds. No second toolchain
-is added, no Mathlib revision is cloned twice, and no consumer checkout is edited.
+checkout's Mathlib pins to it, and stops unless Mathlib builds. No Mathlib revision
+is cloned twice. In each checkout it writes `lake-manifest.json` and
+`lean-toolchain`, and the links of its packages directory.
+
+`docker/provision-lean-packages.sh [REPOSITORIES_ROOT] [--dry-run]` reads these
+variables: `MATHLIB_REVISION` (the head that the build resolved; without it the
+script reads the head of master), `MATHLIB_PROJECT` (default `/opt/mathlib`),
+`MATHLIB_RECORD` (default `/opt/lean-image.json`), `MATHLIB_REPOSITORY` (default
+`https://github.com/leanprover-community/mathlib4`) and `PYTHON` (default
+`python3`). Without `elan` on `PATH` or `ELAN_HOME` set, it uses `/opt/elan`, so a
+runner that does not apply the environment of the image (PRoot, a bare exec) finds
+the toolchains. When the head moved, the script removes the whole `.lake` of the
+project, because a Lean release refuses the oleans of another release, and builds
+the new closure one time. It builds each git package of the manifest by name, also
+a package that `Mathlib` does not import (`Cli`), so that each package has a build
+directory, which the check asserts.
 
 **One shared Lean project, always on the latest Mathlib** (sage#13). The image carries
 exactly one Lean project — `mathlib4` at the head of `leanprover-community/mathlib4`
@@ -247,7 +270,14 @@ dependencies"). Provisioning therefore sets each checkout's manifest entries for
 mathlib and every package of the shared project's manifest to the shared
 project's revisions, and links its packages directory to the project's built
 copies: the project itself for `mathlib`,
-`/opt/mathlib/.lake/packages/<name>` for Mathlib's closure. A package the
+`/opt/mathlib/.lake/packages/<name>` for Mathlib's closure. It also writes the
+`lean-toolchain` of the shared project into the checkout, as Mathlib's guide for a
+dependent project does ("Using mathlib4 as a dependency": `curl
+https://raw.githubusercontent.com/leanprover-community/mathlib4/master/lean-toolchain
+-o lean-toolchain`). elan runs the release that the `lean-toolchain` of the
+checkout names, and a Lean release refuses an `.olean` that another release wrote:
+"failed to read file '/opt/mathlib/.lake/build/lib/lean/Mathlib.olean',
+incompatible header" (sage#42). A package the
 checkout needs that the shared project does not carry keeps the revision the
 checkout pinned, and Lake clones it when the checkout is next built.
 
@@ -331,11 +361,13 @@ their own; two projects running builds into one tree race on the same
 `.lake/build`, the shared Lean project and site-packages, and produce duplicate
 builds.
 
-Readback, without writing:
+Readback, without writing: `bliss-repair.json` gives the base revision and the
+digests of the patch and the module, and `lean-image.json` gives the Mathlib
+revision and the toolchain that the image carries.
 
 ```sh
-cat ~/sage-image/rootfs/opt/bliss-repair.json          # base revision, patch and module digests
-cat ~/sage-image/rootfs/opt/lean-image.json            # the Mathlib revision and toolchain the image carries
+cat ~/sage-image/rootfs/opt/bliss-repair.json
+cat ~/sage-image/rootfs/opt/lean-image.json
 ```
 
 What can be observed of the host: one RAM figure and no swap (`free`), one set
@@ -442,8 +474,8 @@ lattice-database's owner contracts — name `--junit-xml` and `--report-log` the
 isotropic-line-orbit run writes `junit-isotropic-line-orbits.xml` and
 `run-isotropic-line-orbits.jsonl`, so the record of the `just test` step beside it is not
 overwritten. A job that ran no pytest has an empty folder and uploads no artifact, which the
-job's log states as a warning.
+job's log states as a warning. This downloads the report folder of one job:
 
 ```sh
-gh run download <run> -n consumer-report-consumer-contracts   # one job's report folder
+gh run download <run> -n consumer-report-consumer-contracts
 ```
