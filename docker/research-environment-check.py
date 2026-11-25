@@ -1,5 +1,3 @@
-# Fails the image build if any system the research image exists to provide is
-# absent. Run with the image's sage: `sage docker/research-environment-check.py`.
 import importlib
 import os
 import subprocess
@@ -34,18 +32,9 @@ features += [GapPackage(name) for name in (
 missing = [feature.name for feature in features if not feature.is_present()]
 assert not missing, missing
 
-# Those two are only there if the GAP that libgap drives can see them, and that
-# instance is the system GAP: kernel_info runs the same `gap` binary and hands
-# libgap the roots it reports, which is why the packages are installed into
-# /usr/share/gap/pkg (docker/research-environment.Dockerfile) and why Sage's
-# gap_packages spkg, which fills $SAGE_LOCAL/lib/gap/pkg, would not be enough
-# here. Both halves are asserted: the roots, and each package loading in it.
 from sage.libs.gap.libgap import libgap
 from sage.libs.gap.util import kernel_info
 
-# GAP is now built from the pinned source into SAGE_LOCAL (Dockerfile), so the
-# executable libgap drives, the root it searches and the version it reports are
-# all declared inputs rather than whatever the distribution shipped.
 import shutil
 
 declared_gap = Path("build/pkgs/gap/package-version.txt").read_text().strip()
@@ -53,11 +42,6 @@ gap_binary = shutil.which("gap")
 assert gap_binary is not None, "no gap on PATH"
 assert Path(gap_binary).resolve().is_relative_to(Path("/sage/.venv")), gap_binary
 
-# Every `gap` on the default PATH, not only the first `which` returns: each
-# directory the image's PATH names is walked, and every file named `gap` in it
-# must be the Sage-owned binary or this image's launcher. A second GAP anywhere
-# on the PATH -- a Debian package's, a conda split's -- is what sage#11 and
-# sage#26 found, and it fails here, naming the path.
 launcher_bytes = Path(sys.argv[0]).resolve().with_name("gap-launcher.sh").read_bytes()
 every_gap = [
     Path(directory) / "gap"
@@ -77,10 +61,6 @@ print(
 gap_version, gap_arch, gap_roots = kernel_info()
 assert gap_version == declared_gap, (gap_version, declared_gap)
 assert "/sage/.venv/lib/gap/" in gap_roots, gap_roots
-# Do not pin the packages to one owner's tree. They may sit in the system GAP's
-# /usr/share/gap/pkg or in Sage's own $SAGE_LOCAL/lib/gap/pkg; what has to hold is
-# that the directory GAP resolves each package from is one GAP actually searches.
-# Naming a single path here would enshrine whichever GAP the image happens to use.
 gap_root_list = [root for root in gap_roots.split(";") if root]
 for name in ("orb", "forms", "genss", "recog"):
     loaded = libgap.eval(f'LoadPackage("{name}")')
@@ -89,9 +69,6 @@ for name in ("orb", "forms", "genss", "recog"):
     assert any(installed_in.startswith(root) for root in gap_root_list), (
         name, installed_in, gap_root_list,
     )
-# kernel_info runs the `gap` *binary*; it says nothing about which libgap this
-# process actually loaded. Assert the linkage itself: a libgap mapped from
-# $SAGE_LOCAL, not one from /usr/lib.
 loaded_libgap = [
     line.split()[-1]
     for line in Path("/proc/self/maps").read_text().splitlines()
@@ -100,25 +77,7 @@ loaded_libgap = [
 assert loaded_libgap, "no libgap mapped into this process"
 assert all(path.startswith("/sage/.venv/lib/") for path in loaded_libgap), loaded_libgap
 
-# Exactly one GAP: the one built from the pinned source (sage#11, sage#26). What
-# sage#11 found was a *distribution* GAP -- Debian's 4.14, whose library libgap.so.11
-# reads and segfaults in DoOperation1Args -- so what is asserted here is what makes a
-# path a distribution GAP, not that the path exists:
-#
-#   * a Debian package installed it. `dpkg-query -S` answers that for a path, and the
-#     apt package list below answers it for the package database as a whole.
-#   * /usr/bin/gap is not this image's launcher. docker/gap-launcher.sh, whose body is
-#     `exec /sage/.venv/bin/gap "$@"`, is copied to /usr/local/bin/gap for anything
-#     whose PATH this image built, and to /usr/bin/gap for a process with no PATH at
-#     all: Python's own /bin:/usr/bin fallback is what `env -i`, and the probe below,
-#     resolve `gap` through (sage#24). A launcher starts the same Sage-owned binary as
-#     /sage/.venv/bin/gap, so it is not a second GAP -- and deleting it to satisfy this
-#     check takes sage#24's function away, which is what fc971cae did and sage#26
-#     restores.
 launcher_path = "/usr/bin/gap"
-# The rest of a distribution GAP's tree. The Sage-owned GAP's roots are under
-# /sage/.venv (kernel_info() reports them above), so a tree at any of these paths came
-# from somewhere else and is absent rather than merely unowned.
 debian_gap_tree = (
     "/usr/lib/gap",
     "/usr/share/gap",
@@ -146,11 +105,6 @@ apt_gap = sorted(
 assert not apt_gap, f"apt still carries GAP packages: {apt_gap}"
 for path in debian_gap_tree:
     assert not Path(path).exists(), f"{path} holds a GAP that is not the image's: {path}"
-# The check's own path: under $SAGE_BIN, __file__ is the sage runner's own
-# module (site-packages/sage/all.py), not this script's path, so the launcher
-# cannot be read relative to __file__ (image run 42948264723). sys.argv[0] is
-# the path the check was invoked as, which the sage runner forwards, so the
-# launcher is read from beside the check wherever the check is run from.
 launcher = Path(sys.argv[0]).resolve().with_name("gap-launcher.sh").read_bytes()
 assert Path(launcher_path).is_file(), (
     "/usr/bin/gap is missing: a process whose environment did not come from this image "
@@ -161,12 +115,6 @@ assert Path(launcher_path).read_bytes() == launcher, (
     f"{Path(launcher_path).read_text(errors='replace')[:120]!r}"
 )
 
-# The probe that found sage#11, and the reason the launcher is at /usr/bin/gap: an
-# emptied environment leaves PATH unset, so a bare `gap` resolves through Python's own
-# /bin:/usr/bin, and libgap is then initialised on whatever library that GAP reports.
-# It must succeed -- the version the source pins, the Sage-owned roots, arithmetic
-# through libgap -- because the launcher is always there: a traceback is a failure now,
-# and dying on a signal is the segfault sage#11 was.
 probe = subprocess.run(
     [
         sys.executable, "-c",
@@ -197,10 +145,6 @@ assert "/sage/.venv/share/gap/" in probed_roots, probed_roots
 assert probed_sum == "2", probed_sum
 print(f"kernel_info() under env -i: {probed_version} {probed_roots}; libgap.eval('1+1') = {probed_sum}")
 
-# A HOME past GAP's line width (sage#20, sage#27): the roots record GAP prints
-# is broken at the width, and the fix reads it across the break. The import of
-# the interface under that HOME is the acceptance: it succeeds on the image
-# that carries the fix, and dies at ValueError on one that ships the defect.
 long_home = "/workspace/nucleus/work/home" + "/pad" * 20
 long_probe = subprocess.run(
     [
@@ -222,10 +166,6 @@ print(f"import sage.interfaces.gap under a HOME past GAP's line width: ok; "
 
 assert libgap.eval("IsBound(RecognizeGroup)").sage() is True
 
-# The commit of each research repository this image installed
-# (docker/install-research-repositories.sh writes the file, resolved at each
-# repository's main head at build time -- sage#24). Printed here for the
-# consumer to read in the image; the file is the image's own record.
 research_revisions = Path("/sage/.research-revisions")
 assert research_revisions.is_file(), (
     "the image records no research revisions: /sage/.research-revisions is missing"
@@ -239,16 +179,6 @@ print("the research repositories this image installed, at their main heads (sage
 for line in revisions:
     print(f"  {line}")
 
-# ---- one libflint: python-flint and Sage in one process (sage#25) ----------
-# python-flint's wheel vendors its own libflint, and Sage loads the system one:
-# in one process that imports sage.all and then computes with fmpz_mat, the
-# vendored build's symbols bind to the other build's library and the
-# interpreter dies on SIGSEGV (lattice-database#29 found it in the published
-# image). The repair is one libflint: python-flint is built against the flint
-# Sage uses, which python-flint 0.9's build docs accept -- FLINT 3.0-3.6
-# (pypi.org/project/python-flint/0.9.0) -- so the venv's wheel is replaced by a
-# source build. The call of the issue, run in a fresh process, asserts its
-# result; and the process maps exactly one libflint.
 flint_probe = subprocess.run(
     [
         sys.executable, "-c",
@@ -280,18 +210,6 @@ assert len(mapped) == 1, (
 print(f"one libflint in the process: {mapped[0]}")
 print("fmpz_mat([[2,1],[1,2]]).det() after import sage.all: 3")
 
-# ---- one libflint: pynormaliz and Sage in one process (sage#31) -----------
-# pynormaliz's wheel vendors a Normaliz that vendors a libflint, and Sage loads
-# the system one: the defect class of sage#25, from a second wheel. The pin
-# that decides the repair: pynormaliz 2.24's own source refuses a Normaliz
-# older than 3.11.1 (NormalizModule.cpp asserts NMZ_RELEASE >= 31100) while
-# Debian trixie ships 3.10.4, so the image builds the Normaliz Sage's package
-# metadata pins (build/pkgs/normaliz) into the venv against the system flint,
-# and pynormaliz from source against it. Both engines compute the Hilbert
-# basis of a non-unimodular cone -- [[1,0],[1,2]], whose basis has a point
-# that is not a ray -- and must agree; and the same process maps exactly one
-# libflint. Unlike sage#25's call this one survives a defective image, so the
-# computing process reports its own maps.
 normaliz_probe = subprocess.run(
     [
         sys.executable, "-c",
@@ -321,26 +239,6 @@ assert len(mapped) == 1, (
 print(f"one libflint in the pynormaliz process: {mapped[0]}")
 print("PyNormaliz and Sage agree on the Hilbert basis of [[1,0],[1,2]]: (1,0), (1,1), (1,2)")
 
-# ---- cdd.gmp: the exact-rational pycddlib backend (sage#34) ----------------
-# sage-indefinite-port's facet-orbit route imports cdd.gmp (facet_orbits.py:154,
-# reached from lorentzian_cells.py), and this image's interpreter carried no
-# pycddlib at all: sage-extensions' run 43445243634, the O(T_Co) plane row of
-# sage-extensions#390, ended there with `ModuleNotFoundError: No module named
-# 'cdd'`. pycddlib is now a locked package of the research-environment group,
-# built from source (pyproject.toml's no-binary-package) against this image's
-# libcdd/libcddgmp. The import is only half of it: one source tree builds `cdd`,
-# which works in doubles, and `cdd.gmp`, which works in exact rationals, and the
-# port's route needs the second. Both are asserted, in a process that has
-# imported sage.all as the port's does, and the module is the venv's -- a
-# pycddlib anywhere else on sys.path is not this environment.
-#
-# Its GMP half is a system dependency, and that is what the rest of the stage
-# states (sage#41): `cdd.gmp` binds libcddgmp and libcdd, and the process must
-# carry one of each, from the image and not from a wheel's bundled copy -- the
-# defect class of sage#25's libflint and sage#31's Normaliz. They arrive with
-# Sage's own package metadata, which is why the source build links them: cddlib
-# is a standard package, so `sage-get-system-packages debian :standard:` installs
-# Debian's libcdd-dev into the image that builds this module.
 cdd_probe = subprocess.run(
     [
         sys.executable, "-c",
@@ -368,8 +266,6 @@ assert cdd_lines[0].startswith("/sage/.venv/"), (
     f"cdd.gmp is not the venv's module (sage#34): {cdd_lines[0]}"
 )
 mapped = cdd_lines[2:]
-# A vendored copy is mangled by its wheel (gmpy2's is libgmp-a6f47472.so.10.5.0),
-# so the libraries are told apart by substring, not by prefix.
 vendored = [path for path in mapped if "site-packages" in path]
 cdd_gmp_libs = [path for path in mapped if "libcddgmp" in path.rsplit("/", 1)[-1]]
 cdd_libs = []
@@ -393,24 +289,6 @@ print(f"cdd.gmp, pycddlib's exact-rational backend: {cdd_lines[0]}")
 print("the cone of [[1,0,0],[1,1,0],[1,0,1]] comes back as exact rationals")
 print(f"one libcdd and one libcddgmp, both the image's: {cdd_libs[0]} and {cdd_gmp_libs[0]}")
 
-# ---- one PARI: cypari2, Sage and the image in one process (sage#32) --------
-# The automorphism count of the ternary form x^2 + xy + y^2 + 9z^2 -- the call
-# sage-extensions' genus computation makes -- aborts in the published image:
-# PARI's stack exhausts itself at 8 GiB inside the system
-# libpari-gmp-tls.so.9 (qfauto -> lllgramint), called from cypari2, while the
-# same call outside the image returns 24 in 0.00 s (lattice-database run
-# 42948978339). Sage's own PARI instance caps its stack at 1 GiB, so the
-# failing half is not the one Sage configures. The repair is one PARI build
-# for cypari2, Sage and the image: the image builds PARI 2.17.4 -- the newest
-# release of the series Sage's tree pins (build/pkgs/pari holds 2.17.1, which
-# upstream no longer serves) -- into the venv, with the configure flags
-# Sage's own spkg-install passes; cypari2's build compiles against it through
-# its documented pari_prefix, which bakes the venv's library into the
-# extension's runtime path; and the one soname the series carries,
-# libpari-gmp-tls.so.9, resolves to the venv's copy for every process,
-# because the ldconfig order the GAP build set puts the venv's lib before the
-# multiarch directories. The call returns its order, and the process maps
-# exactly one libpari: the venv's.
 pari_probe = subprocess.run(
     [
         sys.executable, "-c",
@@ -447,11 +325,6 @@ assert mapped_pari[0].startswith("/sage/.venv/lib/"), (
 print(f"one PARI in the process: {mapped_pari[0]}")
 print("QuadraticForm(ZZ, 3, [1,1,0,1,0,9]).number_of_automorphisms(): 24")
 
-# A generated matrix subgroup over F_5, ordered by genss's stabilizer chain in
-# the matrix action rather than through a permutation representation. This is
-# capability evidence and not a certificate: the chain is Monte Carlo bounded by
-# ErrorBound, VerifyStabilizerChainMC has no method for a plain matrix group, and
-# nothing here claims that any degree-10 image order is exact or cheap.
 borel = libgap.function_factory(
     "function(d) local F, g, i, m; F := GF(5); g := []; "
     "for i in [1..d-1] do m := IdentityMat(d, F); m[i][i+1] := One(F); Add(g, m); od; "
@@ -464,20 +337,6 @@ gap_size = libgap.function_factory("Size")
 order = gap_size(stabilizer_chain(borel(4))).sage()
 assert order == 4 * 5**6, order
 
-# An ordinary call through the *external* GAP interface saves a workspace of
-# GAP's whole memory image and starts GAP from it on every call after that
-# (`SaveWorkspace`, then `gap -L <workspace>`).  Three properties are asserted
-# here, each of them wrong before sage#19:
-#
-# * the call works in an environment this image did not supply -- PATH without
-#   $SAGE_LOCAL/bin, a HOME outside the image -- which is what PRoot over the
-#   unpacked filesystem gives a process, and what made the interface stop with
-#   `FileNotFoundError: 'gap'`;
-# * the workspace's name is the GAP build's, not the caller's home, so a second
-#   HOME over one DOT_SAGE reuses it instead of writing a second 70 MB copy;
-# * on a filesystem with no room for another workspace, the workspaces of
-#   *other* builds are what the cache gives up, and the call still returns.  The
-#   threshold is raised rather than the disk filled.
 GAP_WORKSPACE_PROBE = r'''
 import os, sys
 import sage.interfaces.gap_workspace as gap_workspace
@@ -533,16 +392,6 @@ with tempfile.TemporaryDirectory() as launcher_environment:
         f"({third['workspace']})"
     )
 
-# `from sage.interfaces.gap import gap` asks kernel_info() for the GAP build at
-# import time -- the workspace is named after it -- and kernel_info() reads three
-# records out of `gap --systemfile kernel-info.g`.  GAP breaks a printed line
-# that reaches its line width and marks the break with a backslash, and the
-# third record (the roots) begins with `$HOME/.gap/`: a HOME long enough to make
-# GAP break that record used to stop the import with `ValueError: too many
-# values to unpack (expected 3)`, before any mathematics ran (sage#20).  The
-# records are read across the breaks now, so the length of HOME cannot decide
-# whether the interface imports.  The HOME is grown until GAP is measured
-# breaking the record, so the premise is asserted rather than assumed.
 GAP_IMPORT_PROBE = r'''
 from sage.interfaces.gap import gap
 print("order", gap.Order(gap.SymmetricGroup(4)))
@@ -565,8 +414,6 @@ with tempfile.TemporaryDirectory() as home_root:
         [sys.executable, "-c", GAP_IMPORT_PROBE],
         env={"HOME": str(long_home),
              "DOT_SAGE": str(Path(home_root, "dot-sage")),
-             # The image's own PATH: what is under test here is the length of
-             # HOME, not whether a launcher's PATH finds a `gap` (sage#19).
              "PATH": "/sage/.venv/bin:/usr/local/bin:/usr/bin:/bin"},
         capture_output=True, text=True, check=False,
     )
@@ -575,11 +422,6 @@ with tempfile.TemporaryDirectory() as home_root:
     print(f"the GAP interface imported with a {len(str(long_home))}-character HOME, "
           f"at which GAP breaks its roots record")
 
-# Maxima's package files are found through MAXIMA_PREFIX, and in a tree where
-# Maxima was staged into SAGE_LOCAL they live under it. A reconfigure must not
-# leave the prefix empty merely because the system ECL can already load
-# maxima.fas: sage.symbolic then dies in load(linearalgebra), which the
-# symbolic check below reproduces.
 import sage.env
 
 maxima_prefix = Path(sage.env.MAXIMA_PREFIX) if sage.env.MAXIMA_PREFIX else None
@@ -592,13 +434,6 @@ assert list(
 ), maxima_prefix
 assert str((var("x") + 1) ** 2) == "(x + 1)^2"
 
-# Both canonical-label backends return the same label for a relabelled copy of
-# a labelled graph, and the bliss automorphism search finishes.  A system
-# libbliss built with a different BigNum representation than its headers
-# segfaults on the first assertion, and one whose bliss::Stats is copied
-# instead of referenced aborts on a double free in the last: this image
-# installs that library, so its build has to link it the way the library's
-# pkg-config file asks.
 labelled = Graph([(0, 1, "a"), (2, 3, None), (1, 2, "a"), (3, 0, None)])
 relabelled = labelled.relabel({0: 2, 1: 0, 2: 3, 3: 1}, inplace=False)
 for algorithm in ("bliss", "sage"):
@@ -608,9 +443,6 @@ for algorithm in ("bliss", "sage"):
 assert Graph([[0, 1]]).canonical_label(edge_labels=True) == Graph([[0, 1]])
 assert graphs.PetersenGraph().automorphism_group().order() == 120
 
-# The research packages run from their checkouts under /repos. The homotopy
-# package is a compiled extension built from its checkout, so its module is in
-# site-packages.
 for module in (
     "dzack_research", "latticedb", "pandoc_config", "sage_categories", "sage_extensions",
     "sage_indefinite_port", "sage_julia_bridge", "sage_lsp", "tree_sitter_sage",
@@ -620,29 +452,6 @@ for module in (
     assert origin.startswith("/repos/"), (module, origin)
 importlib.import_module("sage_categories_homotopy")
 
-# The record: the revision of every research package this image actually carries.
-# A checkout installed editable answers from its git tree; a git wheel answers with
-# the commit_id in its direct_url.json. Neither is held to uv.lock: a research
-# package is installed from its /repos checkout at the main head the build resolved
-# (sage#24), so the lock's commit -- only where the last relock left it -- is not
-# the source of truth for its revision. Each checkout is held to the head the
-# install recorded in /sage/.research-revisions, one "<name> <commit>" per
-# repository -- the file the block above validates, and what a consumer reads in
-# the image -- and both revisions are printed, so a build log states them instead
-# of implying them.
-#
-# A git source of the lock is one of two things, and only the first is a research
-# checkout: a package installed from a repository of docker/research-repositories.txt
-# -- checked out under /repos and recorded in /sage/.research-revisions -- or a
-# dependency taken from a git URL outside that list, which no build checks out.
-# The list is the install's own input, so this block reads it instead of taking
-# every git source for a repository of the image: uv.lock's
-# microsoft-python-type-stubs (sage-stubs' declared test dependency, sage#37) is
-# at https://github.com/dzackgarza/python-type-stubs, and image run 43535626055
-# held it to a /repos checkout and a recorded head that no build writes, which
-# stopped the publish on a repository the image never carries. A dependency's
-# provenance is the commit uv.lock pins, which is what `uv sync --frozen`
-# installs it at.
 import json
 import tomllib
 from importlib.metadata import PackageNotFoundError, distribution
@@ -671,16 +480,9 @@ for package in sorted(lock["package"], key=lambda entry: entry["name"]):
         continue
     name = package["name"]
     observed = None
-    # Where a git source lives: its URL's path with the query dropped --
-    # sage-categories-homotopy is installed from a subdirectory of the
-    # sage-categories checkout, and its source URL carries that subdirectory as
-    # ?subdirectory=..., which is not part of any checkout's name -- and the
-    # checkout is named for the path's last segment.
     location = source.split("#", maxsplit=1)[0].split("?", maxsplit=1)[0].rstrip("/").removesuffix(".git")
     repository = location.rsplit("/", 1)[-1]
     if location not in research_locations:
-        # Not a repository of the image: nothing checks it out and the install
-        # records no head for it, so the lock's commit is what it must be.
         pinned = source.rsplit("#", 1)[-1]
         try:
             direct = distribution(name).read_text("direct_url.json")
@@ -721,12 +523,6 @@ for package in sorted(lock["package"], key=lambda entry: entry["name"]):
     assert observed == recorded, (name, observed, recorded)
 
 
-# sage-categories runs its finite-category engine on GAP releases allocated to its
-# own checkout: every consumer of a presented module fixes each package's path to
-# .gap/pkg before the first LoadPackage, so the image's GAP cannot substitute for
-# them. docker/install-research-repositories.sh runs the repository's own
-# .gap-packages.g, and the library's loader is the assertion -- one installation of
-# each exact version, loaded from that path.
 import ast
 import re
 
@@ -741,8 +537,6 @@ declared = re.search(
     re.DOTALL | re.MULTILINE,
 )
 assert declared is not None, "no `packages := [ ... ];` in .gap-packages.g"
-# That list is GAP syntax whose elements are plain string triples -- name, version,
-# release URL -- so it reads as a Python literal.
 pinned = tuple(
     GapPackage(name, version)
     for name, version, _url in ast.literal_eval(f"[{declared.group(1)}]")
@@ -750,20 +544,6 @@ pinned = tuple(
 assert len(pinned) == len({package.name for package in pinned}), pinned
 assert len(load_packages(pinned)) == len(pinned), len(pinned)
 
-# ---- the research repositories' test dependencies (sage#37)
-#
-# The test dependencies each research repository declares are in the venv, and
-# pytest loads them. They arrive the way every other Python package of
-# this image does: docker/research-test-dependencies.py reads each checkout's own
-# declaration into pyproject.toml's research-environment-tests group, uv.lock pins
-# that group, and research-environment-venv's `uv sync --frozen` installs it. What
-# this block asserts is the consumer's side of it -- the package a repository's
-# pytest configuration needs is present, at a version its declaration allows, and
-# registered with pytest -- because a plugin that is installed and not registered,
-# or not installed at all, is a `just test` that exits 4 before collection:
-# sage-extensions' addopts name `--timeout=60 --timeout-method=signal` and
-# `--report-log=...`, and pytest calls all three unrecognized arguments when
-# pytest-timeout and pytest-reportlog are absent.
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
@@ -786,9 +566,6 @@ for requirement in test_dependencies:
     )
 print(f"the research test dependencies: {len(test_dependencies)} installed")
 
-# A pytest plugin takes effect only through the entry point its distribution
-# declares in the `pytest11` group, so asking pytest which plugins it registers is
-# the difference between a package that is installed and one that is loaded.
 plugin_modules = {
     canonicalize_name(requirement.name): entry_point.value.split(":")[0].strip()
     for requirement in test_dependencies
@@ -802,8 +579,6 @@ with tempfile.TemporaryDirectory() as probe_directory:
         cwd=probe_directory, capture_output=True, text=True, check=False,
     )
 assert probe.returncode in (0, 5), (probe.returncode, probe.stdout[-2000:], probe.stderr[-2000:])
-# Each line is `PLUGIN registered: <module 'x.y' from '...'>`, or the same module
-# unquoted; the module's name is what the entry point declared.
 registered = set()
 for line in probe.stdout.splitlines():
     if line.startswith("PLUGIN registered: <module "):
@@ -818,11 +593,6 @@ unloaded = sorted(
 assert not unloaded, (unloaded, probe.stdout, probe.stderr)
 print(f"pytest loads {len(plugin_modules)} of them as plugins: {' '.join(sorted(plugin_modules))}")
 
-# The checkouts move at every build (sage#24) and a repository may declare a test
-# dependency the lock does not carry yet. That is a note, not a failure: the image's
-# environment is its lock, so the repair is a relock -- re-running the generator and
-# `uv lock`, which changes a build input rather than repairing a build -- while a
-# repository pushing a linter into its dev group must not stop this one publishing.
 import importlib.util
 
 generator = importlib.util.spec_from_file_location(
@@ -848,12 +618,7 @@ else:
             "(relock: docker/research-test-dependencies.py --write, then uv lock): "
             + " ".join(absent)
         )
-# ---- end: the research repositories' test dependencies
 
-# The canonical pair: the port reads sage-extensions, and nothing revives the
-# predecessor research library it used to read. A stale pair still loads, so
-# the requirement the port installs and the category it composes are both
-# checked, with one isometry and one group that exercise them.
 requirements = distribution_requires("sage-indefinite-port") or []
 assert any("sage-extensions" in line for line in requirements), requirements
 assert not any("research" in line for line in requirements), requirements
@@ -873,11 +638,6 @@ assert julia.sage("ZZ(2)^10") == 1024
 assert julia.eval("JSON.json((a=1,))") == '{"a":1}'
 julia.quit()
 
-# The bridge's worker project pins JSON and imports it in its first statement
-# (julia_bridge.jl:2). That package lives in /opt/julia-depot, so a host that
-# runs this filesystem without a container runtime -- and so without the
-# image's JULIA_DEPOT_PATH -- reaches it through /usr/local/bin/julia. This is
-# that host: the bridge, with the variable removed from the environment.
 without_depot = {name: value for name, value in os.environ.items() if name != "JULIA_DEPOT_PATH"}
 subprocess.run(
     [
@@ -890,19 +650,6 @@ subprocess.run(
     check=True,
 )
 
-# ---- the image's one shared Lean project (sage#13) ---------------------------
-# The image carries mathlib4 at the head of its master branch, on the toolchain
-# that revision pins, with its whole dependency closure built inside /opt/mathlib
-# and Mathlib's oleans from the official cache.
-# docker/provision-lean-packages.sh resolves that head on every build, compares it
-# with this record, and rebuilds the closure only when it moved; what this check
-# validates is the project the image carries -- and, since sage#13's acceptance
-# asks it, the Lean checkouts under /repos against that project: each one that
-# follows the image elaborates `import Mathlib` through its own Lake
-# environment here, and a checkout whose pin disagrees fails this check loudly,
-# naming the checkout and both revisions. Following the image is still filed in
-# the owning repositories (lean-categories#118, lean-cas-dsl#90); what this check
-# adds is the image's own half of that contract.
 import json
 
 unknown = [word for word in sys.argv[1:] if word.startswith("-")]
@@ -948,8 +695,6 @@ assert head == record["revision"], (
     head, record["revision"],
 )
 
-# The toolchain is the one that revision pins, and the image's own: there is no
-# second Mathlib and no second toolchain.
 pinned_toolchain = (project / "lean-toolchain").read_text(encoding="utf-8").strip()
 assert pinned_toolchain == record["toolchain"], (
     "the toolchain the recorded Mathlib revision pins is not the one the image records",
@@ -964,9 +709,6 @@ assert f'default_toolchain = "{record["toolchain"]}"' in settings.read_text(
     settings.read_text(encoding="utf-8").strip(), record["toolchain"],
 )
 
-# The closure, built once, in the one project: Mathlib's olean is there, and every
-# package the project's own manifest pins is a checkout at exactly that revision
-# with its build directory present.
 mathlib_olean = build_dir(project) / "Mathlib.olean"
 assert mathlib_olean.is_file(), (
     f"{project} carries no built Mathlib; docker/provision-lean-packages.sh did not finish"
@@ -990,8 +732,6 @@ print(
     f" closure built in {project}: {', '.join(sorted(closure))}"
 )
 
-# `lake env` is Lake itself answering, so the toolchain it reports is the one a
-# consumer's build would run on.
 lake_env_version = subprocess.run(
     ["lake", "env", "lean", "--version"], cwd=project, capture_output=True, text=True,
     check=True, timeout=900,
@@ -1000,9 +740,6 @@ expected_version = record["toolchain"].rsplit(":", 1)[-1].lstrip("v")
 assert expected_version in lake_env_version, (lake_env_version, record["toolchain"])
 print(f"lake env lean --version in {project}: {lake_env_version.splitlines()[0]}")
 
-# A build of Mathlib from the project itself: after provisioning this is a no-op,
-# and the assertion is that Lake finds the closure it was built with -- a project
-# whose oleans are there but whose closure is not stops here.
 built = subprocess.run(
     ["lake", "build", "Mathlib"], cwd=project, capture_output=True, text=True,
     check=False, timeout=3600,
@@ -1020,8 +757,6 @@ with tempfile.NamedTemporaryFile(
     handle.write("import Mathlib\n#check (Nat.add_comm : \u2200 a b : Nat, a + b = b + a)\n")
     import_file = handle.name
 try:
-    # The same import a consumer writes, elaborated through the image's own Lake
-    # environment rather than a LEAN_PATH assembled here.
     elaborated = subprocess.run(
         ["lake", "env", "lean", import_file], cwd=project,
         capture_output=True, text=True, check=True, timeout=1800,
@@ -1031,15 +766,6 @@ finally:
     Path(import_file).unlink()
 print(f"import Mathlib in {project}: {elaborated.splitlines()[-1]}")
 
-# ---- the Lean checkouts under /repos, resolved at the Mathlib the image carries (sage#13)
-# Each checkout's manifest is resolved by the image's own provisioning -- the
-# entries for mathlib and every package of the shared project's manifest are
-# set to the shared project's revisions, and the checkout's packages are the
-# shared project's built copies -- so the revision the image recorded is the
-# one each checkout resolves. What is asserted here is that the checkout
-# elaborates `import Mathlib` through its own Lake environment against that
-# Mathlib; a checkout that does not build against it fails here, loudly,
-# naming the checkout and the revision.
 image_revision = record["revision"]
 checkouts = [
     directory for directory in sorted(Path("/repos").iterdir())
@@ -1075,24 +801,29 @@ for directory in checkouts:
         Path(checkout_file).unlink()
     print(f"import Mathlib in {directory}: {elaborated.stdout.strip().splitlines()[-1]}")
 
-# ---- the document toolchain the project sites build with (sage#22) ----------
-# Both site builds outside the image install this at every run, so the image carries
-# it and a site build installs nothing: quarto, a full TeX Live, pdf2svg,
-# poppler-utils and node. Each is asserted by doing what the sites do with it -- a
-# document through TeX's own file lookup, a page through pdf2svg and poppler, the
-# version quarto reports -- and an absent one fails here, in the build, rather than
-# in a consumer's run.
 import shutil
 
-document_tools = ["quarto", "pdf2svg", "pdftoppm", "kpsewhich", "node", "lualatex"]
+document_tools = ["quarto", "pandoc", "pdf2svg", "pdftoppm", "kpsewhich", "node", "lualatex"]
 absent = [tool for tool in document_tools if shutil.which(tool) is None]
 assert not absent, f"the image carries no {absent}"
 
-# The TeX packages the two sites load, from the sources themselves: research's
-# docs.yml renders figures through the shared pandoc-config preamble
-# (styles/preambles/dzg-preamble.tex in dzackgarza/pandoc-config) and installs
-# luahyperbolic from CTAN, and new-qual-site's development.yml builds with
-# TeX Live's scheme-full. Each is asserted by kpsewhich finding it.
+pandoc_templates = Path("/repos/pandoc-config/templates")
+pandoc_scratch = Path(tempfile.mkdtemp(prefix="pandoc-template-"))
+(pandoc_scratch / "chapter.md").write_text("# A chapter\n\nThe form $x^2$.\n", encoding="utf-8")
+for template in ("uga-dissertation.tex", "research_draft.tex"):
+    rendered = subprocess.run(
+        ["pandoc", str(pandoc_scratch / "chapter.md"), "--to", "latex",
+         "--template", str(pandoc_templates / template), "-o", str(pandoc_scratch / template)],
+        capture_output=True, text=True, check=False,
+    )
+    assert rendered.returncode == 0, (
+        f"the pandoc on PATH cannot render pandoc-config's {template}", rendered.stderr,
+    )
+pandoc_version = subprocess.run(
+    ["pandoc", "--version"], capture_output=True, text=True, check=True,
+).stdout.splitlines()[0]
+print(f"{pandoc_version} renders pandoc-config's dissertation and draft templates")
+
 tex_packages = [
     "amsmath", "amsthm", "amssymb", "amsfonts", "mathtools", "mathrsfs",
     "bm", "esint", "stmaryrd", "bbm", "upgreek", "iftex", "fontenc",
@@ -1101,9 +832,6 @@ tex_packages = [
     "dynkin-diagrams", "quiver", "pgfplots", "luatex85", "luahyperbolic",
     "xy", "microtype", "hyperref", "bookmark", "enumitem",
     "standalone",
-    # research's dissertation compiles through pandoc-config's
-    # templates/uga-dissertation.tex and styles/dzg-dissertation.sty
-    # (dzackgarza/pandoc-config#15: a VM without ebgaramond stopped there).
     "ebgaramond", "geometry", "setspace", "nowidow", "sectsty", "appendix",
     "marginfix", "sidenotes", "ragged2e", "inputenc", "array", "biblatex",
     "booktabs", "caption", "cleveref", "csquotes", "float", "longtable",
@@ -1115,7 +843,6 @@ for package in tex_packages:
     ).stdout.strip()
     assert found, f"kpsewhich found no {package}.sty: the image does not carry it"
 
-# The TikZ libraries the same preamble loads.
 tikz_libraries = [
     "tikzlibrarycd.code.tex",
     "tikzlibraryfadings.code.tex",
@@ -1145,10 +872,6 @@ quarto_version = subprocess.run(
 assert quarto_version, "quarto --version printed nothing"
 print(f"quarto {quarto_version}")
 
-# Full TeX Live, not a subset: the package the issue names, and the files the sites'
-# figures load. `luahyperbolic.sty` is the one research's CI has to fetch from CTAN
-# because Ubuntu's TeX Live is older than the package; TeX Live 2025 has it, so a
-# full set in this image has it too.
 texlive = subprocess.run(
     ["dpkg-query", "-W", "-f=${Status}", "texlive-full"], capture_output=True, text=True, check=False,
 )
@@ -1171,11 +894,6 @@ lualatex_version = subprocess.run(
 assert "LuaHBTeX" in lualatex_version or "LuaTeX" in lualatex_version, lualatex_version
 print(f"texlive-full with {len(tex_files)} files the sites load, on {lualatex_version.splitlines()[0]}")
 
-# A page the way a site build makes one: quarto renders a one-page document with a
-# TikZ figure, pdf2svg turns the rendered page into the SVG a figure becomes, and
-# poppler makes its thumbnail. One command of each tool in the chain, on the same
-# page -- and a tool that is present but cannot do its work fails the build here,
-# in the image, rather than in a site build.
 render = Path(tempfile.mkdtemp(prefix="quarto-render-"))
 (render / "page.qmd").write_text(
     "---\n"

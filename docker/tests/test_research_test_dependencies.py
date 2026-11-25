@@ -55,8 +55,6 @@ https://github.com/dzackgarza/lean-categories
 """
 
 CHECKOUTS = {
-    # A `test` group: the suite's, and the linters the same project keeps in `dev`
-    # stay out of the image.
     "research": """[project]
 name = "dzack-research"
 version = "0.1.0"
@@ -65,8 +63,6 @@ version = "0.1.0"
 test = ["coverage>=7.10", "pytest-asyncio"]
 dev = ["mdformat>0.7", "ruff"]
 """,
-    # No `test` group: `dev` is where this repository puts its pytest plugins, and
-    # a URL for a package the image sources loses to the image's own source.
     "sage-extensions": """[project]
 name = "sage-extensions"
 version = "0.1.0"
@@ -77,10 +73,6 @@ dev = [
     "sage-stubs @ git+https://github.com/dzackgarza/sage-stubs.git@main",
 ]
 """,
-    # A `test` extra and a `test` group, a group included by another, and a URL for
-    # a package the image does not source -- which stays as declared. The inclusion
-    # is in the group: an extra holds requirements, and PEP 735's `include-group`
-    # is a dependency group's entry only.
     "jupyter-mcp-server": """[project]
 name = "jupyter-mcp-server"
 version = "0.1.0"
@@ -94,7 +86,6 @@ test = [
 test = [{ include-group = "unit" }]
 unit = ["pytest-cov>=7.0"]
 """,
-    # Two repositories declaring one requirement: both specifiers hold at once.
     "lattice-database": """[project]
 name = "latticedb"
 version = "0.1.0"
@@ -102,7 +93,6 @@ version = "0.1.0"
 [dependency-groups]
 dev = ["pytest>=9.1,<10", "types-PyYAML>=6"]
 """,
-    # A Lean repository with no pyproject.toml declares nothing and is skipped.
 }
 
 EXPECTED = [
@@ -188,7 +178,6 @@ def test_the_block_is_written_into_the_dependency_groups_table(tree):
     text = (image / "pyproject.toml").read_text(encoding="utf-8")
     document = tomllib.loads(text)
     assert document["dependency-groups"][GROUP] == EXPECTED
-    # Not after [tool.uv.sources]: a key there is a source, not a group.
     assert text.index(GROUP) < text.index("[tool.uv.sources]"), text
     assert re.search(rf"{GROUP} = \[\n(  \".*\",\n)+\]", text), text
 
@@ -247,23 +236,15 @@ def test_the_venv_recipe_syncs_the_generated_group():
     import re
 
     justfile = (REPOSITORY / "justfile").read_text(encoding="utf-8")
-    # The recipe's body: everything after its name, up to the next recipe, which
-    # is the next line that starts in the first column.
     recipe = re.split(r"\n(?=\S)", justfile.split("research-environment-venv:", 1)[1])[0]
     assert f"--group {GROUP}" in recipe, recipe
 
 
-# ---- the check's own block, out of the real file -------------------------------
 
 CHECK = REPOSITORY / "docker" / "research-environment-check.py"
-BLOCK_START = "# ---- the research repositories' test dependencies (sage#37)"
-BLOCK_END = "# ---- end: the research repositories' test dependencies"
+BLOCK_START = "from packaging.requirements import Requirement"
+BLOCK_NEXT = '\nrequirements = distribution_requires("sage-indefinite-port")'
 
-# What the block imports from the check's earlier lines, and what it asks the
-# environment: a distribution's version and its entry points, and pytest's own
-# report of the plugins it registered. Both are substituted -- the test says which
-# packages exist and which plugins pytest loads -- and nothing else is simulated:
-# the block runs out of the file, with the image's paths pointed at a fixture.
 PRELUDE = '''
 import subprocess
 import sys
@@ -306,8 +287,6 @@ def run(arguments, **options):
     ))
 '''.lstrip("\n").replace("subprocess.run", "x")
 
-# The pytest probe is what the block calls; `run` stands in for it, and the
-# substitution is made explicit here rather than hidden in the prelude.
 PROBE_STUB = "subprocess.run = run\n"
 
 GROUP_FIXTURE = '''[project]
@@ -339,7 +318,7 @@ INSTALLED_FIXTURE = (
 def check_block() -> str:
     """The check's test-dependency block, as the image runs it."""
     text = CHECK.read_text(encoding="utf-8")
-    block = text[text.index(BLOCK_START):text.index(BLOCK_END) + len(BLOCK_END)]
+    block = text[text.index(BLOCK_START):text.index(BLOCK_NEXT)]
     assert "research-environment-tests" in block, block[:200]
     return block
 

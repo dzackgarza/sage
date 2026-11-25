@@ -38,8 +38,8 @@ import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 CHECK = REPOSITORY / "docker" / "research-environment-check.py"
-BLOCK_START = "# ---- the image's one shared Lean project (sage#13)"
-BLOCK_NEXT = "# ---- the document toolchain the project sites build with (sage#22)"
+BLOCK_START = 'import json\n\nunknown = [word for word in sys.argv[1:] if word.startswith("-")]'
+BLOCK_NEXT = "import shutil\n\ndocument_tools = ["
 SANDBOX_PYTHON = "/usr/bin/python3"
 TOOLCHAIN = "leanprover/lean4:v4.36.0-rc2"
 BOUND = 120

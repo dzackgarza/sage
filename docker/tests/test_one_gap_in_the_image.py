@@ -49,8 +49,8 @@ CHECK = DOCKER / "research-environment-check.py"
 LAUNCHER = DOCKER / "gap-launcher.sh"
 
 REMOVAL_START = 'RUN purged="$(dpkg-query'
-CHECK_BLOCK_START = "# Exactly one GAP: the one built from the pinned source"
-CHECK_BLOCK_END = "# The probe that found sage#11"
+CHECK_BLOCK_START = 'launcher_path = "/usr/bin/gap"'
+CHECK_BLOCK_END = "\nprobe = subprocess.run("
 LAUNCHER_PATH = "/usr/bin/gap"
 
 
@@ -76,7 +76,6 @@ def copy_destinations(path: Path) -> list[str]:
         word = instruction.split(maxsplit=1)
         if word[0].upper() not in ("COPY", "ADD"):
             continue
-        # --from=..., --chmod=..., then the sources, then the destination.
         arguments = [item for item in word[1].split() if not item.startswith("--")]
         destinations.append(arguments[-1])
     return destinations
@@ -121,7 +120,7 @@ def check_gap_block(root: Path) -> str:
     return block.replace("/usr/", f"{root}/usr/")
 
 
-WALK_START = "# Every `gap` on the default PATH, not only the first `which` returns"
+WALK_START = 'launcher_bytes = Path(sys.argv[0]).resolve().with_name("gap-launcher.sh").read_bytes()'
 WALK_NEXT = "gap_version, gap_arch, gap_roots = kernel_info()"
 
 
@@ -138,7 +137,7 @@ def walk(root: Path, monkeypatch, **namespace) -> None:
     monkeypatch.setattr(sys, "argv", [str(CHECK)])
     every = {"__file__": str(CHECK), "Path": Path, "os": os, "sys": sys}
     every.update(namespace)
-    exec(compile(walk_block(root), "<check-walk>", "exec"), every)  # noqa: S102
+    exec(compile(walk_block(root), "<check-walk>", "exec"), every)
 
 
 def check_tree_paths() -> list[str]:
@@ -225,7 +224,7 @@ def run_check_gap(root: Path, stubs: Path, monkeypatch, **environment: str) -> N
         monkeypatch.setenv(name, value)
     monkeypatch.setattr(sys, "argv", [str(CHECK)])
     namespace = {"__file__": str(CHECK), "Path": Path, "subprocess": subprocess, "sys": sys}
-    exec(compile(check_gap_block(root), "<check-gap>", "exec"), namespace)  # noqa: S102
+    exec(compile(check_gap_block(root), "<check-gap>", "exec"), namespace)
 
 
 def run_removal(root: Path, stubs: Path, **environment: str) -> subprocess.CompletedProcess:
@@ -314,7 +313,6 @@ def test_the_removal_layer_takes_a_debian_gap(tmp_path) -> None:
     assert result.returncode == 0, (result.stdout, result.stderr)
     assert result.stdout.startswith("purging the distribution GAP: gap-core"), result.stdout
     assert not [path for path in removal_paths() if (root / path.lstrip("/")).exists()]
-    # /usr/bin/gap goes too: the COPY in the Dockerfile writes this tree's launcher.
     assert not (root / LAUNCHER_PATH.lstrip("/")).exists()
 
 
@@ -329,7 +327,6 @@ def test_the_layer_stops_when_the_purge_fails(tmp_path) -> None:
 def test_the_layer_stops_when_a_path_survives(tmp_path) -> None:
     """A removal that did not take is a failed layer, with the path named."""
     root, stubs = fake_root(tmp_path, {"/usr/lib/gap": b""})
-    # rm that removes nothing: a path the layer cannot delete.
     stub(stubs, "rm", "import sys\nprint('rm did not run', file=sys.stderr)\n")
     result = run_removal(root, stubs)
     assert result.returncode != 0, (result.stdout, result.stderr)

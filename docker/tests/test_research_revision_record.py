@@ -55,14 +55,11 @@ import pytest
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 CHECK = REPOSITORY / "docker" / "research-environment-check.py"
-BLOCK_START = "# The record: the revision of every research package this image actually carries."
-BLOCK_NEXT = "# sage-categories runs its finite-category engine on GAP releases allocated to"
+BLOCK_START = "import json\nimport tomllib\nfrom importlib.metadata import PackageNotFoundError, distribution\n"
+BLOCK_NEXT = "\nimport ast\nimport re\n"
 SANDBOX_PYTHON = "/usr/bin/python3"
 BOUND = 120
 
-# A dependency the image installs from a git URL that is not one of its research
-# repositories: uv.lock carries it, no build checks it out under /repos, and
-# /sage/.research-revisions records no head for it (sage#37).
 STUBS_URL = "https://github.com/dzackgarza/python-type-stubs"
 STUBS_PINNED = "f7474b297f8764ad96db2e0ce9c0a7bd27fd8d59"
 
