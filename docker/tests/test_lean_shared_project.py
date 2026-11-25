@@ -212,3 +212,20 @@ def test_a_project_without_its_olean_is_a_failed_image(image):
     result = image.run()
     assert result.returncode == 1
     assert "carries no built Mathlib" in result.stderr, result.stderr
+
+
+def test_a_bound_checkout_runs_on_the_toolchain_of_the_shared_project(image):
+    """A checkout bound to the shared oleans reads them with the Lean that wrote them (sage#42).
+
+    Lean refuses an .olean written by another release ("failed to read file
+    '.../Mathlib.olean', incompatible header"), and elan selects the release a
+    checkout's lean-toolchain names. Mathlib's own guide for a dependent project
+    sets that file to Mathlib's lean-toolchain; the binding does the same.
+    """
+    repository = image.checkout(
+        "lean-cas-dsl", {"mathlib": image.revision},
+        toolchain="leanprover/lean4:v4.35.0",
+    )
+    result = image.run()
+    assert result.returncode == 0, result.stderr
+    assert (repository / "lean-toolchain").read_text(encoding="utf-8").strip() == TOOLCHAIN
