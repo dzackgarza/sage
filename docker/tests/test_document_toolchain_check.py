@@ -133,6 +133,13 @@ def test_a_tex_file_texlive_cannot_find_fails_the_check(tmp_path):
     assert "luahyperbolic.sty" in result.stderr
 
 
+def test_an_image_without_the_dissertation_font_fails_the_check(tmp_path):
+    """research's dissertation template loads ebgaramond (dzackgarza/pandoc-config#15)."""
+    result = run_block(tmp_path, stubs_for(tmp_path, no_tex=("ebgaramond.sty",)))
+    assert result.returncode != 0, result.stdout
+    assert "ebgaramond.sty" in result.stderr, result.stderr
+
+
 def test_pdf2svg_must_render_the_page(tmp_path):
     """Presence is not enough: a binary whose library is missing must not pass."""
     result = run_block(tmp_path, stubs_for(tmp_path, pdf2svg_breaks=True))
