@@ -1101,6 +1101,13 @@ tex_packages = [
     "dynkin-diagrams", "quiver", "pgfplots", "luatex85", "luahyperbolic",
     "xy", "microtype", "hyperref", "bookmark", "enumitem",
     "standalone",
+    # research's dissertation compiles through pandoc-config's
+    # templates/uga-dissertation.tex and styles/dzg-dissertation.sty
+    # (dzackgarza/pandoc-config#15: a VM without ebgaramond stopped there).
+    "ebgaramond", "geometry", "setspace", "nowidow", "sectsty", "appendix",
+    "marginfix", "sidenotes", "ragged2e", "inputenc", "array", "biblatex",
+    "booktabs", "caption", "cleveref", "csquotes", "float", "longtable",
+    "tabularx", "todonotes", "xspace",
 ]
 for package in tex_packages:
     found = subprocess.run(
