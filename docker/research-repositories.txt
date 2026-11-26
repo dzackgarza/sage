@@ -1,8 +1,3 @@
-# Every research repository the environment carries as a git checkout under
-# /repos, one GitHub URL per line. A repository that is also a git source of
-# the research-environment lock is checked out at the locked commit and its
-# locked packages are installed from it; the others are checked out at their
-# default branch's head.
 https://github.com/dzackgarza/jupyter-mcp-server
 https://github.com/dzackgarza/lattice-database
 https://github.com/dzackgarza/lattice-research
@@ -15,6 +10,7 @@ https://github.com/dzackgarza/lean-jupyter-kernel
 https://github.com/dzackgarza/pandoc-config
 https://github.com/dzackgarza/polyhedral_common
 https://github.com/dzackgarza/prove2me_workspace
+https://github.com/dzackgarza/python-type-stubs
 https://github.com/dzackgarza/research
 https://github.com/dzackgarza/research-computational
 https://github.com/dzackgarza/sage-categories

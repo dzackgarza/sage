@@ -483,6 +483,11 @@ for package in sorted(lock["package"], key=lambda entry: entry["name"]):
     location = source.split("#", maxsplit=1)[0].split("?", maxsplit=1)[0].rstrip("/").removesuffix(".git")
     repository = location.rsplit("/", 1)[-1]
     if location not in research_locations:
+        assert not location.startswith("https://github.com/dzackgarza/"), (
+            f"dependency {name}: {location} is a repository of the owner, which the image takes "
+            f"at the head of its main branch; {research_list} does not name it, so the image "
+            "installs it at the commit of uv.lock"
+        )
         pinned = source.rsplit("#", 1)[-1]
         try:
             direct = distribution(name).read_text("direct_url.json")

@@ -63,11 +63,8 @@ jobs:
       with:
         ref: ${{ github.event_name == 'push' && github.sha || 'develop' }}
         path: sage-source
-          # /sage is the fork's working checkout in the image: full history,
-          # contents fetched on demand.
         fetch-depth: 0
         filter: blob:none
-          # .git goes into the image, so the token stays out of its config.
         persist-credentials: false
     - name: Check out the exact maintained Sage PR revision
       if: inputs.sage_source_sha != ''
@@ -205,15 +202,6 @@ jobs:
         file: sage-source/docker/research-environment${{ 
           steps.build-kind.outputs.kind == 'incremental' && '-incremental' || ''
           }}.Dockerfile
-          # zstd over gzip for the whole image, and OCI media types because Docker's
-          # schema 2 has no zstd layer type. force-compression recompresses the
-          # layers the registry cache serves, so a full build whose steps are cache
-          # hits republishes them as zstd instead of reusing their gzip blobs. The
-          # runner reads them: its daemon is Docker 28, whose legacy overlay2 store
-          # accepts any `application/vnd.oci.image.*` layer type and decompresses
-          # zstd by magic number (`archive.DecompressStream`). zstd is a lever
-          # because the pull is dominated by one 11.4 GiB layer, and it both
-          # transfers less and decompresses several times faster than gzip.
         build-args: |
           BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/sage:develop
           MATHLIB_REVISION=${{ steps.mathlib.outputs.revision }}
@@ -279,8 +267,6 @@ jobs:
         checkout=/repos/sage-extensions
         test -d "${checkout}/tests/lattices"
         git -C "${checkout}" rev-parse HEAD
-        # The recipe reads the QC plugins and sage.just from ~/ai-review-ci, which the
-        # desk has there and this job has at its checkout of that repository.
         mkdir -p "${HOME}"
         ln -sfn "${GITHUB_WORKSPACE}/.qc-infra" "${HOME}/ai-review-ci"
         cd "${checkout}"
@@ -310,7 +296,7 @@ jobs:
     - name: Construct T_Co and compute its O(T_Co) generators
       run: |
         /sage/.venv/bin/python - <<'PY'
-        import json, subprocess, time, tomllib
+        import json, subprocess, time
         from importlib.metadata import distribution
         from pathlib import Path
         from sage.all import CartanMatrix, ZZ, block_diagonal_matrix, matrix
@@ -329,17 +315,6 @@ jobs:
 
 
         def head(checkout):
-            """The checkout's revision and git's stderr, or None.
-
-            `safe.directory` is stated for the path being read, and it is a trust decision this
-            job is entitled to make: the checkout is the job's own, created by its runner minutes
-            earlier. The **hypothesis** for the 128 in run 42379122786 is ownership: the log shows
-            the runner adding `safe.directory /__w/sage/sage` on the host and creating that
-            workspace `.git` there, while `git -C /repos/...` succeeds in the same container. The
-            run's stderr was never captured, so that is a hypothesis and not a finding. Stating
-            the directory is not a skipped check: the revision is still read and still verified
-            below, and an unreadable one still fails the step, printing git's words.
-            """
             finished = subprocess.run(
                 ["git", "-c", f"safe.directory={checkout}", "-C", str(checkout), "rev-parse", "HEAD"],
                 capture_output=True, text=True, check=False,
@@ -350,33 +325,21 @@ jobs:
             return finished.stdout.strip(), stderr
 
 
-        held = {
-            package["name"]: package["source"]["git"].rsplit("#", 1)[-1]
-            for package in tomllib.load(open("/sage/uv.lock", "rb"))["package"]
-            if isinstance(package.get("source"), dict) and isinstance(package["source"].get("git"), str)
-        }
+        held = dict(
+            line.split(" ", 1)
+            for line in Path("/sage/.research-revisions").read_text(encoding="utf-8").strip().splitlines()
+        )
 
-        # An editable install's direct_url.json carries no vcs_info, so its commit_id reads
-        # None and says nothing about what ran -- both are printed below because the record
-        # needs the reader to see that. The revision that ran is the checkout the imported
-        # module lives in, held against the image's own lock (not the caller's): the port
-        # whose generator call this step asserts, and the provider it declares in
-        # pyproject.toml's dependency-metadata, sage-extensions.
-        # Two boundaries, two observations, and neither stands in for the other: the image's own
-        # copy (what the image ships, held to its lock) and the checkout the import actually came
-        # from (what this job installed). The step above installs the workflow's sage-extensions
-        # checkout editable, so for that package they are different trees.
         for name, module in (("sage-indefinite-port", sage_indefinite_port), ("sage-extensions", sage_extensions)):
             raw = distribution(name).read_text("direct_url.json")
             print(f"{name}: direct_url.json commit_id {json.loads(raw).get('vcs_info', {}).get('commit_id') if raw else None}")
             shipped = Path("/repos") / name
-            # Required, not conditional. A checkout that is not there is a failed obligation, and
-            # no path through this block may end without the image's revision read and asserted.
             assert shipped.is_dir(), f"{name}: the image ships no checkout at {shipped}"
+            assert name in held, f"{name}: /sage/.research-revisions records no head for it"
             found, complaint = head(shipped)
             assert found is not None, f"{name}: the image's {shipped} is unreadable: {complaint}"
-            print(f"{name}: image checkout {shipped} at {found}, held {held[name]}")
-            assert found == held[name], f"{name}: the image's checkout is {found}, the lock holds {held[name]}"
+            print(f"{name}: image checkout {shipped} at {found}, installed head {held[name]}")
+            assert found == held[name], f"{name}: the image's checkout is {found}, the installed head is {held[name]}"
             print(f"{name}: imported from {module.__file__}")
             checkout = checkout_of(module)
             assert checkout is not None, f"{name}: no checkout holds {module.__file__}"
@@ -388,11 +351,6 @@ jobs:
                 print(f"{name}: the import is the consumer checkout {checkout} at {found}")
 
         PY
-        # The generator call is a statement about the image's own components, so it runs where
-        # those are the imports. The step above installs the workflow's sage-extensions checkout
-        # editable for the separate owner-contract observation, and in run 42379122786 that
-        # shadowed the image's provider: `sage_extensions` resolved to /__w/sage/sage/src/... The
-        # path is therefore set here, and the imports are asserted rather than assumed.
         PYTHONPATH="/repos/sage-extensions/src:/repos/sage-indefinite-port/src${PYTHONPATH:+:$PYTHONPATH}" \
           /sage/.venv/bin/python - <<'COMPUTE'
         import time
@@ -410,7 +368,6 @@ jobs:
             )
             print(f"{module.__name__}: {path}")
 
-        # T_Co = <2> + U(2) + E8(2): rank 11, determinant -2048, signature (2, 9).
         U = matrix(ZZ, [[0, 1], [1, 0]])
         E8 = -CartanMatrix(["E", 8])
         gram = block_diagonal_matrix(matrix(ZZ, [[2]]), 2 * U, 2 * E8)
@@ -436,9 +393,6 @@ jobs:
         checkout=/repos/sage-extensions
         test -d "${checkout}/tests/lattices"
         git -C "${checkout}" rev-parse HEAD
-        # sage#40: `-o addopts=` drops the consumer's own --junit-xml and --report-log, so they
-        # are named here, in the consumer's report folder that the job uploads, under names the
-        # `just test` step above does not use (both records then travel, not the later one).
         report="${checkout}/tests/.report"
         mkdir -p "${report}"
         /sage/.venv/bin/python -m pytest -o addopts= \
@@ -511,12 +465,6 @@ jobs:
         checkout=/repos/lattice-database
         git -C "${checkout}" rev-parse HEAD
         set +e
-        # `--root` is not optional here. The CLI's root defaults to `Path()`, the process's
-        # working directory, and this step runs in the job's workspace -- a sage-extensions
-        # checkout -- so `corpus.load` looks for `families.yaml` there and dies before any
-        # computation (run 42362483952, 12:28:20Z: `FileNotFoundError: [Errno 2] No such file
-        # or directory: 'families.yaml'`, exit 1, no card diff, no certificate written). The
-        # corpus is the lattice-database checkout, wherever the step happens to stand.
         PYTHONPATH="/repos/research/src:${checkout}/src" \
           /sage/.venv/bin/python -m latticedb certify --tag 6JRR --minutes 20 \
           --root "${checkout}" \
@@ -605,10 +553,6 @@ jobs:
         checkout=/repos/research
         git -C "${checkout}" rev-parse HEAD
         status=0
-        # coble_I18_vinberg-chamber is the stage-2 record: Vinberg's algorithm on
-        # I_{1,8} with candidates k_0 >= 1, nine walls, and its printed Gram matrix is
-        # the comparison target -- the whole post-provenance body is compared, as for
-        # the stage-1 records.
         for record in coble_isotropic_orbits coble_plane-half-f2 coble_I18_vinberg-chamber; do
           script="${checkout}/computations/reports/${record}.py"
           expected="${checkout}/computations/reports/${record}-run.txt"
@@ -628,15 +572,6 @@ jobs:
 
         expected_path, actual_path, name = sys.argv[1:4]
 
-        # Several records print the wall-clock cost of a step beside its result, and a rerun
-        # changes it: on coble_plane-half-f2 three trailing `(152 s)` annotations moved while
-        # every mathematical value matched, and the comparison reported the second run's timing
-        # as a defect in the first (sage#16). Two forms occur across the compared records and
-        # both are elapsed time rather than mathematics -- a trailing `(152 s)`, and prose such
-        # as `materialised in 29.8s` or `built in 295 s`, which run 42362483952 moved on
-        # coble_isotropic_orbits. Both are removed before the lines are compared and printed
-        # separately as diagnostics. Nothing else is relaxed: every other character is still
-        # compared, and a changed mathematical value fails the step with its diff.
         TIMING = re.compile(r"\s*\(\s*\d+(?:\.\d+)?\s*s\s*\)")
         INLINE_TIMING = re.compile(r"\bin \d+(?:\.\d+)?\s*s\b")
 
@@ -715,15 +650,6 @@ jobs:
 
         expected_path, actual_path, name = sys.argv[1:4]
 
-        # Several records print the wall-clock cost of a step beside its result, and a rerun
-        # changes it: on coble_plane-half-f2 three trailing `(152 s)` annotations moved while
-        # every mathematical value matched, and the comparison reported the second run's timing
-        # as a defect in the first (sage#16). Two forms occur across the compared records and
-        # both are elapsed time rather than mathematics -- a trailing `(152 s)`, and prose such
-        # as `materialised in 29.8s` or `built in 295 s`, which run 42362483952 moved on
-        # coble_isotropic_orbits. Both are removed before the lines are compared and printed
-        # separately as diagnostics. Nothing else is relaxed: every other character is still
-        # compared, and a changed mathematical value fails the step with its diff.
         TIMING = re.compile(r"\s*\(\s*\d+(?:\.\d+)?\s*s\s*\)")
         INLINE_TIMING = re.compile(r"\bin \d+(?:\.\d+)?\s*s\b")
 
@@ -848,8 +774,6 @@ jobs:
         module="${checkout}/tests/lattices/test_lattice_database_owner_contracts.sage"
         test -f "${module}"
         /sage/.venv/bin/python -c 'import sage_extensions, sage_julia_bridge; print(sage_extensions.__file__); print(sage_julia_bridge.__file__)'
-        # sage#40: as above, `-o addopts=` drops the consumer's own report options; this run's
-        # per-test durations reach the job's report artifact through these two.
         report="${checkout}/tests/.report"
         mkdir -p "${report}"
         set +e
@@ -908,22 +832,11 @@ jobs:
         "$SAGE_BIN" --version
     - name: Read the I_{1,8} chamber with CoxIter
       run: |
-        # -e matters here: the acceptance below is a Python assertion, and without it a failing
-        # comparison would fall through to the greps and the closing echo and leave the step green.
         set -euo pipefail
         record=/repos/research/computations/reports/coble_I18_vinberg-chamber-run.txt
         test -f "${record}"
         coxiter="$(command -v coxiter)"
         echo "coxiter: ${coxiter}"
-        # CoxIter reads a graph file: digits on the first line are the vertex count, then one
-        # `<a> <b> <order>` per edge. A research record is neither: in run 42362483952 the file
-        # was handed over as it stands, CoxIter took the digits of its opening root line as a
-        # vertex count and reported an eight-vertex simplex with Euler characteristic 1/256 --
-        # exit 0, and no reading of the chamber. Changing that one number in the record to 11 and
-        # nothing else makes CoxIter report eleven vertices and 1/2048, which is the parser path
-        # rather than a guess from the count. The record does state the graph explicitly, in
-        # "walls: 9", the "edges (i, j, label)" list and its "label counts"; those are what the
-        # graph below is built from, and what the reading is checked against.
         graph="$(mktemp)"
         /sage/.venv/bin/python - "${record}" "${graph}" <<'GRAPH'
         import ast
@@ -949,23 +862,12 @@ jobs:
         GRAPH
         echo "--- the graph handed to CoxIter"
         cat "${graph}"
-        # The engine's own verdict -- cocompactness, covolume, the characteristic -- is evidence,
-        # not a gate, so this one invocation is allowed to report a non-zero status.
         set +e
         "${coxiter}" -v < "${graph}" > /tmp/coxiter-I18.out 2>&1
         verdict_status=$?
         set -e
         echo "coxiter exited ${verdict_status} (its verdict is evidence, not a gate)"
         cat /tmp/coxiter-I18.out
-        # Acceptance is the reading, not the exit status: the graph read must be the nine-wall
-        # chamber this record states. CoxIter's verdict on it stays evidence, not a gate.
-        # The labelled adjacencies are compared, not counted. CoxIter's `-pcm` prints the Coxeter
-        # matrix it parsed -- its own representation of the graph, m_ij being 2 where there is
-        # no edge -- and that matrix is held to the one the record's edge list defines, entry by
-        # entry. A vertex count and a field of definition cannot do this: a different graph can
-        # have both.
-        # This one feeds the acceptance: the engine must print a matrix for the graph it was
-        # given, and a non-zero status here is an input failure that must fail the step.
         "${coxiter}" -pcm < "${graph}" > /tmp/coxiter-I18-matrix.out 2>&1
         cat /tmp/coxiter-I18-matrix.out
         /sage/.venv/bin/python - "${record}" /tmp/coxiter-I18-matrix.out ./coxiter-matrix.checked <<'MATRIX'
@@ -1082,7 +984,6 @@ jobs:
         IMAGE: ghcr.io/${{ github.repository_owner }}/sage:zstd-probe
       run: |
         set -eu
-        # The digest a runner would pull, and the compression it would meet.
         digest="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "${IMAGE}")"
         echo "manifest ${digest}"
         docker buildx imagetools inspect --raw "${IMAGE}@${digest}" | tr ',' '\n' | grep -E 'mediaType|"size"'

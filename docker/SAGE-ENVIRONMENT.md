@@ -161,11 +161,28 @@ The research checkouts are at the head of each repository's main branch, not
 at the commit `uv.lock` holds (`#24`): every build resolves them at build
 time. The image records the commit of each repository it installed in
 `/sage/.research-revisions` — one `<name> <commit>` per line — so a consumer
-can read, in the image, the revision it is running. A git source of the lock
-that is not a repository of `docker/research-repositories.txt` is a dependency
-rather than a checkout: `microsoft-python-type-stubs` is installed from its URL,
-no build records a head for it, and the image check holds it to the commit the
-lock pins (`#37`).
+can read, in the image, the revision it is running.
+
+`docker/research-repositories.txt` names, one GitHub URL per line, each
+repository the image checks out under `/repos`. Each repository of
+`github.com/dzackgarza` that `uv.lock` sources is in that list, so the image
+takes it at the head of its main branch and installs its packages editable from
+the checkout; the image check fails on a source of that owner that the list does
+not name. A git source of another owner is a dependency rather than a checkout:
+it is installed from its URL, no build records a head for it, and the image
+check holds it to the commit the lock pins (`#37`).
+
+The `consumer-mathematics` job of the image workflow holds the image's checkouts
+of `sage-indefinite-port` and `sage-extensions` to the heads in
+`/sage/.research-revisions`. It then reads the checkout that each import comes
+from: the job installs its own `sage-extensions` checkout editable, so that
+package has two trees, the image's copy and the job's, and neither stands in for
+the other. An editable install's `direct_url.json` has no `vcs_info`, so its
+`commit_id` reads `None`; the job prints it beside the checkout revision. The
+generator computation then runs with `PYTHONPATH` set to the image's checkouts:
+in run 42379122786 the job's editable install shadowed the image's provider.
+`git rev-parse` there states `safe.directory` for the path it reads, because the
+runner creates the workspace `.git` with another owner.
 
 A research checkout's suite runs with the test tooling that repository declares,
 and the image is where that declaration is read. Each repository of
@@ -479,3 +496,20 @@ job's log states as a warning. This downloads the report folder of one job:
 ```sh
 gh run download <run> -n consumer-report-consumer-contracts
 ```
+
+## Why the image workflow steps are as they are
+
+`.github/workflows/research-environment-image.yml` keeps no comments. The reasons
+for its steps are here, keyed by step name.
+
+| Step | Reason |
+| --- | --- |
+| Check out the complete Sage build context | `/sage` is the working checkout of the fork in the image: full history, contents fetched on demand (`fetch-depth: 0`, `filter: blob:none`). `.git` goes into the image, so `persist-credentials: false` keeps the token out of its config. |
+| Build and publish the selected Sage image | The output is zstd with OCI media types, because the schema 2 of Docker has no zstd layer type. `force-compression` recompresses the layers that the registry cache serves, so a build whose steps are cache hits republishes them as zstd and does not reuse their gzip blobs. The runner daemon (Docker 28, legacy overlay2 store) accepts each `application/vnd.oci.image.*` layer type and decompresses zstd by magic number (`archive.DecompressStream`). One 11.4 GiB layer dominates the pull, and zstd transfers less and decompresses faster than gzip. |
+| Run sage-extensions' own `just test` on the checkout the image installed | The recipe reads the QC plugins and `sage.just` from `~/ai-review-ci`; the job links its checkout of that repository there. |
+| Construct T_Co and compute its O(T_Co) generators | See the `consumer-mathematics` paragraph above. T_Co = ⟨2⟩ ⊕ U(2) ⊕ E8(2): rank 11, determinant −2048, signature (2, 9). |
+| Run sage-extensions' isotropic-line-orbit suite, and Run lattice-database's owner contracts | `-o addopts=` drops the consumer's own `--junit-xml` and `--report-log` (sage#40), so the step names them again, in the report folder that the job uploads, under names that the `just test` step does not use. |
+| Certify lattice-database card 6JRR | `--root` is necessary: the CLI root defaults to the working directory, which is the sage-extensions checkout of the job, and there `corpus.load` does not find `families.yaml` (run 42362483952: `FileNotFoundError`, exit 1). The corpus is the lattice-database checkout. |
+| Reproduce the stage-1 research records, and Reproduce the stage-1 known-family records | `coble_I18_vinberg-chamber` is the stage-2 record: Vinberg's algorithm on I_{1,8} with candidates k_0 ≥ 1, nine walls, and its printed Gram matrix is the comparison target. The step compares the whole body after the provenance block. Two forms of elapsed time are removed before the comparison and printed as diagnostics: a trailing `(152 s)`, and prose such as `materialised in 29.8s` or `built in 295 s` (sage#16; run 42362483952 on `coble_isotropic_orbits`). Each other character is compared, and a changed mathematical value fails the step with its diff. |
+| Read the I_{1,8} chamber with CoxIter | `set -e` is necessary: the acceptance is a Python assertion, and without it a failed comparison falls through and the step stays green. CoxIter reads a graph file whose first line is the vertex count, then one `<a> <b> <order>` per edge. A research record is not that format: in run 42362483952 CoxIter read the digits of the first root line as a vertex count and reported an eight-vertex simplex. The step builds the graph from the `walls: 9` line and the `edges (i, j, label)` list of the record. The verdict of the engine (cocompactness, covolume, characteristic) is evidence, not a gate, so that call may exit non-zero. The acceptance is the reading: the Coxeter matrix that `-pcm` prints (m_ij = 2 where there is no edge) must equal, entry by entry, the matrix of the edge list of the record, and that call must exit 0. |
+| Show the layer media types it published | The step reads the digest that a runner pulls and the compression of its layers. |

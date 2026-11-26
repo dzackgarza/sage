@@ -29,17 +29,16 @@ the recorded head, and the failure it raises for a source with no recorded
 head -- which the current check passes whenever the checkout happens to sit at
 the locked commit, the very agreement sage#24 retires.
 
-A git source of the lock is not always a repository of the image. Image run
-43535626055 (develop ``828086aa8f``) stopped its publish at the check on
-``microsoft-python-type-stubs``, a declared test dependency that ``uv.lock``
-takes from ``github.com/dzackgarza/python-type-stubs`` and that
-``docker/research-repositories.txt`` does not name: no build checks it out, so
-the /repos checkout and the recorded head the block demanded of every git source
-are things no build writes. The block now classifies each source by that list --
-the install's own input -- and holds a dependency to the commit ``uv.lock`` pins,
-which is what ``uv sync --frozen`` installs it at. The fixture here is the one
-that run's lock was: ``microsoft-python-type-stubs`` installed from a git commit
-and no record line, and the last test here is against this tree's own
+A git source of the lock is not always a repository of the image. The block
+classifies each source by ``docker/research-repositories.txt``, the install's
+own input. A source of ``github.com/dzackgarza`` is one of the owner's
+repositories, and the image takes each of those at the head of its main branch,
+never at a commit of the lock: such a source that the list does not name is a
+failure that names the list. ``microsoft-python-type-stubs`` from
+``github.com/dzackgarza/python-type-stubs`` was that case (sage#37 held it to
+the commit of the lock). A source of another owner is a dependency, and the
+block holds it to the commit ``uv.lock`` pins, which is what ``uv sync
+--frozen`` installs it at. The last tests here are against this tree's own
 ``uv.lock`` and ``docker/research-repositories.txt`` rather than a made-up pair.
 
     pytest docker/tests/test_research_revision_record.py
@@ -60,8 +59,11 @@ BLOCK_NEXT = "\nimport ast\nimport re\n"
 SANDBOX_PYTHON = "/usr/bin/python3"
 BOUND = 120
 
+OWNER = "https://github.com/dzackgarza/"
 STUBS_URL = "https://github.com/dzackgarza/python-type-stubs"
 STUBS_PINNED = "f7474b297f8764ad96db2e0ce9c0a7bd27fd8d59"
+THIRD_PARTY_URL = "https://github.com/third-party/upstream-package"
+THIRD_PARTY_PINNED = "3e1f0c9b7a2d4e6f8a0b1c2d3e4f5a6b7c8d9e0f"
 
 
 def git(directory: Path, *arguments: str) -> str:
@@ -150,8 +152,8 @@ class FakeImage:
     ``sage-categories`` contributes two packages, one from a subdirectory of the
     checkout. Each repository's main branch has moved past the commit the
     fixture lock holds, as every research main had when sage#24 was filed. The
-    third shape is ``microsoft-python-type-stubs``, a git source the image
-    installs and never checks out (sage#37).
+    third shape is ``upstream-package``, a git source of another owner that the
+    image installs and never checks out.
     """
 
     def __init__(self, root: Path) -> None:
@@ -185,8 +187,8 @@ name = 'dzack-research'
 source = {{ git = 'https://github.com/dzackgarza/research#{self.research_locked}' }}
 
 [[package]]
-name = 'microsoft-python-type-stubs'
-source = {{ git = '{STUBS_URL}?rev=main#{STUBS_PINNED}' }}
+name = 'upstream-package'
+source = {{ git = '{THIRD_PARTY_URL}?rev=main#{THIRD_PARTY_PINNED}' }}
 
 [[package]]
 name = 'python-flint'
@@ -202,8 +204,22 @@ source = {{ git = 'https://github.com/dzackgarza/sage-categories?subdirectory=na
 """,
             encoding="utf-8",
         )
-        installed_as_a_git_wheel(self.work, "microsoft-python-type-stubs", STUBS_PINNED, STUBS_URL)
+        installed_as_a_git_wheel(self.work, "upstream-package", THIRD_PARTY_PINNED, THIRD_PARTY_URL)
         self.at_heads()
+
+    def with_an_own_source_outside_the_list(self) -> None:
+        """A source of the owner that the list does not name, installed at a lock commit."""
+        lock = self.sage / "uv.lock"
+        lock.write_text(
+            lock.read_text(encoding="utf-8")
+            + f"""
+[[package]]
+name = 'microsoft-python-type-stubs'
+source = {{ git = '{STUBS_URL}.git?rev=main#{STUBS_PINNED}' }}
+""",
+            encoding="utf-8",
+        )
+        installed_as_a_git_wheel(self.work, "microsoft-python-type-stubs", STUBS_PINNED, STUBS_URL)
 
     def repository(self, name: str) -> Path:
         """A checkout under /repos, as the install leaves one: a real git tree."""
@@ -211,6 +227,7 @@ source = {{ git = 'https://github.com/dzackgarza/sage-categories?subdirectory=na
         subprocess.run(["git", "init", "--quiet", str(directory)], check=True)
         git(directory, "config", "user.email", "fixture@example.com")
         git(directory, "config", "user.name", "fixture")
+        git(directory, "config", "core.hooksPath", "/dev/null")
         return directory
 
     def at_heads(self) -> None:
@@ -337,35 +354,47 @@ def test_a_source_with_no_recorded_head_fails_even_at_the_locked_commit(image: F
 
 
 @requires_bwrap
-def test_a_dependency_outside_the_image_is_held_to_the_locks_commit_only(image: FakeImage):
-    """sage#37: a git source the image never checks out is no failed obligation.
+def test_a_source_of_another_owner_is_held_to_the_locks_commit_only(image: FakeImage):
+    """A git source of another owner that the image never checks out is no failed obligation.
 
-    microsoft-python-type-stubs is uv.lock's source of a declared test
-    dependency, and no repository of docker/research-repositories.txt. The image
-    installs it from its URL and records no head for it, so the check must hold
-    it to the lock's commit and nothing else -- the image run that held it to a
-    checkout and a record stopped a publish on a repository the image does not
-    carry.
+    The image installs it from its URL and records no head for it, so the check
+    holds it to the lock's commit and nothing else.
     """
-    assert not (image.repos / "python-type-stubs").exists()
+    assert not (image.repos / "upstream-package").exists()
     result = image.run()
     assert result.returncode == 0, result.stdout + result.stderr
     assert (
-        f"dependency microsoft-python-type-stubs: {STUBS_PINNED} "
+        f"dependency upstream-package: {THIRD_PARTY_PINNED} "
         "(git wheel, the lock's commit)"
     ) in result.stdout, result.stdout
-    assert "records no head for python-type-stubs" not in result.stderr, result.stderr
 
 
 @requires_bwrap
 def test_a_dependency_installed_at_another_commit_than_the_lock_pins_fails(image: FakeImage):
     """The lock is what a dependency's provenance is, so a moved install fails."""
     moved = "0" * 40
-    installed_as_a_git_wheel(image.work, "microsoft-python-type-stubs", moved, STUBS_URL)
+    installed_as_a_git_wheel(image.work, "upstream-package", moved, THIRD_PARTY_URL)
     result = image.run()
     assert result.returncode != 0, result.stdout
     assert moved in result.stderr, result.stderr
-    assert STUBS_PINNED in result.stderr, result.stderr
+    assert THIRD_PARTY_PINNED in result.stderr, result.stderr
+
+
+@requires_bwrap
+def test_an_own_source_outside_the_list_fails_naming_the_list(image: FakeImage):
+    """A repository of the owner is taken at its head, so a lock commit of one fails.
+
+    microsoft-python-type-stubs from github.com/dzackgarza/python-type-stubs,
+    installed at the commit of the lock and absent from
+    docker/research-repositories.txt, is the image taking a pinned commit of an
+    own repository.
+    """
+    image.with_an_own_source_outside_the_list()
+    result = image.run()
+    assert result.returncode != 0, result.stdout
+    assert "microsoft-python-type-stubs" in result.stderr, result.stderr
+    assert STUBS_URL in result.stderr, result.stderr
+    assert "research-repositories.txt" in result.stderr, result.stderr
 
 
 class RealImage:
@@ -374,8 +403,8 @@ class RealImage:
     The fixture lock is the one every build of the image syncs and the list is
     the one ``docker/install-research-repositories.sh`` reads, so what the block
     classifies here is what the image classifies: a checkout per research
-    repository the lock sources, at the head the install records, and one
-    dependency from a git URL the image does not carry.
+    repository the lock sources, at the head the install records, and a
+    dependency for each git URL of another owner.
     """
 
     def __init__(self, root: Path) -> None:
@@ -430,18 +459,19 @@ class RealImage:
         subprocess.run(["git", "init", "--quiet", str(directory)], check=True)
         git(directory, "config", "user.email", "fixture@example.com")
         git(directory, "config", "user.name", "fixture")
+        git(directory, "config", "core.hooksPath", "/dev/null")
         return directory
 
     def run(self) -> subprocess.CompletedProcess:
         return run_block(self.sage, self.repos, self.work)
 
 
-def test_the_lock_carries_a_git_source_that_is_not_a_research_repository() -> None:
-    """The condition sage#37 was filed under, out of the repository's own files.
+def test_each_own_git_source_of_the_lock_is_a_checked_out_repository() -> None:
+    """Every repository of the owner that the lock sources is taken at its head.
 
-    The recorded revision of a research repository is the head the install
-    checked out; a dependency the image takes from a git URL has no such head,
-    and treating the two alike is what failed the publish.
+    The install checks out and installs at the head each repository that
+    docker/research-repositories.txt names, so an own source the list does not
+    name is installed at the commit of the lock.
     """
     sources = {
         git_location(package["source"]["git"])
@@ -450,15 +480,14 @@ def test_the_lock_carries_a_git_source_that_is_not_a_research_repository() -> No
         )["package"]
         if package.get("source", {}).get("git")
     }
-    outside = sources - research_locations()
-    assert outside, "the lock sources only research repositories again; sage#37's case is gone"
+    outside = {source for source in sources if source.startswith(OWNER)} - research_locations()
+    assert not outside, sorted(outside)
 
 
 @requires_bwrap
-def test_the_repositorys_own_lock_holds_with_its_dependency_outside_the_image(tmp_path: Path):
+def test_the_repositorys_own_lock_holds(tmp_path: Path):
     """The block against develop's own uv.lock and research-repositories.txt."""
     image = RealImage(tmp_path)
-    assert image.dependency, sorted(image.sources)
     result = image.run()
     assert result.returncode == 0, result.stdout + result.stderr
     for name, source in image.sources.items():
