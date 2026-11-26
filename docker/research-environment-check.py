@@ -635,7 +635,7 @@ assert plane.stable_orthogonal_group().order() == 4
 assert julia.sage("1 // 2") == QQ(1) / 2
 julia.eval("using Oscar")
 assert julia.sage("ZZ(2)^10") == 1024
-assert julia.eval("JSON.json((a=1,))") == '{"a":1}'
+assert julia.eval("using JSON; JSON.json((a=1,))") == '{"a":1}'
 julia.quit()
 
 without_depot = {name: value for name, value in os.environ.items() if name != "JULIA_DEPOT_PATH"}
@@ -644,7 +644,7 @@ subprocess.run(
         "python",
         "-c",
         "from sage_julia_bridge import Julia; j = Julia();"
-        " assert j.eval('JSON.json((a=1,))') == '{\"a\":1}'; j.quit()",
+        " assert j.eval('using JSON; JSON.json((a=1,))') == '{\"a\":1}'; j.quit()",
     ],
     env=without_depot,
     check=True,
