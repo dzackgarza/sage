@@ -4,7 +4,10 @@
 Sage in: this tree built with CPython 3.14, GAP, Julia with Oscar/Hecke,
 Macaulay2, Singular, Normaliz, polymake, CoxIter, Lean/elan, and the document
 toolchain the project sites build with: quarto, a full TeX Live, pdf2svg,
-poppler-utils and node.  It is one image, built by `.github/workflows/research-environment-image.yml` from
+poppler-utils and node.  JupyterLab runs in it with the `sagemath`,
+`julia` (IJulia, on the image's Oscar depot) and `python3` kernels, whose
+specs are under `/sage/.venv/share/jupyter/kernels`; the build check executes
+a cell in the Sage and Julia kernels.  It is one image, built by `.github/workflows/research-environment-image.yml` from
 `docker/research-environment.Dockerfile`, published for linux/amd64 only.
 
 The fork's default branch is `develop`; there is no `main`.  The image is

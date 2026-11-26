@@ -655,6 +655,34 @@ subprocess.run(
     check=True,
 )
 
+from jupyter_client.manager import start_new_kernel
+
+
+def kernel_stdout(name: str, code: str) -> str:
+    manager, client = start_new_kernel(kernel_name=name, startup_timeout=600)
+    chunks: list[str] = []
+
+    def collect(message: dict[str, dict[str, str] | str]) -> None:
+        content = message["content"]
+        if message["msg_type"] == "stream" and isinstance(content, dict) and content["name"] == "stdout":
+            chunks.append(content["text"])
+
+    try:
+        reply = client.execute_interactive(code, output_hook=collect, timeout=900)
+    finally:
+        client.stop_channels()
+        manager.shutdown_kernel(now=True)
+    assert reply["content"]["status"] == "ok", (name, reply["content"])
+    return "".join(chunks).strip()
+
+
+assert kernel_stdout("sagemath", "print(matrix(QQ, [[2, 1], [1, 2]]).det())") == "3"
+oscar_stdout = kernel_stdout(
+    "julia",
+    'using Oscar; Qx, x = polynomial_ring(QQ, :x); K, a = number_field(x^2 - 2); println(degree(K), " ", a^2 == 2)',
+)
+assert oscar_stdout.splitlines()[-1] == "2 true", oscar_stdout
+
 import json
 
 unknown = [word for word in sys.argv[1:] if word.startswith("-")]

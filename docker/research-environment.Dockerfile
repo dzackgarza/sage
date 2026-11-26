@@ -273,6 +273,20 @@ RUN set -eu; \
     chmod -R a+rX /opt/julia-depot; \
     echo "depot resolved at build time against $("$jl" --version)"
 
+RUN set -eu; \
+    touch /tmp/before-kernels; \
+    JUPYTER_DATA_DIR=/sage/.venv/share/jupyter JUPYTER=/sage/.venv/bin/jupyter IJULIA_NODEFAULTKERNEL=1 \
+    julia --startup-file=no --color=no -e ' \
+        using Pkg; \
+        Pkg.add("IJulia"); \
+        Pkg.precompile(); \
+        using IJulia; \
+        installkernel("Julia"; specname="julia")'; \
+    /sage/.venv/bin/python -c 'import sys; from sage.repl.ipython_kernel.install import SageKernelSpec; SageKernelSpec.update(prefix=sys.prefix)'; \
+    find /opt/julia-depot -newer /tmp/before-kernels -exec chmod a+rX {} +; \
+    rm /tmp/before-kernels; \
+    jupyter kernelspec list
+
 FROM scratch AS lock
 COPY --from=environment /sage/uv.lock /uv.lock
 
